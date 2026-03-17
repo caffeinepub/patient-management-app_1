@@ -720,7 +720,6 @@ export default function PatientProfile() {
                 </p>
                 <div className="space-y-2">
                   {selectedRx.medications.map((med) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: medications have no stable id
                     <div key={med.name} className="bg-muted/40 rounded-lg p-3">
                       <p className="font-semibold">{med.name}</p>
                       <div className="text-xs text-muted-foreground mt-1 space-y-0.5">

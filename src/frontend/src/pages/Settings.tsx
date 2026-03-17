@@ -8,53 +8,48 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertTriangle,
-  LogOut,
-  Save,
-  Shield,
-  Stethoscope,
-  UserCircle,
-} from "lucide-react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AlertTriangle, LogOut, Save, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useGetCallerUserRole } from "../hooks/useQueries";
+import { useEmailAuth } from "../hooks/useEmailAuth";
 
-const DOCTOR_PROFILE_KEY = "doctor_profile";
-
-function loadDoctorProfile(): { name: string; degree: string } {
-  try {
-    const raw = localStorage.getItem(DOCTOR_PROFILE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { name: "", degree: "" };
-}
+const DESIGNATIONS = ["Dr.", "Prof.", "Assoc. Prof.", "Mr.", "Ms.", "Mrs."];
 
 export default function Settings() {
-  const { identity, clear } = useInternetIdentity();
-  const { data: role, isLoading: loadingRole } = useGetCallerUserRole();
+  const { currentDoctor, signOut, updateProfile } = useEmailAuth();
 
-  const principal = identity?.getPrincipal().toString() ?? "—";
-
-  const [doctorName, setDoctorName] = useState(() => loadDoctorProfile().name);
-  const [doctorDegree, setDoctorDegree] = useState(
-    () => loadDoctorProfile().degree,
+  const [name, setName] = useState(currentDoctor?.name ?? "");
+  const [email] = useState(currentDoctor?.email ?? "");
+  const [designation, setDesignation] = useState(
+    currentDoctor?.designation ?? "Dr.",
   );
+  const [degree, setDegree] = useState(currentDoctor?.degree ?? "");
+  const [specialization, setSpecialization] = useState(
+    currentDoctor?.specialization ?? "",
+  );
+  const [hospital, setHospital] = useState(currentDoctor?.hospital ?? "");
+  const [phone, setPhone] = useState(currentDoctor?.phone ?? "");
   const [saving, setSaving] = useState(false);
 
-  const handleSaveProfile = () => {
+  const handleSave = () => {
     setSaving(true);
     try {
-      localStorage.setItem(
-        DOCTOR_PROFILE_KEY,
-        JSON.stringify({
-          name: doctorName.trim(),
-          degree: doctorDegree.trim(),
-        }),
-      );
-      toast.success("Doctor profile saved successfully");
+      updateProfile({
+        name,
+        designation,
+        degree,
+        specialization,
+        hospital,
+        phone,
+      });
+      toast.success("Profile updated successfully");
     } catch {
       toast.error("Failed to save profile");
     } finally {
@@ -81,32 +76,88 @@ export default function Settings() {
             Doctor Profile
           </CardTitle>
           <CardDescription>
-            Your name and qualifications shown in the app header
+            Your credentials shown across the app
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label>Designation</Label>
+              <Select value={designation} onValueChange={setDesignation}>
+                <SelectTrigger data-ocid="settings.designation.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DESIGNATIONS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="settings-name">Full Name</Label>
+              <Input
+                id="settings-name"
+                placeholder="Arman Kabir"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                data-ocid="settings.doctor_name.input"
+              />
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label htmlFor="doctor-name">Doctor Name</Label>
+            <Label>Email (read-only)</Label>
             <Input
-              id="doctor-name"
-              placeholder="Dr. Arman Kabir"
-              value={doctorName}
-              onChange={(e) => setDoctorName(e.target.value)}
-              data-ocid="settings.doctor_name.input"
+              value={email}
+              readOnly
+              className="bg-muted text-muted-foreground cursor-not-allowed"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="doctor-degree">Degree / Qualification</Label>
+            <Label htmlFor="settings-degree">Degree / Qualifications</Label>
             <Input
-              id="doctor-degree"
+              id="settings-degree"
               placeholder="MBBS, MD, FCPS"
-              value={doctorDegree}
-              onChange={(e) => setDoctorDegree(e.target.value)}
+              value={degree}
+              onChange={(e) => setDegree(e.target.value)}
               data-ocid="settings.doctor_degree.input"
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-spec">Specialization</Label>
+            <Input
+              id="settings-spec"
+              placeholder="e.g. Pulmonology, Cardiology"
+              value={specialization}
+              onChange={(e) => setSpecialization(e.target.value)}
+              data-ocid="settings.specialization.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-hospital">Hospital / Clinic</Label>
+            <Input
+              id="settings-hospital"
+              placeholder="Dhaka Medical College Hospital"
+              value={hospital}
+              onChange={(e) => setHospital(e.target.value)}
+              data-ocid="settings.hospital.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-phone">Phone</Label>
+            <Input
+              id="settings-phone"
+              type="tel"
+              placeholder="+880 1XXXXXXXXX"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              data-ocid="settings.phone.input"
+            />
+          </div>
           <Button
-            onClick={handleSaveProfile}
+            onClick={handleSave}
             disabled={saving}
             className="gap-2"
             data-ocid="settings.doctor_profile.save_button"
@@ -117,37 +168,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Identity card */}
-      <Card className="mb-4">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UserCircle className="w-4 h-4" />
-            Identity
-          </CardTitle>
-          <CardDescription>Your Internet Identity credentials</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Principal</p>
-            <p className="text-sm font-mono bg-muted rounded-md px-3 py-2 break-all select-all">
-              {principal}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Role</p>
-            {loadingRole ? (
-              <Skeleton className="h-7 w-20" />
-            ) : (
-              <span className="inline-flex items-center gap-1.5 text-sm bg-primary/10 text-primary rounded-md px-2.5 py-1 font-medium capitalize">
-                <Shield className="w-3.5 h-3.5" />
-                {role ?? "—"}
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sign out card */}
+      {/* Sign out */}
       <Card className="border-destructive/20">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base text-destructive">
@@ -155,13 +176,13 @@ export default function Settings() {
             Sign Out
           </CardTitle>
           <CardDescription>
-            You will need to authenticate again to access the app.
+            You will need to sign in again to access the app.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
             variant="destructive"
-            onClick={clear}
+            onClick={signOut}
             className="gap-2"
             data-ocid="settings.delete_button"
           >

@@ -9,7 +9,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useEmailAuth } from "./hooks/useEmailAuth";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -22,31 +23,16 @@ const navigation = [
   { name: "Settings", href: "/Settings", icon: UserCircle },
 ];
 
-const DOCTOR_PROFILE_KEY = "doctor_profile";
-
-function loadDoctorProfile(): { name: string; degree: string } {
-  try {
-    const raw = localStorage.getItem(DOCTOR_PROFILE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { name: "", degree: "" };
-}
-
 export default function Layout({ children, currentPageName }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const state = useRouterState();
   const pathname = state.location.pathname;
+  const { currentDoctor } = useEmailAuth();
 
-  const [doctorProfile, setDoctorProfile] = useState(loadDoctorProfile);
-
-  useEffect(() => {
-    const onStorage = () => setDoctorProfile(loadDoctorProfile());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  const displayName = doctorProfile.name || "Dr. Arman Kabir's Care";
-  const displayDegree = doctorProfile.degree || "Patient Management";
+  const displayName = currentDoctor
+    ? `${currentDoctor.designation} ${currentDoctor.name}`.trim()
+    : "Dr. Arman Kabir's Care";
+  const displayDegree = currentDoctor?.degree || "Patient Management";
 
   const isActive = (name: string) => {
     if (name === "Patients") {
@@ -66,7 +52,6 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
       <header className="bg-card border-b border-border sticky top-0 z-50 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
             <Link
               to="/Patients"
               className="flex items-center gap-3 group"
@@ -85,7 +70,6 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
               </div>
             </Link>
 
-            {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-1">
               {navigation.map((item) => (
                 <Link
@@ -109,7 +93,6 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
               ))}
             </nav>
 
-            {/* Mobile menu toggle */}
             <Button
               variant="ghost"
               size="icon"
@@ -126,7 +109,6 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
           </div>
         </div>
 
-        {/* Mobile dropdown nav */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border bg-card">
             <nav className="p-3 space-y-1">
@@ -156,10 +138,8 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
         )}
       </header>
 
-      {/* Main content */}
       <main className="flex-1">{children}</main>
 
-      {/* Footer */}
       <footer className="hidden md:block border-t border-border bg-card">
         <div className="max-w-6xl mx-auto px-6 py-3">
           <p className="text-xs text-muted-foreground text-center">
@@ -176,7 +156,6 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
         </div>
       </footer>
 
-      {/* Mobile bottom nav */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
