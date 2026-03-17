@@ -1,8 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Menu, Stethoscope, UserCircle, Users, X } from "lucide-react";
-import { useState } from "react";
+import {
+  CalendarDays,
+  Menu,
+  Stethoscope,
+  UserCircle,
+  Users,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,13 +18,35 @@ interface LayoutProps {
 
 const navigation = [
   { name: "Patients", href: "/Patients", icon: Users },
+  { name: "Appointments", href: "/Appointments", icon: CalendarDays },
   { name: "Settings", href: "/Settings", icon: UserCircle },
 ];
+
+const DOCTOR_PROFILE_KEY = "doctor_profile";
+
+function loadDoctorProfile(): { name: string; degree: string } {
+  try {
+    const raw = localStorage.getItem(DOCTOR_PROFILE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { name: "", degree: "" };
+}
 
 export default function Layout({ children, currentPageName }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const state = useRouterState();
   const pathname = state.location.pathname;
+
+  const [doctorProfile, setDoctorProfile] = useState(loadDoctorProfile);
+
+  useEffect(() => {
+    const onStorage = () => setDoctorProfile(loadDoctorProfile());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const displayName = doctorProfile.name || "Dr. Arman Kabir's Care";
+  const displayDegree = doctorProfile.degree || "Patient Management";
 
   const isActive = (name: string) => {
     if (name === "Patients") {
@@ -48,10 +77,10 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
               </div>
               <div className="hidden sm:block">
                 <p className="font-display font-bold text-foreground text-base leading-none">
-                  MediCare
+                  {displayName}
                 </p>
                 <p className="text-xs text-muted-foreground leading-none mt-0.5">
-                  Patient Management
+                  {displayDegree}
                 </p>
               </div>
             </Link>

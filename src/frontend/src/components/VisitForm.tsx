@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Activity,
@@ -16,13 +17,18 @@ import {
   HelpCircle,
   Loader2,
   Plus,
+  Sparkles,
   Thermometer,
   Wind,
   X,
 } from "lucide-react";
 import { useState } from "react";
+import GastrointestinalExam from "./GastrointestinalExam";
 import InvestigationProfile from "./InvestigationProfile";
+import MusculoskeletalExam from "./MusculoskeletalExam";
+import NeurologicalExam from "./NeurologicalExam";
 import QuestionStepper from "./QuestionStepper";
+import RespiratoryExam from "./RespiratoryExam";
 import SystemicExaminationSection from "./SystemicExaminationSection";
 
 // ─── Data constants ───────────────────────────────────────────────────────────
@@ -577,10 +583,17 @@ interface VisitFormData {
   diagnosis?: string;
   notes?: string;
   other_medical_history?: string;
+  salient_features?: string;
 }
 
 interface VisitFormProps {
   patientId: bigint;
+  patient?: {
+    fullName?: string;
+    dateOfBirth?: bigint;
+    gender?: string;
+    address?: string;
+  };
   patientType?: string;
   visit?: Partial<VisitFormData>;
   onSubmit: (data: {
@@ -614,6 +627,7 @@ function nowDateTimeLocal() {
 
 export default function VisitForm({
   patientId,
+  patient,
   patientType,
   visit,
   onSubmit,
@@ -639,6 +653,7 @@ export default function VisitForm({
       immunization_history: "",
       allergy_history: "",
       drug_history: [{ drug_name: "", dose: "", daily_dose: "" }],
+      salient_features: "",
       obstetric_history: "",
       gynaecological_history: "",
       other_history: "",
@@ -692,9 +707,13 @@ export default function VisitForm({
   const [generalExamFindings, setGeneralExamFindings] = useState<
     Record<string, string>
   >({});
-  const [systemicExamFindings, setSystemicExamFindings] = useState<
+  const [systemicExamFindings, _setSystemicExamFindings] = useState<
     Record<string, string>
   >({});
+  const [respiratoryExam, setRespiratoryExam] = useState<any>({});
+  const [neurologicalExam, setNeurologicalExam] = useState<any>({});
+  const [gastrointestinalExam, setGastrointestinalExam] = useState<any>({});
+  const [musculoskeletalExam, setMusculoskeletalExam] = useState<any>({});
 
   const [showSurgicalQuestions, setShowSurgicalQuestions] = useState(false);
   const [showPersonalQuestions, setShowPersonalQuestions] = useState(false);
@@ -806,10 +825,6 @@ export default function VisitForm({
       ...prev,
       [finding]: prev[finding] === status ? "" : status,
     }));
-  };
-
-  const handleSystemicExamChange = (system: string, value: unknown) => {
-    setSystemicExamFindings((prev) => ({ ...prev, [system]: value as string }));
   };
 
   const addHistoryQuestion = (sectionKey: string) => {
@@ -1013,22 +1028,63 @@ export default function VisitForm({
 
     // Build physical examination text
     let physicalExamination: string | null = null;
-    if (visitType === "outdoor") {
+    {
       const genExamLines = Object.entries(generalExamFindings)
         .filter(([, v]) => v)
         .map(([k, v]) => `${k}: ${v}`);
       const sysExamLines = Object.entries(systemicExamFindings)
         .filter(([, v]) => v)
         .map(([k, v]) => `${k}: ${v}`);
+      const respLines = Object.entries(respiratoryExam)
+        .filter(
+          ([, v]) =>
+            v &&
+            (Array.isArray(v)
+              ? (v as string[]).length > 0
+              : typeof v === "object"
+                ? Object.keys(v as object).length > 0
+                : true),
+        )
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+      const neuroLines = Object.entries(neurologicalExam)
+        .filter(
+          ([, v]) =>
+            v &&
+            (Array.isArray(v)
+              ? (v as string[]).length > 0
+              : typeof v === "object"
+                ? Object.keys(v as object).length > 0
+                : true),
+        )
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+      const giLines = Object.entries(gastrointestinalExam)
+        .filter(
+          ([, v]) =>
+            v && (Array.isArray(v) ? (v as string[]).length > 0 : true),
+        )
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+      const mskLines = Object.entries(musculoskeletalExam)
+        .filter(
+          ([, v]) =>
+            v &&
+            (Array.isArray(v)
+              ? (v as string[]).length > 0
+              : typeof v === "object"
+                ? Object.keys(v as object).length > 0
+                : true),
+        )
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
       const parts = [
         genExamLines.length > 0 &&
           `General Examination:\n${genExamLines.join("\n")}`,
         sysExamLines.length > 0 &&
           `Systemic Examination:\n${sysExamLines.join("\n")}`,
+        respLines.length > 0 && `Respiratory Exam:\n${respLines.join("\n")}`,
+        neuroLines.length > 0 && `Neurological Exam:\n${neuroLines.join("\n")}`,
+        giLines.length > 0 && `Gastrointestinal Exam:\n${giLines.join("\n")}`,
+        mskLines.length > 0 && `Musculoskeletal Exam:\n${mskLines.join("\n")}`,
       ].filter(Boolean);
       physicalExamination = parts.length > 0 ? parts.join("\n\n") : null;
-    } else {
-      physicalExamination = formData.physical_examination?.trim() || null;
     }
 
     // Build vitalSigns
@@ -1079,6 +1135,109 @@ export default function VisitForm({
       notes,
       visitType,
     });
+  };
+
+  const generateSalientFeatures = (): string => {
+    // Patient info
+    const title = patient?.gender?.toLowerCase() === "female" ? "Mrs/Ms" : "Mr";
+    const name = patient?.fullName || "...";
+    let age = "...";
+    if (patient?.dateOfBirth) {
+      const ms = Number(patient.dateOfBirth) / 1_000_000;
+      age = String(Math.floor((Date.now() - ms) / (365.25 * 24 * 3600 * 1000)));
+    }
+    const occupation = personalHistoryAnswers[3]?.trim() || "...";
+    const address = patient?.address?.trim() || "...";
+    const htn = medicalHistory.HTN === "+" ? "hypertensive" : "normotensive";
+    const dm = medicalHistory.DM === "+" ? "diabetic" : "nondiabetic";
+
+    // Chief complaints
+    const complaints =
+      selectedComplaints.length > 0
+        ? selectedComplaints.join(", ")
+        : formData.chief_complaint?.trim() || "...";
+
+    // Personal history - smoking
+    const smokingStatus = personalHistoryAnswers[0]?.trim();
+    const smokingLine =
+      smokingStatus && smokingStatus !== "Non-smoker"
+        ? `He/She is a ${smokingStatus.toLowerCase()}.`
+        : "";
+
+    // Family history - non-"No" entries
+    const familyLines = familyHistoryAnswers
+      .map((ans, i) =>
+        ans && ans !== "No"
+          ? `${familyHistoryQuestions[i].q.split("/")[0].trim()}: ${ans}`
+          : "",
+      )
+      .filter(Boolean);
+    const familyLine =
+      familyLines.length > 0
+        ? `On query, family history reveals ${familyLines.join("; ")}.`
+        : "";
+
+    // Drug history
+    const drugs = (formData.drug_history || []).filter((d) =>
+      d.drug_name?.trim(),
+    );
+    const drugLine =
+      drugs.length > 0
+        ? `He/She uses ${drugs.map((d) => d.drug_name.trim()).join(", ")}.`
+        : "";
+
+    // General examination
+    const genExamParts = Object.entries(generalExamFindings)
+      .filter(([k, v]) => v && !k.endsWith("_note"))
+      .map(([k, v]) => `${k}: ${v}`);
+    const genExamLine =
+      genExamParts.length > 0
+        ? `On general examination: ${genExamParts.join(", ")}.`
+        : "On general examination: within normal limits.";
+
+    // Systemic examination summary
+    const flattenExam = (
+      exam: Record<string, unknown>,
+      label: string,
+    ): string => {
+      const parts: string[] = [];
+      for (const [, v] of Object.entries(exam)) {
+        if (!v) continue;
+        if (Array.isArray(v) && v.length > 0) parts.push(...v.map(String));
+        else if (typeof v === "object" && v !== null) {
+          const sub = Object.values(v as Record<string, unknown>)
+            .filter(Boolean)
+            .map(String);
+          parts.push(...sub);
+        } else if (typeof v === "string" && v.trim()) parts.push(v);
+      }
+      return parts.length > 0
+        ? `${label}: ${parts.slice(0, 4).join(", ")}.`
+        : "";
+    };
+
+    const respLine = flattenExam(respiratoryExam, "Respiratory system");
+    const neuroLine = flattenExam(neurologicalExam, "Neurological system");
+    const giLine = flattenExam(gastrointestinalExam, "Gastrointestinal system");
+    const mskLine = flattenExam(musculoskeletalExam, "Musculoskeletal system");
+    const systemicLines = [respLine, neuroLine, giLine, mskLine].filter(
+      Boolean,
+    );
+    const systemicLine =
+      systemicLines.length > 0
+        ? `On systemic examination: ${systemicLines.join(" ")}`
+        : "";
+
+    const parts = [
+      `${title} ${name}, ${age} years old, ${occupation}, ${htn}, ${dm}, hailing from ${address}, presented with ${complaints}.`,
+      smokingLine,
+      familyLine,
+      drugLine,
+      genExamLine,
+      systemicLine,
+    ].filter(Boolean);
+
+    return `Salient Features\n\n${parts.join(" ")}`;
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -1819,78 +1978,155 @@ export default function VisitForm({
         </CardContent>
       </Card>
 
-      {/* Outdoor Examination */}
-      {visitType === "outdoor" && (
-        <Card className="border-slate-200">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium">Examination</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Label className="text-lg font-semibold">General Examination</Label>
-            {Object.entries(generalExaminationCategories).map(
-              ([category, options]) => (
-                <div key={category} className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">
-                    {category}
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {options.map((option) => (
-                      <Badge
-                        key={option}
-                        variant={
-                          generalExamFindings[category] === option
-                            ? "default"
-                            : "outline"
-                        }
-                        className={`cursor-pointer ${
-                          generalExamFindings[category] === option
-                            ? "bg-teal-600"
-                            : ""
-                        }`}
-                        onClick={() => toggleGeneralExam(category, option)}
-                      >
-                        {option}
-                      </Badge>
-                    ))}
-                  </div>
-                  <Input
-                    value={generalExamFindings[`${category}_note`] || ""}
-                    onChange={(e) =>
-                      setGeneralExamFindings((prev) => ({
-                        ...prev,
-                        [`${category}_note`]: e.target.value,
-                      }))
-                    }
-                    placeholder={`Add note for ${category}...`}
-                    className="h-9 text-sm bg-slate-50"
-                  />
+      {/* General Examination */}
+      <Card className="border-slate-200">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-medium">
+            General Examination / সাধারণ পরীক্ষা
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Object.entries(generalExaminationCategories).map(
+            ([category, options]) => (
+              <div key={category} className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">
+                  {category}
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((option) => (
+                    <Badge
+                      key={option}
+                      variant={
+                        generalExamFindings[category] === option
+                          ? "default"
+                          : "outline"
+                      }
+                      className={`cursor-pointer ${
+                        generalExamFindings[category] === option
+                          ? "bg-teal-600"
+                          : ""
+                      }`}
+                      onClick={() => toggleGeneralExam(category, option)}
+                    >
+                      {option}
+                    </Badge>
+                  ))}
                 </div>
-              ),
-            )}
+                <Input
+                  value={generalExamFindings[`${category}_note`] || ""}
+                  onChange={(e) =>
+                    setGeneralExamFindings((prev) => ({
+                      ...prev,
+                      [`${category}_note`]: e.target.value,
+                    }))
+                  }
+                  placeholder={`Add note for ${category}...`}
+                  className="h-9 text-sm bg-slate-50"
+                />
+              </div>
+            ),
+          )}
+        </CardContent>
+      </Card>
 
-            <SystemicExaminationSection
-              systemicExamFindings={systemicExamFindings}
-              onSystemicExamChange={handleSystemicExamChange}
-            />
-          </CardContent>
-        </Card>
-      )}
+      {/* Systemic Examination */}
+      <Card className="border-slate-200">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-medium">
+            Systemic Examination / পদ্ধতিগত পরীক্ষা
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="respiratory">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger
+                value="respiratory"
+                data-ocid="systemic.respiratory.tab"
+              >
+                Respiratory
+              </TabsTrigger>
+              <TabsTrigger
+                value="neurological"
+                data-ocid="systemic.neurological.tab"
+              >
+                Neurological
+              </TabsTrigger>
+              <TabsTrigger
+                value="gastrointestinal"
+                data-ocid="systemic.gastrointestinal.tab"
+              >
+                GI
+              </TabsTrigger>
+              <TabsTrigger
+                value="musculoskeletal"
+                data-ocid="systemic.musculoskeletal.tab"
+              >
+                MSK
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="respiratory">
+              <RespiratoryExam
+                data={respiratoryExam}
+                onChange={setRespiratoryExam}
+              />
+            </TabsContent>
+            <TabsContent value="neurological">
+              <NeurologicalExam
+                data={neurologicalExam}
+                onChange={setNeurologicalExam}
+              />
+            </TabsContent>
+            <TabsContent value="gastrointestinal">
+              <GastrointestinalExam
+                data={gastrointestinalExam}
+                onChange={setGastrointestinalExam}
+              />
+            </TabsContent>
+            <TabsContent value="musculoskeletal">
+              <MusculoskeletalExam
+                data={musculoskeletalExam}
+                onChange={setMusculoskeletalExam}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
-      {/* Admitted Physical Exam */}
-      {visitType === "admitted" && (
-        <div className="space-y-2">
-          <Label htmlFor="physical_examination">Physical Examination</Label>
+      {/* Salient Features */}
+      <Card className="border-slate-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-medium flex items-center justify-between">
+            <span>Salient Features / বিশেষ বৈশিষ্ট্য</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const generated = generateSalientFeatures();
+                handleChange("salient_features", generated);
+              }}
+              className="flex items-center gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"
+              data-ocid="salient_features.button"
+            >
+              <Sparkles className="h-4 w-4" />
+              Auto-Generate
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           <Textarea
-            id="physical_examination"
-            value={formData.physical_examination || ""}
-            onChange={(e) =>
-              handleChange("physical_examination", e.target.value)
-            }
-            placeholder="Physical examination findings..."
-            rows={4}
+            value={formData.salient_features || ""}
+            onChange={(e) => handleChange("salient_features", e.target.value)}
+            placeholder="Click 'Auto-Generate' to build the salient features from form data, or type manually..."
+            rows={12}
+            className="bg-slate-50 font-mono text-sm leading-relaxed"
+            data-ocid="salient_features.textarea"
           />
-        </div>
-      )}
+          <p className="text-xs text-slate-400 mt-2">
+            Auto-generated from entered data. You can edit the text freely.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Outdoor extra sections */}
       {visitType === "outdoor" && (

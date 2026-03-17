@@ -12,6 +12,7 @@ import { Loader2, Stethoscope } from "lucide-react";
 import { motion } from "motion/react";
 import Layout from "./Layout";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import Appointments from "./pages/Appointments";
 import PatientProfile from "./pages/PatientProfile";
 import Patients from "./pages/Patients";
 import Settings from "./pages/Settings";
@@ -24,7 +25,9 @@ function RootLayoutComponent() {
   const currentPageName =
     pathname === "/" || pathname === "/Patients"
       ? "Patients"
-      : pathname.replace(/^\//, "");
+      : pathname === "/Appointments"
+        ? "Appointments"
+        : pathname.replace(/^\//, "");
   return (
     <Layout currentPageName={currentPageName}>
       <Outlet />
@@ -58,11 +61,18 @@ const settingsRoute = createRoute({
   component: Settings,
 });
 
+const appointmentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/Appointments",
+  component: Appointments,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   patientsRoute,
   patientProfileRoute,
   settingsRoute,
+  appointmentsRoute,
 ]);
 
 const router = createRouter({ routeTree });

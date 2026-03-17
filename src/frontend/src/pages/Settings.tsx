@@ -6,16 +6,61 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, LogOut, Shield, UserCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  LogOut,
+  Save,
+  Shield,
+  Stethoscope,
+  UserCircle,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useGetCallerUserRole } from "../hooks/useQueries";
+
+const DOCTOR_PROFILE_KEY = "doctor_profile";
+
+function loadDoctorProfile(): { name: string; degree: string } {
+  try {
+    const raw = localStorage.getItem(DOCTOR_PROFILE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { name: "", degree: "" };
+}
 
 export default function Settings() {
   const { identity, clear } = useInternetIdentity();
   const { data: role, isLoading: loadingRole } = useGetCallerUserRole();
 
   const principal = identity?.getPrincipal().toString() ?? "—";
+
+  const [doctorName, setDoctorName] = useState(() => loadDoctorProfile().name);
+  const [doctorDegree, setDoctorDegree] = useState(
+    () => loadDoctorProfile().degree,
+  );
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProfile = () => {
+    setSaving(true);
+    try {
+      localStorage.setItem(
+        DOCTOR_PROFILE_KEY,
+        JSON.stringify({
+          name: doctorName.trim(),
+          degree: doctorDegree.trim(),
+        }),
+      );
+      toast.success("Doctor profile saved successfully");
+    } catch {
+      toast.error("Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -28,7 +73,51 @@ export default function Settings() {
         </p>
       </div>
 
-      {/* Profile card */}
+      {/* Doctor Profile card */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Stethoscope className="w-4 h-4" />
+            Doctor Profile
+          </CardTitle>
+          <CardDescription>
+            Your name and qualifications shown in the app header
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="doctor-name">Doctor Name</Label>
+            <Input
+              id="doctor-name"
+              placeholder="Dr. Arman Kabir"
+              value={doctorName}
+              onChange={(e) => setDoctorName(e.target.value)}
+              data-ocid="settings.doctor_name.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="doctor-degree">Degree / Qualification</Label>
+            <Input
+              id="doctor-degree"
+              placeholder="MBBS, MD, FCPS"
+              value={doctorDegree}
+              onChange={(e) => setDoctorDegree(e.target.value)}
+              data-ocid="settings.doctor_degree.input"
+            />
+          </div>
+          <Button
+            onClick={handleSaveProfile}
+            disabled={saving}
+            className="gap-2"
+            data-ocid="settings.doctor_profile.save_button"
+          >
+            <Save className="w-4 h-4" />
+            Save Profile
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Identity card */}
       <Card className="mb-4">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">

@@ -489,28 +489,33 @@ export default function PatientProfile() {
       {/* New Visit Dialog */}
       <Dialog open={showVisitForm} onOpenChange={setShowVisitForm}>
         <DialogContent
-          className="max-w-xl max-h-[90vh] overflow-y-auto"
+          className="max-w-none w-screen h-screen rounded-none p-0 flex flex-col"
           data-ocid="patient_profile.visits.dialog"
         >
-          <DialogHeader>
-            <DialogTitle>Record Visit</DialogTitle>
-          </DialogHeader>
-          {patientId && (
-            <VisitForm
-              patientId={patientId}
-              onSubmit={(data) => {
-                createVisitMutation.mutate(data, {
-                  onSuccess: () => {
-                    toast.success("Visit recorded");
-                    setShowVisitForm(false);
-                  },
-                  onError: () => toast.error("Failed to record visit"),
-                });
-              }}
-              onCancel={() => setShowVisitForm(false)}
-              isLoading={createVisitMutation.isPending}
-            />
-          )}
+          <div className="flex flex-col h-full overflow-hidden">
+            <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+              <DialogTitle>Record Visit</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {patientId && (
+                <VisitForm
+                  patientId={patientId}
+                  patient={patient}
+                  onSubmit={(data) => {
+                    createVisitMutation.mutate(data, {
+                      onSuccess: () => {
+                        toast.success("Visit recorded");
+                        setShowVisitForm(false);
+                      },
+                      onError: () => toast.error("Failed to record visit"),
+                    });
+                  }}
+                  onCancel={() => setShowVisitForm(false)}
+                  isLoading={createVisitMutation.isPending}
+                />
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
