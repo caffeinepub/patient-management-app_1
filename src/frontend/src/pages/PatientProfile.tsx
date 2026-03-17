@@ -22,6 +22,7 @@ import {
   MapPin,
   Phone,
   Plus,
+  Printer,
   Scissors,
   Stethoscope,
   User,
@@ -156,6 +157,9 @@ export default function PatientProfile() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showVisitForm, setShowVisitForm] = useState(false);
   const [showRxForm, setShowRxForm] = useState(false);
+  const [rxInitialDiagnosis, setRxInitialDiagnosis] = useState<
+    string | undefined
+  >(undefined);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
 
@@ -168,6 +172,16 @@ export default function PatientProfile() {
   const updateMutation = useUpdatePatient();
   const createVisitMutation = useCreateVisit();
   const createRxMutation = useCreatePrescription();
+
+  const openRxForm = (diagnosis?: string) => {
+    setRxInitialDiagnosis(diagnosis);
+    setShowRxForm(true);
+  };
+
+  const closeRxForm = () => {
+    setShowRxForm(false);
+    setRxInitialDiagnosis(undefined);
+  };
 
   if (loadingPatient) {
     return (
@@ -210,7 +224,6 @@ export default function PatientProfile() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-      {/* Back */}
       <button
         type="button"
         onClick={() => navigate({ to: "/Patients" })}
@@ -221,7 +234,6 @@ export default function PatientProfile() {
         Back to Patients
       </button>
 
-      {/* Patient Header */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -285,7 +297,6 @@ export default function PatientProfile() {
               </Button>
             </div>
 
-            {/* Contact row */}
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-muted-foreground">
               {patient.phone && (
                 <span className="flex items-center gap-1">
@@ -307,7 +318,6 @@ export default function PatientProfile() {
               )}
             </div>
 
-            {/* Medical alerts */}
             {(patient.allergies.length > 0 ||
               patient.chronicConditions.length > 0 ||
               patient.pastSurgicalHistory) && (
@@ -342,7 +352,6 @@ export default function PatientProfile() {
         </div>
       </motion.div>
 
-      {/* Tabs */}
       <Tabs defaultValue="visits">
         <TabsList className="mb-4">
           <TabsTrigger value="visits" data-ocid="patient_profile.tab">
@@ -355,7 +364,6 @@ export default function PatientProfile() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Visits tab */}
         <TabsContent value="visits" className="space-y-3 mt-0">
           <div className="flex justify-end">
             <Button
@@ -405,11 +413,10 @@ export default function PatientProfile() {
           )}
         </TabsContent>
 
-        {/* Prescriptions tab */}
         <TabsContent value="prescriptions" className="space-y-3 mt-0">
           <div className="flex justify-end">
             <Button
-              onClick={() => setShowRxForm(true)}
+              onClick={() => openRxForm(undefined)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
               data-ocid="patient_profile.prescriptions.open_modal_button"
             >
@@ -520,27 +527,44 @@ export default function PatientProfile() {
       </Dialog>
 
       {/* New Prescription Dialog */}
-      <Dialog open={showRxForm} onOpenChange={setShowRxForm}>
+      <Dialog
+        open={showRxForm}
+        onOpenChange={(open) => {
+          if (!open) closeRxForm();
+        }}
+      >
         <DialogContent
-          className="max-w-xl max-h-[90vh] overflow-y-auto"
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
           data-ocid="patient_profile.prescriptions.dialog"
         >
           <DialogHeader>
-            <DialogTitle>New Prescription</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              New Prescription
+              {rxInitialDiagnosis && (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-teal-300 text-teal-700 bg-teal-50"
+                >
+                  DIMS Active
+                </Badge>
+              )}
+            </DialogTitle>
           </DialogHeader>
           {patientId && (
             <PrescriptionForm
               patientId={patientId}
+              patientName={patient.fullName}
+              initialDiagnosis={rxInitialDiagnosis}
               onSubmit={(data) => {
                 createRxMutation.mutate(data, {
                   onSuccess: () => {
                     toast.success("Prescription saved");
-                    setShowRxForm(false);
+                    closeRxForm();
                   },
                   onError: () => toast.error("Failed to save prescription"),
                 });
               }}
-              onCancel={() => setShowRxForm(false)}
+              onCancel={closeRxForm}
               isLoading={createRxMutation.isPending}
             />
           )}
@@ -670,15 +694,24 @@ export default function PatientProfile() {
               <div className="pt-2">
                 <Button
                   onClick={() => {
+                    const dx = selectedVisit.diagnosis ?? undefined;
                     setSelectedVisit(null);
-                    setShowRxForm(true);
+                    openRxForm(dx);
                   }}
                   variant="outline"
-                  className="gap-2"
+                  className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50"
                   data-ocid="patient_profile.visits.secondary_button"
                 >
                   <FileText className="w-4 h-4" />
                   Write Prescription
+                  {selectedVisit.diagnosis && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-teal-300 text-teal-600 ml-1"
+                    >
+                      DIMS
+                    </Badge>
+                  )}
                 </Button>
               </div>
             </div>
@@ -700,9 +733,21 @@ export default function PatientProfile() {
           </DialogHeader>
           {selectedRx && (
             <div className="space-y-4 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                {formatTime(selectedRx.prescriptionDate)}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Clock className="w-4 h-4" />
+                  {formatTime(selectedRx.prescriptionDate)}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="gap-2 h-8 border-teal-300 text-teal-700 hover:bg-teal-50"
+                  data-ocid="patient_profile.prescriptions.secondary_button"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Print
+                </Button>
               </div>
               {selectedRx.diagnosis && (
                 <div>
@@ -719,8 +764,11 @@ export default function PatientProfile() {
                   Medications
                 </p>
                 <div className="space-y-2">
-                  {selectedRx.medications.map((med) => (
-                    <div key={med.name} className="bg-muted/40 rounded-lg p-3">
+                  {selectedRx.medications.map((med, i) => (
+                    <div
+                      key={`${med.name}-${i}`}
+                      className="bg-muted/40 rounded-lg p-3"
+                    >
                       <p className="font-semibold">{med.name}</p>
                       <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                         {med.dose && <p>Dose: {med.dose}</p>}
