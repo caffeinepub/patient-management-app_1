@@ -13,6 +13,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
 import type { Patient } from "../backend.d";
+function cmToFeetInches(cm: number): string {
+  const totalInches = cm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches % 12);
+  return `${feet}'${inches}"`;
+}
+
+function feetInchesToCm(str: string): number | null {
+  const match = str.match(/(\d+)['\s]*(?:ft)?['\s]*(\d*)["\s]*(?:in)?/i);
+  if (!match) return null;
+  const feet = Number.parseInt(match[1]) || 0;
+  const inches = Number.parseInt(match[2]) || 0;
+  const cm = feet * 30.48 + inches * 2.54;
+  return cm > 0 ? Math.round(cm * 10) / 10 : null;
+}
 
 interface PatientFormData {
   fullName: string;
@@ -60,7 +75,7 @@ export default function PatientForm({
     address: patient?.address ?? "",
     bloodGroup: patient?.bloodGroup ?? "unknown",
     weight: patient?.weight != null ? String(patient.weight) : "",
-    height: patient?.height != null ? String(patient.height) : "",
+    height: patient?.height != null ? cmToFeetInches(patient.height) : "",
     patientType: patient?.patientType ?? "outdoor",
     pastSurgicalHistory: patient?.pastSurgicalHistory ?? "",
   });
@@ -111,7 +126,7 @@ export default function PatientForm({
       bloodGroup:
         form.bloodGroup === "unknown" ? null : form.bloodGroup || null,
       weight: form.weight ? Number.parseFloat(form.weight) : null,
-      height: form.height ? Number.parseFloat(form.height) : null,
+      height: form.height ? feetInchesToCm(form.height) : null,
       allergies,
       chronicConditions: conditions,
       pastSurgicalHistory: form.pastSurgicalHistory.trim() || null,
@@ -261,14 +276,13 @@ export default function PatientForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="height">Height (cm)</Label>
+          <Label htmlFor="height">Height</Label>
           <Input
             id="height"
             value={form.height}
             onChange={(e) => set("height", e.target.value)}
-            placeholder="170"
-            type="number"
-            step="0.1"
+            placeholder={"5'8\""}
+            type="text"
           />
         </div>
       </div>

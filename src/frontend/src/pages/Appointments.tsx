@@ -16,6 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -25,6 +33,7 @@ import {
   CheckCircle2,
   Clock,
   Edit2,
+  Inbox,
   ListOrdered,
   Loader2,
   Plus,
@@ -861,10 +870,145 @@ function AppointmentsTab() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── Public Booking Requests ─────────────────────────────────────────────────
+
+interface PublicBooking {
+  id: string;
+  patientName: string;
+  phone: string;
+  doctor: string;
+  date: string;
+  reason: string;
+  submittedAt: string;
+  status: "pending" | "confirmed" | "cancelled";
+}
+
+function loadPublicBookings(): PublicBooking[] {
+  try {
+    return JSON.parse(
+      localStorage.getItem("public_appointment_requests") || "[]",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function savePublicBookings(data: PublicBooking[]) {
+  localStorage.setItem("public_appointment_requests", JSON.stringify(data));
+}
+
+function PublicBookingRequestsTab() {
+  const [bookings, setBookings] = useState<PublicBooking[]>(loadPublicBookings);
+
+  const updateStatus = (id: string, status: PublicBooking["status"]) => {
+    const updated = bookings.map((b) => (b.id === id ? { ...b, status } : b));
+    setBookings(updated);
+    savePublicBookings(updated);
+    toast.success(`Booking marked as ${status}.`);
+  };
+
+  const statusBadge = (status: PublicBooking["status"]) => {
+    const map: Record<string, string> = {
+      pending: "bg-yellow-100 text-yellow-800",
+      confirmed: "bg-green-100 text-green-800",
+      cancelled: "bg-red-100 text-red-800",
+    };
+    return (
+      <span
+        className={`text-xs font-semibold px-2 py-0.5 rounded-full ${map[status]}`}
+      >
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  };
+
+  if (bookings.length === 0) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3"
+        data-ocid="public_bookings.empty_state"
+      >
+        <Inbox className="w-10 h-10 opacity-40" />
+        <p className="text-sm">No public booking requests yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-ocid="public_bookings.table">
+      <p className="text-sm text-muted-foreground">
+        {bookings.length} request{bookings.length !== 1 ? "s" : ""} from the
+        public booking form.
+      </p>
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Patient</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Doctor</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Reason</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {bookings.map((b, idx) => (
+              <TableRow
+                key={b.id}
+                data-ocid={`public_bookings.item.${idx + 1}`}
+              >
+                <TableCell className="font-medium">{b.patientName}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {b.phone}
+                </TableCell>
+                <TableCell className="text-sm">{b.doctor}</TableCell>
+                <TableCell className="text-sm">{b.date}</TableCell>
+                <TableCell className="text-sm max-w-xs truncate text-muted-foreground">
+                  {b.reason || "—"}
+                </TableCell>
+                <TableCell>{statusBadge(b.status)}</TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    {b.status !== "confirmed" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs text-green-700 border-green-300 hover:bg-green-50"
+                        onClick={() => updateStatus(b.id, "confirmed")}
+                        data-ocid={`public_bookings.confirm_button.${idx + 1}`}
+                      >
+                        Confirm
+                      </Button>
+                    )}
+                    {b.status !== "cancelled" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
+                        onClick={() => updateStatus(b.id, "cancelled")}
+                        data-ocid={`public_bookings.delete_button.${idx + 1}`}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function Appointments() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Page heading */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -879,7 +1023,7 @@ export default function Appointments() {
               Appointments
             </h1>
             <p className="text-sm text-muted-foreground">
-              Doctor serial & appointment schedule
+              Doctor serial, appointment schedule & public booking requests
             </p>
           </div>
         </div>
@@ -903,6 +1047,14 @@ export default function Appointments() {
             <CalendarDays className="w-4 h-4" />
             Appointments
           </TabsTrigger>
+          <TabsTrigger
+            value="public"
+            className="gap-2"
+            data-ocid="appointments.public.tab"
+          >
+            <Inbox className="w-4 h-4" />
+            Public Requests
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="serial" className="mt-0">
@@ -911,6 +1063,10 @@ export default function Appointments() {
 
         <TabsContent value="appointments" className="mt-0">
           <AppointmentsTab />
+        </TabsContent>
+
+        <TabsContent value="public" className="mt-0">
+          <PublicBookingRequestsTab />
         </TabsContent>
       </Tabs>
     </div>

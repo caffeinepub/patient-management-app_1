@@ -496,7 +496,7 @@ export default function PatientProfile() {
       {/* New Visit Dialog */}
       <Dialog open={showVisitForm} onOpenChange={setShowVisitForm}>
         <DialogContent
-          className="max-w-none w-screen h-screen rounded-none p-0 flex flex-col"
+          className="!max-w-none !w-screen !h-screen !rounded-none !top-0 !left-0 ![transform:none] p-0 flex flex-col overflow-hidden"
           data-ocid="patient_profile.visits.dialog"
         >
           <div className="flex flex-col h-full overflow-hidden">

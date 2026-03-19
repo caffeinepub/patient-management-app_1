@@ -544,6 +544,7 @@ interface VitalSignsForm {
   temperature: string | number;
   respiratory_rate: string | number;
   oxygen_saturation: string | number;
+  height?: string;
 }
 
 interface VisitFormData {
@@ -664,6 +665,7 @@ export default function VisitForm({
         temperature: "",
         respiratory_rate: "",
         oxygen_saturation: "",
+        height: "",
       },
       general_examination: {},
       systemic_examination: {},
@@ -1972,6 +1974,16 @@ export default function VisitForm({
                 handleVitalChange("oxygen_saturation", e.target.value)
               }
               placeholder="98"
+              className="h-10"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-slate-500">Height</Label>
+            <Input
+              type="text"
+              value={formData.vital_signs?.height || ""}
+              onChange={(e) => handleVitalChange("height", e.target.value)}
+              placeholder={"5'8\""}
               className="h-10"
             />
           </div>
