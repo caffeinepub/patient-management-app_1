@@ -20,6 +20,7 @@ import {
   Heart,
   Mail,
   MapPin,
+  Pencil,
   Phone,
   Plus,
   Printer,
@@ -163,6 +164,7 @@ export default function PatientProfile() {
   >(undefined);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
+  const [editRx, setEditRx] = useState<Prescription | null>(null);
   const [showPadPreview, setShowPadPreview] = useState(false);
   const [padPrescription, setPadPrescription] = useState<Prescription | null>(
     null,
@@ -753,6 +755,19 @@ export default function PatientProfile() {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => {
+                      setEditRx(selectedRx);
+                      setSelectedRx(null);
+                    }}
+                    className="gap-2 h-8 border-amber-300 text-amber-700 hover:bg-amber-50"
+                    data-ocid="patient_profile.prescriptions.edit_button"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => openPadPreview(selectedRx)}
                     className="gap-2 h-8 border-blue-300 text-blue-700 hover:bg-blue-50"
                     data-ocid="patient_profile.prescriptions.secondary_button"
@@ -812,6 +827,51 @@ export default function PatientProfile() {
                 </div>
               )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Prescription Dialog */}
+      <Dialog
+        open={!!editRx}
+        onOpenChange={(open) => {
+          if (!open) setEditRx(null);
+        }}
+      >
+        <DialogContent
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          data-ocid="patient_profile.prescriptions.edit_modal"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Edit Prescription
+              <span className="text-xs font-normal text-muted-foreground">
+                (saves as new copy)
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          {editRx && patientId && (
+            <PrescriptionForm
+              patientId={patientId}
+              patientName={patient.fullName}
+              initialData={{
+                prescriptionDate: editRx.prescriptionDate,
+                diagnosis: editRx.diagnosis ?? null,
+                medications: editRx.medications,
+                notes: editRx.notes ?? null,
+              }}
+              onSubmit={(data) => {
+                createRxMutation.mutate(data, {
+                  onSuccess: () => {
+                    toast.success("Edited prescription saved as new copy");
+                    setEditRx(null);
+                  },
+                  onError: () => toast.error("Failed to save prescription"),
+                });
+              }}
+              onCancel={() => setEditRx(null)}
+              isLoading={createRxMutation.isPending}
+            />
           )}
         </DialogContent>
       </Dialog>

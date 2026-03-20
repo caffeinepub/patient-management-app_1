@@ -21,11 +21,19 @@ import { useEffect, useRef, useState } from "react";
 import type { Medication } from "../backend.d";
 import { type DimsEntry, getDimsByDiagnosis, searchDims } from "./DimsData";
 
+interface InitialRxData {
+  prescriptionDate: bigint;
+  diagnosis: string | null;
+  medications: Medication[];
+  notes: string | null;
+}
+
 interface PrescriptionFormProps {
   patientId: bigint;
   visitId?: bigint;
   patientName?: string;
   initialDiagnosis?: string;
+  initialData?: InitialRxData;
   onSubmit: (data: {
     patientId: bigint;
     visitId: bigint | null;
@@ -106,6 +114,7 @@ export default function PrescriptionForm({
   visitId,
   patientName,
   initialDiagnosis,
+  initialData,
   onSubmit,
   onCancel,
   isLoading,
@@ -114,13 +123,35 @@ export default function PrescriptionForm({
     ? getDimsByDiagnosis(initialDiagnosis)
     : undefined;
 
-  const [prescriptionDate, setPrescriptionDate] = useState(todayDateString());
-  const [diagnosis, setDiagnosis] = useState(initialDiagnosis ?? "");
-  const [notes, setNotes] = useState("");
-  const [medications, setMedications] = useState<MedEntry[]>(
-    initEntry ? dimsEntryToMeds(initEntry) : [emptyMed()],
+  const initDateString = initialData
+    ? new Date(Number(initialData.prescriptionDate / 1000000n))
+        .toISOString()
+        .split("T")[0]
+    : todayDateString();
+
+  const [prescriptionDate, setPrescriptionDate] = useState(initDateString);
+  const [diagnosis, setDiagnosis] = useState(
+    initialData?.diagnosis ?? initialDiagnosis ?? "",
   );
-  const [dimsAutoFilled, setDimsAutoFilled] = useState(!!initEntry);
+  const [notes, setNotes] = useState(initialData?.notes ?? "");
+  const [medications, setMedications] = useState<MedEntry[]>(
+    initialData
+      ? initialData.medications.map((m) => ({
+          _uid: nextUid(),
+          name: m.name,
+          dose: m.dose,
+          frequency: m.frequency,
+          duration: m.duration,
+          instructions: m.instructions,
+          fromDims: false,
+        }))
+      : initEntry
+        ? dimsEntryToMeds(initEntry)
+        : [emptyMed()],
+  );
+  const [dimsAutoFilled, setDimsAutoFilled] = useState(
+    !!initEntry && !initialData,
+  );
   const [dimsNotes, setDimsNotes] = useState<string | undefined>(
     initEntry?.notes,
   );
@@ -333,6 +364,16 @@ export default function PrescriptionForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Edit copy banner */}
+      {initialData && (
+        <Alert className="border-amber-300 bg-amber-50 py-2.5">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-sm text-amber-800">
+            Editing a copy of this prescription. Saving will create a new
+            separate prescription.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Date */}
       <div className="space-y-1.5">
         <Label htmlFor="rxDate">Prescription Date</Label>
