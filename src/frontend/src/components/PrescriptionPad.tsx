@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
-import { useRef, useState } from "react";
+import { Pencil, Printer, Save } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { Prescription } from "../backend.d";
 
 interface PrescriptionPadProps {
@@ -66,6 +67,48 @@ function ConditionBox({ label }: { label: string }) {
   );
 }
 
+interface EditableSpanProps {
+  fieldKey: string;
+  value: string;
+  editMode: boolean;
+  editedFields: Record<string, string>;
+  onFieldChange: (key: string, val: string) => void;
+  style?: React.CSSProperties;
+  placeholder?: string;
+}
+
+function EditableSpan({
+  fieldKey,
+  value,
+  editMode,
+  editedFields,
+  onFieldChange,
+  style,
+  placeholder = "...",
+}: EditableSpanProps) {
+  const displayed = editedFields[fieldKey] ?? value;
+  return (
+    <span
+      contentEditable={editMode}
+      suppressContentEditableWarning
+      onBlur={(e) => onFieldChange(fieldKey, e.currentTarget.textContent || "")}
+      data-placeholder={placeholder}
+      style={{
+        outline: editMode ? "1px dashed #f59e0b" : "none",
+        minWidth: "40px",
+        display: "inline-block",
+        borderBottom: "1px solid #555",
+        paddingRight: "4px",
+        background: editMode ? "#fffbeb" : "transparent",
+        cursor: editMode ? "text" : "default",
+        ...style,
+      }}
+    >
+      {displayed || (editMode ? placeholder : "")}
+    </span>
+  );
+}
+
 export default function PrescriptionPad({
   prescription,
   patientName,
@@ -79,6 +122,22 @@ export default function PrescriptionPad({
   nextVisitDate,
 }: PrescriptionPadProps) {
   const [size, setSize] = useState<PadSize>("A4");
+  const [editMode, setEditMode] = useState(false);
+  const [editedFields, setEditedFields] = useState<Record<string, string>>({});
+
+  const rxId =
+    prescription?.id !== undefined ? String(prescription.id) : "blank";
+  const storageKey = `rx_pad_edits_${rxId}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) setEditedFields(JSON.parse(saved));
+    } catch {
+      // ignore
+    }
+  }, [storageKey]);
+
   const customPdfName = localStorage.getItem("prescription_pad_pdf_name");
   const customPdf = localStorage.getItem("prescription_pad_pdf");
   const padRef = useRef<HTMLDivElement>(null);
@@ -96,6 +155,20 @@ export default function PrescriptionPad({
   const medications = prescription?.medications ?? [];
   const diagnosis = prescription?.diagnosis ?? "";
 
+  const handleFieldChange = (key: string, val: string) => {
+    setEditedFields((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const handleSave = () => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(editedFields));
+      toast.success("Prescription updated");
+    } catch {
+      toast.error("Failed to save changes");
+    }
+    setEditMode(false);
+  };
+
   const handlePrint = () => {
     const printContent = padRef.current?.innerHTML ?? "";
     const pageSize = size === "A4" ? "A4" : "A5";
@@ -110,6 +183,7 @@ export default function PrescriptionPad({
     @page { size: ${pageSize}; margin: ${margin}; }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Arial, sans-serif; background: #fff; color: #111; }
+    [contenteditable] { outline: none !important; background: transparent !important; cursor: default !important; }
     @media print { body { margin: 0; } }
   </style>
 </head>
@@ -133,6 +207,9 @@ export default function PrescriptionPad({
   const padMinHeight = size === "A4" ? "297mm" : "210mm";
   const baseFontSize = size === "A4" ? "10px" : "9px";
 
+  const ef = editedFields;
+  const fc = handleFieldChange;
+
   return (
     <div>
       {customPdf && (
@@ -143,13 +220,13 @@ export default function PrescriptionPad({
           className="inline-flex items-center gap-1.5 mb-3 px-3 py-1.5 text-sm rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors font-medium"
           data-ocid="prescription_pad.secondary_button"
         >
-          uD83DuDCC4 View Uploaded Prescription Template
+          📄 View Uploaded Prescription Template
           {customPdfName ? ` (${customPdfName})` : ""}
         </a>
       )}
       {/* Toolbar — hidden on print */}
       <div
-        className="flex items-center gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg"
+        className="flex items-center gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap"
         style={{ fontFamily: "system-ui" }}
         data-ocid="prescription_pad.panel"
       >
@@ -178,17 +255,52 @@ export default function PrescriptionPad({
         >
           A5 (Half A4)
         </button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handlePrint}
-          className="ml-auto gap-2 border-teal-300 text-teal-700 hover:bg-teal-50"
-          data-ocid="prescription_pad.primary_button"
-        >
-          <Printer className="w-4 h-4" />
-          Print
-        </Button>
+
+        {/* Edit Mode Badge */}
+        {editMode && (
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+            ✏ Edit Mode
+          </span>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          {editMode ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSave}
+              className="gap-2 border-green-400 text-green-700 hover:bg-green-50"
+              data-ocid="prescription_pad.save_button"
+            >
+              <Save className="w-4 h-4" />
+              Save
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditMode(true)}
+              className="gap-2 border-amber-400 text-amber-700 hover:bg-amber-50"
+              data-ocid="prescription_pad.edit_button"
+            >
+              <Pencil className="w-4 h-4" />
+              Edit
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50"
+            data-ocid="prescription_pad.primary_button"
+          >
+            <Printer className="w-4 h-4" />
+            Print
+          </Button>
+        </div>
       </div>
 
       {/* Prescription Pad */}
@@ -229,7 +341,15 @@ export default function PrescriptionPad({
               }}
             >
               <span style={{ fontWeight: 700, fontSize: "10px" }}>S.N.</span>
-              <BlankLine width="80px" />
+              <EditableSpan
+                fieldKey="sn"
+                value=""
+                editMode={editMode}
+                editedFields={ef}
+                onFieldChange={fc}
+                style={{ minWidth: "80px" }}
+                placeholder="___"
+              />
             </div>
             <div style={{ marginBottom: "3px" }}>
               <span
@@ -251,9 +371,9 @@ export default function PrescriptionPad({
                 }}
               >
                 <div>ইউনিভার্সিটি ডেন্টাল কলেজ এন্ড হাসপাতাল</div>
-                <div>নিচ তলা ( সেন্তুরি আর্কেড নার্সিং মল ),</div>
-                <div>১২০/এ, আতাউর সার্কুলার রোড,</div>
-                <div>নিউমার্কেট ,ঢাকা .</div>
+                <div>নিচ তলা ( সেন্চুরি আর্কেড মল ),</div>
+                <div>১২০/এ, আউটার সার্কুলার রোড ,</div>
+                <div>মগবাজার ,ঢাকা .</div>
               </div>
             </div>
           </div>
@@ -277,7 +397,7 @@ export default function PrescriptionPad({
               <div>Emergency Medical Officer</div>
               <div>Dr. Sirajul Islam Medical College Hospital</div>
               <div>Registrar</div>
-              <div>Dept. of General Surgery JIDC</div>
+              <div>Dept. of General Surgery uDC</div>
               <div style={{ marginTop: "2px" }}>Reg. no. A-105224</div>
               <div style={{ marginTop: "3px" }}>Mob.no. 01751959262</div>
               <div style={{ paddingLeft: "38px" }}>01984587802</div>
@@ -306,68 +426,55 @@ export default function PrescriptionPad({
         >
           <span style={{ whiteSpace: "nowrap" }}>
             <span style={{ fontWeight: 700 }}>Name: </span>
-            {patientName ? (
-              <span
-                style={{
-                  borderBottom: "1px solid #555",
-                  paddingRight: "8px",
-                  minWidth: "120px",
-                  display: "inline-block",
-                }}
-              >
-                {patientName}
-              </span>
-            ) : (
-              <BlankLine width="130px" />
-            )}
+            <EditableSpan
+              fieldKey="patient_name"
+              value={patientName ?? ""}
+              editMode={editMode}
+              editedFields={ef}
+              onFieldChange={fc}
+              style={{ minWidth: "130px" }}
+              placeholder="Patient Name"
+            />
           </span>
           <span style={{ whiteSpace: "nowrap" }}>
             <span style={{ fontWeight: 700 }}>Age: </span>
-            {patientAge !== undefined && patientAge !== null ? (
-              <span
-                style={{
-                  borderBottom: "1px solid #555",
-                  paddingRight: "6px",
-                  display: "inline-block",
-                }}
-              >
-                {patientAge} yrs
-              </span>
-            ) : (
-              <BlankLine width="50px" />
-            )}
+            <EditableSpan
+              fieldKey="patient_age"
+              value={
+                patientAge !== undefined && patientAge !== null
+                  ? `${patientAge} yrs`
+                  : ""
+              }
+              editMode={editMode}
+              editedFields={ef}
+              onFieldChange={fc}
+              style={{ minWidth: "50px" }}
+              placeholder="Age"
+            />
           </span>
           <span style={{ whiteSpace: "nowrap" }}>
             <span style={{ fontWeight: 700 }}>Wt: </span>
-            {patientWeight ? (
-              <span
-                style={{
-                  borderBottom: "1px solid #555",
-                  paddingRight: "6px",
-                  display: "inline-block",
-                }}
-              >
-                {patientWeight}
-              </span>
-            ) : (
-              <BlankLine width="45px" />
-            )}
+            <EditableSpan
+              fieldKey="patient_wt"
+              value={patientWeight ?? ""}
+              editMode={editMode}
+              editedFields={ef}
+              onFieldChange={fc}
+              style={{ minWidth: "45px" }}
+              placeholder="Wt"
+            />
           </span>
           <span style={{ whiteSpace: "nowrap" }}>
             <span style={{ fontWeight: 700 }}>Date: </span>
-            {dateStr ? (
-              <span
-                style={{
-                  borderBottom: "1px solid #555",
-                  paddingRight: "6px",
-                  display: "inline-block",
-                }}
-              >
-                {dateStr}
-              </span>
-            ) : (
-              <BlankLine width="70px" />
-            )}
+            <EditableSpan
+              fieldKey="date"
+              value={dateStr}
+              editMode={editMode}
+              editedFields={ef}
+              onFieldChange={fc}
+              style={{ minWidth: "70px" }}
+              placeholder="Date"
+            />
           </span>
         </div>
 
@@ -407,19 +514,26 @@ export default function PrescriptionPad({
               >
                 C/C
               </div>
-              {chiefComplaints ? (
-                <div
-                  style={{
-                    fontSize: "9.5px",
-                    lineHeight: "1.7",
-                    borderBottom: "1px solid #aaa",
-                    paddingBottom: "2px",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {chiefComplaints}
-                </div>
-              ) : (
+              <span
+                contentEditable={editMode}
+                suppressContentEditableWarning
+                onBlur={(e) => fc("cc", e.currentTarget.textContent || "")}
+                style={{
+                  display: "block",
+                  fontSize: "9.5px",
+                  lineHeight: "1.7",
+                  borderBottom: "1px solid #aaa",
+                  paddingBottom: "2px",
+                  whiteSpace: "pre-wrap",
+                  outline: editMode ? "1px dashed #f59e0b" : "none",
+                  background: editMode ? "#fffbeb" : "transparent",
+                  minHeight: "36px",
+                  cursor: editMode ? "text" : "default",
+                }}
+              >
+                {ef.cc ?? chiefComplaints ?? ""}
+              </span>
+              {!(ef.cc ?? chiefComplaints) && !editMode && (
                 <div style={{ lineHeight: "1.8" }}>
                   <BlankLine width="100%" />
                   <br />
@@ -456,19 +570,26 @@ export default function PrescriptionPad({
               >
                 D/H:
               </div>
-              {drugHistory ? (
-                <div
-                  style={{
-                    fontSize: "9.5px",
-                    lineHeight: "1.7",
-                    borderBottom: "1px solid #aaa",
-                    paddingBottom: "2px",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {drugHistory}
-                </div>
-              ) : (
+              <span
+                contentEditable={editMode}
+                suppressContentEditableWarning
+                onBlur={(e) => fc("dh", e.currentTarget.textContent || "")}
+                style={{
+                  display: "block",
+                  fontSize: "9.5px",
+                  lineHeight: "1.7",
+                  borderBottom: "1px solid #aaa",
+                  paddingBottom: "2px",
+                  whiteSpace: "pre-wrap",
+                  outline: editMode ? "1px dashed #f59e0b" : "none",
+                  background: editMode ? "#fffbeb" : "transparent",
+                  minHeight: "28px",
+                  cursor: editMode ? "text" : "default",
+                }}
+              >
+                {ef.dh ?? drugHistory ?? ""}
+              </span>
+              {!(ef.dh ?? drugHistory) && !editMode && (
                 <div style={{ lineHeight: "1.8" }}>
                   <BlankLine width="100%" />
                   <br />
@@ -498,67 +619,55 @@ export default function PrescriptionPad({
               >
                 <span style={{ whiteSpace: "nowrap" }}>
                   <span style={{ fontWeight: 600 }}>Temp: </span>
-                  {vitalSigns?.temperature ? (
-                    <span
-                      style={{
-                        borderBottom: "1px solid #555",
-                        paddingRight: "4px",
-                        display: "inline-block",
-                      }}
-                    >
-                      {vitalSigns.temperature}
-                    </span>
-                  ) : (
-                    <BlankLine width="36px" />
-                  )}
+                  <EditableSpan
+                    fieldKey="oe_temp"
+                    value={vitalSigns?.temperature ?? ""}
+                    editMode={editMode}
+                    editedFields={ef}
+                    onFieldChange={fc}
+                    style={{ minWidth: "36px" }}
+                    placeholder="__"
+                  />
                 </span>
                 <span style={{ whiteSpace: "nowrap" }}>
                   <span style={{ fontWeight: 600 }}>B.P.: </span>
-                  {vitalSigns?.bloodPressure ? (
-                    <span
-                      style={{
-                        borderBottom: "1px solid #555",
-                        paddingRight: "4px",
-                        display: "inline-block",
-                      }}
-                    >
-                      {vitalSigns.bloodPressure}
-                    </span>
-                  ) : (
-                    <BlankLine width="40px" />
-                  )}
+                  <EditableSpan
+                    fieldKey="oe_bp"
+                    value={vitalSigns?.bloodPressure ?? ""}
+                    editMode={editMode}
+                    editedFields={ef}
+                    onFieldChange={fc}
+                    style={{ minWidth: "40px" }}
+                    placeholder="__/__"
+                  />
                 </span>
                 <span style={{ whiteSpace: "nowrap" }}>
                   <span style={{ fontWeight: 600 }}>Pulse: </span>
-                  {vitalSigns?.pulse ? (
-                    <span
-                      style={{
-                        borderBottom: "1px solid #555",
-                        paddingRight: "4px",
-                        display: "inline-block",
-                      }}
-                    >
-                      {vitalSigns.pulse}
-                    </span>
-                  ) : (
-                    <BlankLine width="36px" />
-                  )}
+                  <EditableSpan
+                    fieldKey="oe_pulse"
+                    value={vitalSigns?.pulse ?? ""}
+                    editMode={editMode}
+                    editedFields={ef}
+                    onFieldChange={fc}
+                    style={{ minWidth: "36px" }}
+                    placeholder="__"
+                  />
                 </span>
                 <span style={{ whiteSpace: "nowrap" }}>
                   <span style={{ fontWeight: 600 }}>SpO2: </span>
-                  {vitalSigns?.oxygenSaturation ? (
-                    <span
-                      style={{
-                        borderBottom: "1px solid #555",
-                        paddingRight: "4px",
-                        display: "inline-block",
-                      }}
-                    >
-                      {vitalSigns.oxygenSaturation}%
-                    </span>
-                  ) : (
-                    <BlankLine width="36px" />
-                  )}
+                  <EditableSpan
+                    fieldKey="oe_spo2"
+                    value={
+                      vitalSigns?.oxygenSaturation
+                        ? `${vitalSigns.oxygenSaturation}%`
+                        : ""
+                    }
+                    editMode={editMode}
+                    editedFields={ef}
+                    onFieldChange={fc}
+                    style={{ minWidth: "36px" }}
+                    placeholder="__%"
+                  />
                 </span>
               </div>
               <div
@@ -571,35 +680,27 @@ export default function PrescriptionPad({
               >
                 <span style={{ whiteSpace: "nowrap" }}>
                   <span style={{ fontWeight: 600 }}>Anemia: </span>
-                  {generalExam?.anemia ? (
-                    <span
-                      style={{
-                        borderBottom: "1px solid #555",
-                        paddingRight: "4px",
-                        display: "inline-block",
-                      }}
-                    >
-                      {generalExam.anemia}
-                    </span>
-                  ) : (
-                    <BlankLine width="40px" />
-                  )}
+                  <EditableSpan
+                    fieldKey="oe_anemia"
+                    value={generalExam?.anemia ?? ""}
+                    editMode={editMode}
+                    editedFields={ef}
+                    onFieldChange={fc}
+                    style={{ minWidth: "40px" }}
+                    placeholder="__"
+                  />
                 </span>
                 <span style={{ whiteSpace: "nowrap" }}>
                   <span style={{ fontWeight: 600 }}>Jaundice: </span>
-                  {generalExam?.jaundice ? (
-                    <span
-                      style={{
-                        borderBottom: "1px solid #555",
-                        paddingRight: "4px",
-                        display: "inline-block",
-                      }}
-                    >
-                      {generalExam.jaundice}
-                    </span>
-                  ) : (
-                    <BlankLine width="40px" />
-                  )}
+                  <EditableSpan
+                    fieldKey="oe_jaundice"
+                    value={generalExam?.jaundice ?? ""}
+                    editMode={editMode}
+                    editedFields={ef}
+                    onFieldChange={fc}
+                    style={{ minWidth: "40px" }}
+                    placeholder="__"
+                  />
                 </span>
               </div>
             </div>
@@ -615,17 +716,26 @@ export default function PrescriptionPad({
               >
                 Investigation:
               </div>
-              {investigations ? (
-                <div
-                  style={{
-                    fontSize: "9.5px",
-                    lineHeight: "1.7",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {investigations}
-                </div>
-              ) : (
+              <span
+                contentEditable={editMode}
+                suppressContentEditableWarning
+                onBlur={(e) =>
+                  fc("investigation", e.currentTarget.textContent || "")
+                }
+                style={{
+                  display: "block",
+                  fontSize: "9.5px",
+                  lineHeight: "1.7",
+                  whiteSpace: "pre-wrap",
+                  outline: editMode ? "1px dashed #f59e0b" : "none",
+                  background: editMode ? "#fffbeb" : "transparent",
+                  minHeight: "28px",
+                  cursor: editMode ? "text" : "default",
+                }}
+              >
+                {ef.investigation ?? investigations ?? ""}
+              </span>
+              {!(ef.investigation ?? investigations) && !editMode && (
                 <div style={{ lineHeight: "1.8" }}>
                   <BlankLine width="100%" />
                   <br />
@@ -671,22 +781,19 @@ export default function PrescriptionPad({
               &#8478;
             </div>
 
-            {/* Diagnosis if available */}
-            {diagnosis && (
-              <div style={{ marginBottom: "8px" }}>
-                <span style={{ fontWeight: 700, fontSize: "10px" }}>D/M: </span>
-                <span
-                  style={{
-                    fontSize: "9.5px",
-                    borderBottom: "1px solid #555",
-                    paddingRight: "6px",
-                    display: "inline-block",
-                  }}
-                >
-                  {diagnosis}
-                </span>
-              </div>
-            )}
+            {/* Diagnosis */}
+            <div style={{ marginBottom: "8px" }}>
+              <span style={{ fontWeight: 700, fontSize: "10px" }}>D/M: </span>
+              <EditableSpan
+                fieldKey="diagnosis"
+                value={diagnosis}
+                editMode={editMode}
+                editedFields={ef}
+                onFieldChange={fc}
+                style={{ fontSize: "9.5px", minWidth: "100px" }}
+                placeholder="Diagnosis"
+              />
+            </div>
 
             {/* Treatment */}
             <div
@@ -714,6 +821,7 @@ export default function PrescriptionPad({
                         display: "flex",
                         alignItems: "baseline",
                         gap: "4px",
+                        flexWrap: "wrap",
                       }}
                     >
                       <span
@@ -722,16 +830,33 @@ export default function PrescriptionPad({
                           fontStyle: "italic",
                           fontSize: "11px",
                           marginRight: "2px",
+                          flexShrink: 0,
                         }}
                       >
                         {i + 1}.
                       </span>
-                      {med.name}
-                      {med.dose && (
-                        <span style={{ fontWeight: 400, fontSize: "9.5px" }}>
-                          — {med.dose}
-                        </span>
-                      )}
+                      <EditableSpan
+                        fieldKey={`med_${i}_name`}
+                        value={med.name}
+                        editMode={editMode}
+                        editedFields={ef}
+                        onFieldChange={fc}
+                        style={{ fontWeight: 700, minWidth: "80px" }}
+                        placeholder="Drug name"
+                      />
+                      <EditableSpan
+                        fieldKey={`med_${i}_dose`}
+                        value={med.dose ?? ""}
+                        editMode={editMode}
+                        editedFields={ef}
+                        onFieldChange={fc}
+                        style={{
+                          fontWeight: 400,
+                          fontSize: "9.5px",
+                          minWidth: "40px",
+                        }}
+                        placeholder="dose"
+                      />
                     </div>
                     <div
                       style={{
@@ -739,16 +864,48 @@ export default function PrescriptionPad({
                         color: "#333",
                         paddingLeft: "14px",
                         marginTop: "1px",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "2px",
+                        alignItems: "baseline",
                       }}
                     >
-                      {med.frequency && <span>{med.frequency}</span>}
-                      {med.frequency && med.duration && <span> · </span>}
-                      {med.duration && <span>{med.duration}</span>}
-                      {med.instructions && (
-                        <div style={{ fontStyle: "italic", color: "#555" }}>
-                          {med.instructions}
-                        </div>
-                      )}
+                      <EditableSpan
+                        fieldKey={`med_${i}_freq`}
+                        value={med.frequency ?? ""}
+                        editMode={editMode}
+                        editedFields={ef}
+                        onFieldChange={fc}
+                        style={{ minWidth: "50px" }}
+                        placeholder="frequency"
+                      />
+                      {(ef[`med_${i}_freq`] ?? med.frequency) &&
+                        (ef[`med_${i}_dur`] ?? med.duration) && (
+                          <span> · </span>
+                        )}
+                      <EditableSpan
+                        fieldKey={`med_${i}_dur`}
+                        value={med.duration ?? ""}
+                        editMode={editMode}
+                        editedFields={ef}
+                        onFieldChange={fc}
+                        style={{ minWidth: "40px" }}
+                        placeholder="duration"
+                      />
+                      <EditableSpan
+                        fieldKey={`med_${i}_instr`}
+                        value={med.instructions ?? ""}
+                        editMode={editMode}
+                        editedFields={ef}
+                        onFieldChange={fc}
+                        style={{
+                          fontStyle: "italic",
+                          color: "#555",
+                          display: "block",
+                          minWidth: "80px",
+                        }}
+                        placeholder="instructions"
+                      />
                     </div>
                   </div>
                 ))}
@@ -771,19 +928,36 @@ export default function PrescriptionPad({
               </div>
             )}
 
-            {/* Notes if any */}
-            {prescription?.notes && (
-              <div
+            {/* Notes */}
+            <div style={{ marginTop: "10px" }}>
+              <span
                 style={{
-                  marginTop: "10px",
                   fontSize: "9px",
                   fontStyle: "italic",
                   color: "#444",
+                  fontWeight: 700,
                 }}
               >
-                Note: {prescription.notes}
-              </div>
-            )}
+                Note:{" "}
+              </span>
+              <span
+                contentEditable={editMode}
+                suppressContentEditableWarning
+                onBlur={(e) => fc("notes", e.currentTarget.textContent || "")}
+                style={{
+                  fontSize: "9px",
+                  fontStyle: "italic",
+                  color: "#444",
+                  outline: editMode ? "1px dashed #f59e0b" : "none",
+                  background: editMode ? "#fffbeb" : "transparent",
+                  minWidth: "60px",
+                  display: "inline-block",
+                  cursor: editMode ? "text" : "default",
+                }}
+              >
+                {ef.notes ?? prescription?.notes ?? ""}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -808,21 +982,15 @@ export default function PrescriptionPad({
           >
             পরবর্তী দেখার তারিখ:
           </span>
-          {nextVisitDate ? (
-            <span
-              style={{
-                borderBottom: "1px solid #555",
-                minWidth: "80px",
-                paddingRight: "8px",
-                display: "inline-block",
-                fontSize: "9.5px",
-              }}
-            >
-              {nextVisitDate}
-            </span>
-          ) : (
-            <BlankLine width="120px" />
-          )}
+          <EditableSpan
+            fieldKey="next_visit"
+            value={nextVisitDate ?? ""}
+            editMode={editMode}
+            editedFields={ef}
+            onFieldChange={fc}
+            style={{ minWidth: "120px", fontSize: "9.5px" }}
+            placeholder="Next visit date"
+          />
         </div>
       </div>
     </div>

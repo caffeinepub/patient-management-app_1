@@ -1,32 +1,28 @@
 # Dr. Arman Kabir's Care
 
 ## Current State
-- DIMS auto-fills medications when a diagnosis is typed in PrescriptionForm
-- PrescriptionPad renders a hardcoded physical pad layout for printing
-- Admin can edit public portal content via admin login
-- No mechanism for uploading a custom prescription pad PDF template
+PrescriptionPad is a print-preview component that renders the prescription in a physical pad layout. It is read-only — doctors cannot edit any fields in the pad view. Dr. Arman Kabir's credentials are hardcoded with a typo ("General Surgery JIDC" instead of "General Surgery uDC").
 
 ## Requested Changes (Diff)
 
 ### Add
-- Admin PDF upload panel: when logged in as admin, a new section in the prescription/settings area allows uploading a prescription pad PDF template
-- Uploaded PDF stored in localStorage as a base64 data URL under key `prescription_pad_pdf`
-- Admin can replace the PDF by uploading a new one (overwrites previous)
-- Admin can delete the current PDF (reverts to hardcoded pad layout)
-- In PrescriptionPad: if a custom PDF is stored, show a "View Template PDF" link/button alongside the normal pad
-- DIMS auto-fill continues to work as before — diagnosis triggers medication suggestions
-- All medication fields remain fully editable after auto-fill
+- Inline edit mode for PrescriptionPad: an "Edit" button in the toolbar that toggles an editable state
+- When edit mode is on, all text fields in the pad become editable inline (contentEditable or controlled inputs): patient name, age, weight, date, C/C, D/H, O/E values, medications (drug name, dose, frequency, duration, instructions), diagnosis, notes, next visit date, S.N.
+- A "Save" button to persist edits to localStorage keyed by prescription ID
+- Edits are loaded back when the pad is reopened for the same prescription
 
 ### Modify
-- AdminPDFManager component (new): a card/section visible only to admins for uploading, previewing, and deleting the prescription pad PDF
-- This component is accessible from the admin panel on the public landing page OR embedded in PrescriptionPad print view area
-- PrescriptionPad: add a "Custom PDF Template" section showing the stored PDF if available
+- Fix Dr. Arman Kabir's credentials: change "Dept. of General Surgery JIDC" → "Dept. of General Surgery uDC"
+- PrescriptionPad toolbar: add Edit/Save toggle button alongside existing A4/A5/Print buttons
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Create `PrescriptionPDFManager.tsx` component: file input for PDF upload, stores as base64 in localStorage, shows current file name if set, delete button to remove it
-2. Integrate `PrescriptionPDFManager` into the admin-visible area of the public portal (e.g., as a card in the admin edit toolbar or as a section in the CV/admin editing panel)
-3. In `PrescriptionPad.tsx`: read `prescription_pad_pdf` from localStorage; if present, render an iframe or link to preview/download the uploaded PDF template alongside the Rx pad
-4. Ensure DIMS auto-fill and editable medications in `PrescriptionForm` remain unchanged
+1. Add `editMode` state and `editedFields` state (record of overridden field values) to PrescriptionPad
+2. Load saved edits from localStorage on mount using prescription ID as key
+3. Fix credentials typo: JIDC → uDC
+4. Add Edit/Save button to toolbar; toggling edit mode shows contentEditable-style fields
+5. When in edit mode, each pad field renders as an editable `<span contentEditable>` or `<input>` with matching styling
+6. On Save, persist `editedFields` to localStorage and exit edit mode
+7. When printing, use the edited values (not original props)
