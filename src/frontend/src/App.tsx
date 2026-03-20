@@ -396,7 +396,11 @@ function AuthScreenContent() {
 
 function AppInner() {
   const { currentDoctor, isInitializing } = useEmailAuth();
-  const { adminLogin } = useAdminAuth();
+  const {
+    adminLogin,
+    isAdmin: isAdminState,
+    adminLogout: adminLogoutFn,
+  } = useAdminAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminUser, setAdminUser] = useState("");
@@ -436,6 +440,8 @@ function AppInner() {
         <LandingPage
           onLoginClick={() => setShowAuthModal(true)}
           onAdminLoginClick={() => setShowAdminModal(true)}
+          isAdmin={isAdminState}
+          adminLogout={adminLogoutFn}
         />
         {/* Staff Login Dialog */}
         <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>

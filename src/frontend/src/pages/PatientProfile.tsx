@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import type { Prescription, Visit } from "../backend.d";
 import PatientForm from "../components/PatientForm";
 import PrescriptionForm from "../components/PrescriptionForm";
+import PrescriptionPad from "../components/PrescriptionPad";
 import VisitForm from "../components/VisitForm";
 import {
   useCreatePrescription,
@@ -162,6 +163,10 @@ export default function PatientProfile() {
   >(undefined);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
+  const [showPadPreview, setShowPadPreview] = useState(false);
+  const [padPrescription, setPadPrescription] = useState<Prescription | null>(
+    null,
+  );
 
   const { data: patient, isLoading: loadingPatient } = useGetPatient(patientId);
   const { data: visits = [], isLoading: loadingVisits } =
@@ -181,6 +186,12 @@ export default function PatientProfile() {
   const closeRxForm = () => {
     setShowRxForm(false);
     setRxInitialDiagnosis(undefined);
+  };
+
+  const openPadPreview = (rx: Prescription) => {
+    setPadPrescription(rx);
+    setSelectedRx(null);
+    setShowPadPreview(true);
   };
 
   if (loadingPatient) {
@@ -738,16 +749,28 @@ export default function PatientProfile() {
                   <Clock className="w-4 h-4" />
                   {formatTime(selectedRx.prescriptionDate)}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.print()}
-                  className="gap-2 h-8 border-teal-300 text-teal-700 hover:bg-teal-50"
-                  data-ocid="patient_profile.prescriptions.secondary_button"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  Print
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openPadPreview(selectedRx)}
+                    className="gap-2 h-8 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    data-ocid="patient_profile.prescriptions.secondary_button"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Print Pad
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.print()}
+                    className="gap-2 h-8 border-teal-300 text-teal-700 hover:bg-teal-50"
+                    data-ocid="patient_profile.prescriptions.secondary_button"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Print
+                  </Button>
+                </div>
               </div>
               {selectedRx.diagnosis && (
                 <div>
@@ -790,6 +813,31 @@ export default function PatientProfile() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Prescription Pad Preview Dialog */}
+      <Dialog
+        open={showPadPreview}
+        onOpenChange={(open) => !open && setShowPadPreview(false)}
+      >
+        <DialogContent
+          className="!max-w-none w-[95vw] max-h-[95vh] overflow-y-auto"
+          data-ocid="patient_profile.prescriptions.modal"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-4 h-4 text-blue-600" />
+              Prescription Pad — Print Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-x-auto pb-4">
+            <PrescriptionPad
+              prescription={padPrescription}
+              patientName={patient.fullName}
+              patientAge={age ?? undefined}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

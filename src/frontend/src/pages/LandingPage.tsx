@@ -1,4 +1,5 @@
 import EmergencyConsultationModal from "@/components/EmergencyConsultationModal";
+import PrescriptionPDFManager from "@/components/PrescriptionPDFManager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +29,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { DoctorKey } from "@/data/doctorsData";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useDoctorContent } from "@/hooks/useDoctorContent";
 import {
   AlertTriangle,
@@ -66,6 +66,8 @@ import { toast } from "sonner";
 interface LandingPageProps {
   onLoginClick: () => void;
   onAdminLoginClick: () => void;
+  isAdmin: boolean;
+  adminLogout: () => void;
 }
 
 interface PublicBooking {
@@ -1098,6 +1100,20 @@ function CVContent({
 
   const [showPdfEdit, setShowPdfEdit] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(doc.cvPdfUrl || "");
+  const [showCvEdit, setShowCvEdit] = useState(false);
+  const [cvEditForm, setCvEditForm] = useState<{
+    qualifications: any[];
+    experience: any[];
+    publications: string[];
+    awards: string[];
+    memberships: string[];
+  }>({
+    qualifications: cv.qualifications || [],
+    experience: cv.experience || [],
+    publications: cv.publications || [],
+    awards: cv.awards || [],
+    memberships: cv.memberships || [],
+  });
 
   const savePdfUrl = () => {
     updateField(doctorKey, "cvPdfUrl", pdfUrl || null);
@@ -1118,6 +1134,27 @@ function CVContent({
           >
             <Edit className="w-3.5 h-3.5" />
             Update CV PDF
+          </Button>
+        )}
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+            onClick={() => {
+              setCvEditForm({
+                qualifications: cv.qualifications || [],
+                experience: cv.experience || [],
+                publications: cv.publications || [],
+                awards: cv.awards || [],
+                memberships: cv.memberships || [],
+              });
+              setShowCvEdit(true);
+            }}
+            data-ocid="cv.edit.open_modal_button"
+          >
+            <Edit className="w-3.5 h-3.5" />
+            Edit CV Content
           </Button>
         )}
         {doc.cvPdfUrl ? (
@@ -1171,6 +1208,332 @@ function CVContent({
                 onClick={() => setShowPdfEdit(false)}
                 className="flex-1"
                 data-ocid="cv.pdf.cancel_button"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CV Content Edit Dialog */}
+      <Dialog open={showCvEdit} onOpenChange={setShowCvEdit}>
+        <DialogContent
+          className="max-w-2xl max-h-[85vh] overflow-y-auto"
+          data-ocid="cv.edit.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Edit CV Content</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Qualifications */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-base font-semibold">
+                  Academic Qualifications
+                </Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setCvEditForm((f) => ({
+                      ...f,
+                      qualifications: [
+                        ...f.qualifications,
+                        { degree: "", institution: "", year: "" },
+                      ],
+                    }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {cvEditForm.qualifications.map((q, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: edit form uses index as key
+                <div key={`item-${i}`} className="flex gap-2 mb-2 items-center">
+                  <Input
+                    placeholder="Degree"
+                    value={q.degree}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.qualifications];
+                      arr[i] = { ...arr[i], degree: e.target.value };
+                      setCvEditForm((f) => ({ ...f, qualifications: arr }));
+                    }}
+                  />
+                  <Input
+                    placeholder="Institution"
+                    value={q.institution}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.qualifications];
+                      arr[i] = { ...arr[i], institution: e.target.value };
+                      setCvEditForm((f) => ({ ...f, qualifications: arr }));
+                    }}
+                  />
+                  <Input
+                    placeholder="Year"
+                    value={q.year}
+                    className="w-24"
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.qualifications];
+                      arr[i] = { ...arr[i], year: e.target.value };
+                      setCvEditForm((f) => ({ ...f, qualifications: arr }));
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setCvEditForm((f) => ({
+                        ...f,
+                        qualifications: f.qualifications.filter(
+                          (_, j) => j !== i,
+                        ),
+                      }))
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {/* Experience */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-base font-semibold">
+                  Professional Experience
+                </Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setCvEditForm((f) => ({
+                      ...f,
+                      experience: [
+                        ...f.experience,
+                        { title: "", institution: "", period: "" },
+                      ],
+                    }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {cvEditForm.experience.map((exp, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: edit form uses index as key
+                <div key={`item-${i}`} className="flex gap-2 mb-2 items-center">
+                  <Input
+                    placeholder="Role/Title"
+                    value={exp.title}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.experience];
+                      arr[i] = { ...arr[i], title: e.target.value };
+                      setCvEditForm((f) => ({ ...f, experience: arr }));
+                    }}
+                  />
+                  <Input
+                    placeholder="Hospital/Institution"
+                    value={exp.institution}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.experience];
+                      arr[i] = { ...arr[i], institution: e.target.value };
+                      setCvEditForm((f) => ({ ...f, experience: arr }));
+                    }}
+                  />
+                  <Input
+                    placeholder="Period"
+                    value={exp.period}
+                    className="w-28"
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.experience];
+                      arr[i] = { ...arr[i], period: e.target.value };
+                      setCvEditForm((f) => ({ ...f, experience: arr }));
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setCvEditForm((f) => ({
+                        ...f,
+                        experience: f.experience.filter((_, j) => j !== i),
+                      }))
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {/* Publications */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-base font-semibold">Publications</Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setCvEditForm((f) => ({
+                      ...f,
+                      publications: [...f.publications, ""],
+                    }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {cvEditForm.publications.map((pub, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: edit form uses index as key
+                <div key={`item-${i}`} className="flex gap-2 mb-2 items-center">
+                  <Input
+                    value={pub}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.publications];
+                      arr[i] = e.target.value;
+                      setCvEditForm((f) => ({ ...f, publications: arr }));
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setCvEditForm((f) => ({
+                        ...f,
+                        publications: f.publications.filter((_, j) => j !== i),
+                      }))
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {/* Awards */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-base font-semibold">
+                  Awards &amp; Distinctions
+                </Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setCvEditForm((f) => ({ ...f, awards: [...f.awards, ""] }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {cvEditForm.awards.map((award, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: edit form uses index as key
+                <div key={`item-${i}`} className="flex gap-2 mb-2 items-center">
+                  <Input
+                    value={award}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.awards];
+                      arr[i] = e.target.value;
+                      setCvEditForm((f) => ({ ...f, awards: arr }));
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setCvEditForm((f) => ({
+                        ...f,
+                        awards: f.awards.filter((_, j) => j !== i),
+                      }))
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {/* Memberships */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-base font-semibold">Memberships</Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setCvEditForm((f) => ({
+                      ...f,
+                      memberships: [...f.memberships, ""],
+                    }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {cvEditForm.memberships.map((m, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: edit form uses index as key
+                <div key={`item-${i}`} className="flex gap-2 mb-2 items-center">
+                  <Input
+                    value={m}
+                    onChange={(e) => {
+                      const arr = [...cvEditForm.memberships];
+                      arr[i] = e.target.value;
+                      setCvEditForm((f) => ({ ...f, memberships: arr }));
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setCvEditForm((f) => ({
+                        ...f,
+                        memberships: f.memberships.filter((_, j) => j !== i),
+                      }))
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  updateField(
+                    doctorKey,
+                    "cv.qualifications",
+                    cvEditForm.qualifications,
+                  );
+                  updateField(
+                    doctorKey,
+                    "cv.experience",
+                    cvEditForm.experience,
+                  );
+                  updateField(
+                    doctorKey,
+                    "cv.publications",
+                    cvEditForm.publications,
+                  );
+                  updateField(doctorKey, "cv.awards", cvEditForm.awards);
+                  updateField(
+                    doctorKey,
+                    "cv.memberships",
+                    cvEditForm.memberships,
+                  );
+                  setShowCvEdit(false);
+                  toast.success("CV updated");
+                }}
+                data-ocid="cv.edit.confirm_button"
+              >
+                Save Changes
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowCvEdit(false)}
+                data-ocid="cv.edit.cancel_button"
               >
                 Cancel
               </Button>
@@ -1444,13 +1807,21 @@ function ProfileEditDialog({
 export default function LandingPage({
   onLoginClick,
   onAdminLoginClick,
+  isAdmin,
+  adminLogout,
 }: LandingPageProps) {
-  const { isAdmin, adminLogout } = useAdminAuth();
   const { getContent, updateField } = useDoctorContent();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [editProfileKey, setEditProfileKey] = useState<DoctorKey | null>(null);
+  const [editChamberKey, setEditChamberKey] = useState<DoctorKey | null>(null);
+  const [chamberEditForm, setChamberEditForm] = useState({
+    address: "",
+    visitingHours: "",
+    phone: "",
+    emergencyPhone: "",
+  });
 
   const [bookingForm, setBookingForm] = useState({
     patientName: "",
@@ -1939,6 +2310,25 @@ export default function LandingPage({
                           <MapPin className="w-5 h-5" />
                           {doc.name}
                         </span>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 opacity-70 hover:opacity-100"
+                            onClick={() => {
+                              setChamberEditForm({
+                                address: chamber.address,
+                                visitingHours: chamber.visitingHours,
+                                phone: doc.phone,
+                                emergencyPhone: chamber.emergencyPhone,
+                              });
+                              setEditChamberKey(key);
+                            }}
+                            data-ocid="chamber.edit_button"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -2008,6 +2398,112 @@ export default function LandingPage({
           </div>
         </div>
       </section>
+
+      {/* Chamber Address Edit Dialog */}
+      {editChamberKey && (
+        <Dialog
+          open={!!editChamberKey}
+          onOpenChange={(o) => !o && setEditChamberKey(null)}
+        >
+          <DialogContent className="max-w-md" data-ocid="chamber.dialog">
+            <DialogHeader>
+              <DialogTitle>
+                Edit Chamber Address —{" "}
+                {editChamberKey === "arman"
+                  ? "Dr. Arman Kabir"
+                  : "Dr. Samia Shikder"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Address</Label>
+                <Textarea
+                  value={chamberEditForm.address}
+                  onChange={(e) =>
+                    setChamberEditForm((f) => ({
+                      ...f,
+                      address: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  data-ocid="chamber.textarea"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Visiting Hours</Label>
+                <Input
+                  value={chamberEditForm.visitingHours}
+                  onChange={(e) =>
+                    setChamberEditForm((f) => ({
+                      ...f,
+                      visitingHours: e.target.value,
+                    }))
+                  }
+                  data-ocid="chamber.input"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Phone</Label>
+                <Input
+                  value={chamberEditForm.phone}
+                  onChange={(e) =>
+                    setChamberEditForm((f) => ({ ...f, phone: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Emergency Phone</Label>
+                <Input
+                  value={chamberEditForm.emergencyPhone}
+                  onChange={(e) =>
+                    setChamberEditForm((f) => ({
+                      ...f,
+                      emergencyPhone: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    if (!editChamberKey) return;
+                    updateField(
+                      editChamberKey,
+                      "chamber.address",
+                      chamberEditForm.address,
+                    );
+                    updateField(
+                      editChamberKey,
+                      "chamber.visitingHours",
+                      chamberEditForm.visitingHours,
+                    );
+                    updateField(editChamberKey, "phone", chamberEditForm.phone);
+                    updateField(
+                      editChamberKey,
+                      "chamber.emergencyPhone",
+                      chamberEditForm.emergencyPhone,
+                    );
+                    setEditChamberKey(null);
+                    toast.success("Chamber address updated");
+                  }}
+                  data-ocid="chamber.confirm_button"
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setEditChamberKey(null)}
+                  data-ocid="chamber.cancel_button"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* ── Appointments ────────────────────────────────────────────── */}
       <section id="appointments" className="py-16 bg-muted/30 px-4 sm:px-6">
@@ -2261,6 +2757,17 @@ export default function LandingPage({
         </div>
       </section>
 
+      {/* ── Admin Tools ──────────────────────────────────────────── */}
+      {isAdmin && (
+        <section className="py-12 px-4 bg-amber-50/30 border-t border-amber-100">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <h2 className="text-xl font-bold text-amber-900 flex items-center gap-2">
+              Admin Tools
+            </h2>
+            <PrescriptionPDFManager />
+          </div>
+        </section>
+      )}
       {/* ── Footer ──────────────────────────────────────────────────── */}
       <footer className="py-8 border-t border-border bg-muted/20 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">

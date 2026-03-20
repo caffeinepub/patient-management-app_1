@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
 import type { Patient } from "../backend.d";
+
 function cmToFeetInches(cm: number): string {
   const totalInches = cm / 2.54;
   const feet = Math.floor(totalInches / 12);
@@ -29,7 +30,27 @@ function feetInchesToCm(str: string): number | null {
   return cm > 0 ? Math.round(cm * 10) / 10 : null;
 }
 
-interface PatientFormData {
+/** Convert a "YYYY-MM-DD" date string to BigInt nanoseconds safely */
+function dobToBigInt(dateStr: string): bigint | null {
+  if (!dateStr) return null;
+  try {
+    const ms = new Date(dateStr).getTime();
+    if (Number.isNaN(ms)) return null;
+    return BigInt(ms) * 1000000n;
+  } catch {
+    return null;
+  }
+}
+
+/** Convert age in years to approximate DOB string (YYYY-01-01) */
+function ageToApproxDob(age: string): string {
+  const n = Number.parseInt(age);
+  if (Number.isNaN(n) || n < 0 || n > 130) return "";
+  const year = new Date().getFullYear() - n;
+  return `${year}-01-01`;
+}
+
+export interface PatientFormData {
   fullName: string;
   nameBn: string | null;
   dateOfBirth: bigint | null;
@@ -48,6 +69,12 @@ interface PatientFormData {
 
 interface PatientFormProps {
   patient?: Patient;
+  /** Pre-fill values (used when registering from a confirmed appointment) */
+  prefill?: Partial<{
+    fullName: string;
+    phone: string;
+    gender: string;
+  }>;
   onSubmit: (data: PatientFormData) => void;
   onCancel: () => void;
   isLoading?: boolean;
@@ -55,6 +82,7 @@ interface PatientFormProps {
 
 export default function PatientForm({
   patient,
+  prefill,
   onSubmit,
   onCancel,
   isLoading,
@@ -66,11 +94,12 @@ export default function PatientForm({
     : "";
 
   const [form, setForm] = useState({
-    fullName: patient?.fullName ?? "",
+    fullName: patient?.fullName ?? prefill?.fullName ?? "",
     nameBn: patient?.nameBn ?? "",
     dateOfBirth: dob,
-    gender: patient?.gender ?? "male",
-    phone: patient?.phone ?? "",
+    ageInput: "", // alternative age entry
+    gender: patient?.gender ?? prefill?.gender ?? "male",
+    phone: patient?.phone ?? prefill?.phone ?? "",
     email: patient?.email ?? "",
     address: patient?.address ?? "",
     bloodGroup: patient?.bloodGroup ?? "unknown",
@@ -112,26 +141,35 @@ export default function PatientForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim()) return;
-    const dobMs = form.dateOfBirth
-      ? BigInt(new Date(form.dateOfBirth).getTime()) * 1000000n
-      : null;
-    onSubmit({
-      fullName: form.fullName.trim(),
-      nameBn: form.nameBn.trim() || null,
-      dateOfBirth: dobMs,
-      gender: form.gender,
-      phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
-      address: form.address.trim() || null,
-      bloodGroup:
-        form.bloodGroup === "unknown" ? null : form.bloodGroup || null,
-      weight: form.weight ? Number.parseFloat(form.weight) : null,
-      height: form.height ? feetInchesToCm(form.height) : null,
-      allergies,
-      chronicConditions: conditions,
-      pastSurgicalHistory: form.pastSurgicalHistory.trim() || null,
-      patientType: form.patientType,
-    });
+
+    // Determine DOB: prefer explicit date field, fall back to age
+    let dobBigInt: bigint | null = dobToBigInt(form.dateOfBirth);
+    if (!dobBigInt && form.ageInput.trim()) {
+      const approx = ageToApproxDob(form.ageInput.trim());
+      dobBigInt = dobToBigInt(approx);
+    }
+
+    try {
+      onSubmit({
+        fullName: form.fullName.trim(),
+        nameBn: form.nameBn.trim() || null,
+        dateOfBirth: dobBigInt,
+        gender: form.gender,
+        phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
+        address: form.address.trim() || null,
+        bloodGroup:
+          form.bloodGroup === "unknown" ? null : form.bloodGroup || null,
+        weight: form.weight ? Number.parseFloat(form.weight) : null,
+        height: form.height ? feetInchesToCm(form.height) : null,
+        allergies,
+        chronicConditions: conditions,
+        pastSurgicalHistory: form.pastSurgicalHistory.trim() || null,
+        patientType: form.patientType,
+      });
+    } catch (err) {
+      console.error("PatientForm submit error:", err);
+    }
   };
 
   return (
@@ -160,15 +198,38 @@ export default function PatientForm({
         </div>
       </div>
 
-      {/* DOB, Gender, Patient Type */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* DOB + Age + Gender + Patient Type */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="dob">Date of Birth</Label>
           <Input
             id="dob"
             type="date"
             value={form.dateOfBirth}
-            onChange={(e) => set("dateOfBirth", e.target.value)}
+            onChange={(e) => {
+              set("dateOfBirth", e.target.value);
+              if (e.target.value) set("ageInput", ""); // clear age if DOB set
+            }}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ageInput">
+            Age (years){" "}
+            <span className="text-muted-foreground font-normal text-xs">
+              or DOB
+            </span>
+          </Label>
+          <Input
+            id="ageInput"
+            type="number"
+            min="0"
+            max="130"
+            value={form.ageInput}
+            onChange={(e) => {
+              set("ageInput", e.target.value);
+              if (e.target.value) set("dateOfBirth", ""); // clear DOB if age set
+            }}
+            placeholder="e.g. 35"
           />
         </div>
         <div className="space-y-1.5">

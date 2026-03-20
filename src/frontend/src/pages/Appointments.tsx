@@ -39,12 +39,14 @@ import {
   Plus,
   RefreshCcw,
   Trash2,
+  UserPlus,
   UserSearch,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useGetAllPatients } from "../hooks/useQueries";
+import PatientForm, { type PatientFormData } from "../components/PatientForm";
+import { useCreatePatient, useGetAllPatients } from "../hooks/useQueries";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -868,8 +870,6 @@ function AppointmentsTab() {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 // ─── Public Booking Requests ─────────────────────────────────────────────────
 
 interface PublicBooking {
@@ -899,12 +899,45 @@ function savePublicBookings(data: PublicBooking[]) {
 
 function PublicBookingRequestsTab() {
   const [bookings, setBookings] = useState<PublicBooking[]>(loadPublicBookings);
+  // The booking currently being confirmed (triggers patient registration modal)
+  const [confirmingBooking, setConfirmingBooking] =
+    useState<PublicBooking | null>(null);
+  const createPatient = useCreatePatient();
 
-  const updateStatus = (id: string, status: PublicBooking["status"]) => {
-    const updated = bookings.map((b) => (b.id === id ? { ...b, status } : b));
+  const persistBookings = (updated: PublicBooking[]) => {
     setBookings(updated);
     savePublicBookings(updated);
-    toast.success(`Booking marked as ${status}.`);
+  };
+
+  /** Mark booking confirmed (called after patient registration) */
+  const markConfirmed = (id: string) => {
+    persistBookings(
+      bookings.map((b) => (b.id === id ? { ...b, status: "confirmed" } : b)),
+    );
+  };
+
+  const cancelBooking = (id: string) => {
+    persistBookings(
+      bookings.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b)),
+    );
+    toast.success("Booking cancelled.");
+  };
+
+  /** Handle patient registration form submission from appointment confirmation */
+  const handlePatientRegister = (data: PatientFormData) => {
+    if (!confirmingBooking) return;
+    createPatient.mutate(data, {
+      onSuccess: () => {
+        markConfirmed(confirmingBooking.id);
+        toast.success(
+          `Appointment confirmed and ${data.fullName} registered as a patient.`,
+        );
+        setConfirmingBooking(null);
+      },
+      onError: () => {
+        toast.error("Failed to register patient. Please try again.");
+      },
+    });
   };
 
   const statusBadge = (status: PublicBooking["status"]) => {
@@ -922,85 +955,128 @@ function PublicBookingRequestsTab() {
     );
   };
 
-  if (bookings.length === 0) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3"
-        data-ocid="public_bookings.empty_state"
-      >
-        <Inbox className="w-10 h-10 opacity-40" />
-        <p className="text-sm">No public booking requests yet.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4" data-ocid="public_bookings.table">
-      <p className="text-sm text-muted-foreground">
-        {bookings.length} request{bookings.length !== 1 ? "s" : ""} from the
-        public booking form.
-      </p>
-      <div className="rounded-xl border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead>Patient</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Doctor</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bookings.map((b, idx) => (
-              <TableRow
-                key={b.id}
-                data-ocid={`public_bookings.item.${idx + 1}`}
-              >
-                <TableCell className="font-medium">{b.patientName}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {b.phone}
-                </TableCell>
-                <TableCell className="text-sm">{b.doctor}</TableCell>
-                <TableCell className="text-sm">{b.date}</TableCell>
-                <TableCell className="text-sm max-w-xs truncate text-muted-foreground">
-                  {b.reason || "—"}
-                </TableCell>
-                <TableCell>{statusBadge(b.status)}</TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    {b.status !== "confirmed" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs text-green-700 border-green-300 hover:bg-green-50"
-                        onClick={() => updateStatus(b.id, "confirmed")}
-                        data-ocid={`public_bookings.confirm_button.${idx + 1}`}
-                      >
-                        Confirm
-                      </Button>
-                    )}
-                    {b.status !== "cancelled" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
-                        onClick={() => updateStatus(b.id, "cancelled")}
-                        data-ocid={`public_bookings.delete_button.${idx + 1}`}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <>
+      {bookings.length === 0 ? (
+        <div
+          className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3"
+          data-ocid="public_bookings.empty_state"
+        >
+          <Inbox className="w-10 h-10 opacity-40" />
+          <p className="text-sm">No public booking requests yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-4" data-ocid="public_bookings.table">
+          <p className="text-sm text-muted-foreground">
+            {bookings.length} request{bookings.length !== 1 ? "s" : ""} from the
+            public booking form.
+          </p>
+          <div className="rounded-xl border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Doctor</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((b, idx) => (
+                  <TableRow
+                    key={b.id}
+                    data-ocid={`public_bookings.item.${idx + 1}`}
+                  >
+                    <TableCell className="font-medium">
+                      {b.patientName}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {b.phone}
+                    </TableCell>
+                    <TableCell className="text-sm">{b.doctor}</TableCell>
+                    <TableCell className="text-sm">{b.date}</TableCell>
+                    <TableCell className="text-sm max-w-xs truncate text-muted-foreground">
+                      {b.reason || "—"}
+                    </TableCell>
+                    <TableCell>{statusBadge(b.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {b.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-green-700 border-green-300 hover:bg-green-50 gap-1"
+                            onClick={() => setConfirmingBooking(b)}
+                            data-ocid={`public_bookings.confirm_button.${idx + 1}`}
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            Confirm & Register
+                          </Button>
+                        )}
+                        {b.status === "confirmed" && (
+                          <span className="text-xs text-green-700 font-medium">
+                            Registered
+                          </span>
+                        )}
+                        {b.status !== "cancelled" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
+                            onClick={() => cancelBooking(b.id)}
+                            data-ocid={`public_bookings.delete_button.${idx + 1}`}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Registration Dialog (triggered on appointment confirmation) */}
+      <Dialog
+        open={!!confirmingBooking}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingBooking(null);
+        }}
+      >
+        <DialogContent
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          data-ocid="public_bookings.register_dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-primary" />
+              Register Patient & Confirm Appointment
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Pre-filled from the booking request. Complete the details and save
+              to confirm.
+            </p>
+          </DialogHeader>
+          {confirmingBooking && (
+            <PatientForm
+              prefill={{
+                fullName: confirmingBooking.patientName,
+                phone: confirmingBooking.phone,
+              }}
+              onSubmit={handlePatientRegister}
+              onCancel={() => setConfirmingBooking(null)}
+              isLoading={createPatient.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1023,7 +1099,7 @@ export default function Appointments() {
               Appointments
             </h1>
             <p className="text-sm text-muted-foreground">
-              Doctor serial, appointment schedule & public booking requests
+              Doctor serial, appointment schedule &amp; public booking requests
             </p>
           </div>
         </div>
