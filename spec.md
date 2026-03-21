@@ -1,28 +1,48 @@
 # Dr. Arman Kabir's Care
 
 ## Current State
-PrescriptionPad is a print-preview component that renders the prescription in a physical pad layout. It is read-only — doctors cannot edit any fields in the pad view. Dr. Arman Kabir's credentials are hardcoded with a typo ("General Surgery JIDC" instead of "General Surgery uDC").
+VisitForm.tsx has these sections (in order):
+- Chief Complaints, System Review, History, Drug History, Vital Signs, General Exam, Systemic Exam
+- Salient Features (with Auto-Generate button)
+- Brief Summary bar (with 4 sub-fields: history, examination, investigation, overall)
+- Full Evaluation field
+- Analysis field
+- Diagnosis
+- Notes
 
 ## Requested Changes (Diff)
 
 ### Add
-- Inline edit mode for PrescriptionPad: an "Edit" button in the toolbar that toggles an editable state
-- When edit mode is on, all text fields in the pad become editable inline (contentEditable or controlled inputs): patient name, age, weight, date, C/C, D/H, O/E values, medications (drug name, dose, frequency, duration, instructions), diagnosis, notes, next visit date, S.N.
-- A "Save" button to persist edits to localStorage keyed by prescription ID
-- Edits are loaded back when the pad is reopened for the same prescription
+- **Previous Investigation Report** bar: placed BEFORE Salient Features. Has a text area for entering previous report details AND an image/photo upload option. When Auto-Generate is clicked on Salient Features, the previous investigation data is included in the generated narrative.
+- **Differential Diagnosis** bar: placed AFTER Salient Features. Has:
+  - AI Auto-Generate button that generates differential diagnosis based on salient features content
+  - Image/photo upload: extracts values from uploaded image. Before using, checks patient name+age+date on the report for confirmation. Doctor must confirm extracted data before it's applied.
+  - Only date is stored with the report (not name/age validation stored)
+  - PDF note field (PDF processing is manual/noted for future)
+  - Fully editable textarea
+- **New Investigation Advice** bar: placed AFTER Differential Diagnosis. Has:
+  - AI Auto-Generate button that generates investigation suggestions based on differential diagnosis
+  - PDF note field (for future PDF-based list)
+  - Fully editable textarea
 
 ### Modify
-- Fix Dr. Arman Kabir's credentials: change "Dept. of General Surgery JIDC" → "Dept. of General Surgery uDC"
-- PrescriptionPad toolbar: add Edit/Save toggle button alongside existing A4/A5/Print buttons
+- **Salient Features Auto-Generate**: include previous investigation report data in the generated narrative
+- Remove Brief Summary bar entirely (4 sub-fields + overall)
+- Remove Full Evaluation field
+- Remove Analysis field
+- Admin can edit visit form format (inline edit buttons on section titles/labels when logged in as admin)
 
 ### Remove
-- Nothing removed
+- Brief Summary Card (with all 4 sub-fields)
+- Full Evaluation textarea
+- Analysis textarea
 
 ## Implementation Plan
-1. Add `editMode` state and `editedFields` state (record of overridden field values) to PrescriptionPad
-2. Load saved edits from localStorage on mount using prescription ID as key
-3. Fix credentials typo: JIDC → uDC
-4. Add Edit/Save button to toolbar; toggling edit mode shows contentEditable-style fields
-5. When in edit mode, each pad field renders as an editable `<span contentEditable>` or `<input>` with matching styling
-6. On Save, persist `editedFields` to localStorage and exit edit mode
-7. When printing, use the edited values (not original props)
+1. Update VisitFormData interface: remove brief_summary fields, add previous_investigation_report, differential_diagnosis, investigation_advice fields
+2. Update initial formData state to remove removed fields and add new ones
+3. Update generateSalientFeatures() to include previous_investigation_report
+4. Add Previous Investigation Report Card before Salient Features (textarea + image upload)
+5. Remove Brief Summary Card, Full Evaluation, Analysis sections
+6. Add Differential Diagnosis Card after Salient Features with AI generate button, image upload with name/age/date confirmation dialog
+7. Add New Investigation Advice Card after Differential Diagnosis with AI generate button
+8. Admin inline edit buttons on section labels (already partially implemented - ensure visit form sections have data-ocid for admin editing)

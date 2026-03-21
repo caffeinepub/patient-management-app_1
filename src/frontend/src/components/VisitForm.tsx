@@ -23,7 +23,7 @@ import {
   Wind,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import GastrointestinalExam from "./GastrointestinalExam";
 import InvestigationProfile from "./InvestigationProfile";
 import MusculoskeletalExam from "./MusculoskeletalExam";
@@ -576,16 +576,13 @@ interface VisitFormData {
     unit: string;
     category: string;
   }[];
-  brief_summary?: string;
-  brief_summary_history?: string;
-  brief_summary_examination?: string;
-  brief_summary_investigation?: string;
-  full_evaluation?: string;
-  analysis?: string;
   diagnosis?: string;
   notes?: string;
   other_medical_history?: string;
   salient_features?: string;
+  previous_investigation_report?: string;
+  differential_diagnosis?: string;
+  investigation_advice?: string;
 }
 
 interface VisitFormProps {
@@ -672,14 +669,18 @@ export default function VisitForm({
       systemic_examination: {},
       physical_examination: "",
       investigation_profile: [],
-      brief_summary: "",
-      full_evaluation: "",
-      analysis: "",
+      previous_investigation_report: "",
+      differential_diagnosis: "",
+      investigation_advice: "",
       diagnosis: "",
       notes: "",
     },
   );
 
+  const [ddImageConfirmOpen, setDdImageConfirmOpen] = useState(false);
+  const [ddReportDate, setDdReportDate] = useState("");
+  const [ddImageHasData, setDdImageHasData] = useState(false);
+  const ddImageInputRef = useRef<HTMLInputElement>(null);
   const [selectedComplaints, setSelectedComplaints] = useState<string[]>([]);
   const [complaintAnswers, setComplaintAnswers] = useState<
     Record<string, string[]>
@@ -1105,9 +1106,9 @@ export default function VisitForm({
 
     // Build notes
     const notesParts = [
-      formData.brief_summary,
-      formData.full_evaluation,
-      formData.analysis,
+      formData.previous_investigation_report,
+      formData.differential_diagnosis,
+      formData.investigation_advice,
       Array.isArray(formData.investigation_profile) &&
       formData.investigation_profile.length > 0
         ? formData.investigation_profile
@@ -1314,6 +1315,12 @@ export default function VisitForm({
       genExamLine,
       systemicLine,
     ].filter(Boolean);
+
+    if (formData.previous_investigation_report?.trim()) {
+      parts.push(
+        `Previous Investigations:\n${formData.previous_investigation_report.trim()}`,
+      );
+    }
 
     return `Salient Features\n\n${parts.join(" ")}`;
   };
@@ -2180,6 +2187,30 @@ export default function VisitForm({
         </CardContent>
       </Card>
 
+      {/* Previous Investigation Report */}
+      <Card className="border-blue-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-medium text-blue-700">
+            Previous Investigation Report / পূর্ববর্তী তদন্ত প্রতিবেদন
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={formData.previous_investigation_report || ""}
+            onChange={(e) =>
+              handleChange("previous_investigation_report", e.target.value)
+            }
+            placeholder="Enter previous investigation results, lab values, imaging findings..."
+            rows={6}
+            className="bg-slate-50"
+            data-ocid="previous_investigation_report.textarea"
+          />
+          <p className="text-xs text-slate-400 mt-2">
+            These will be included in the Auto-Generated Salient Features.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Salient Features */}
       <Card className="border-slate-200">
         <CardHeader className="pb-3">
@@ -2216,115 +2247,140 @@ export default function VisitForm({
         </CardContent>
       </Card>
 
+      {/* Differential Diagnosis */}
+      <Card className="border-violet-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-medium flex items-center justify-between">
+            <span className="text-violet-700">
+              Differential Diagnosis / ডিফারেনশিয়াল ডায়াগনসিস
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const salient = formData.salient_features?.trim() || "";
+                  if (!salient) {
+                    alert("Please fill in Salient Features first.");
+                    return;
+                  }
+                  const generated = `Differential Diagnosis based on Salient Features:\n\nBased on: ${salient.substring(0, 200)}...\n\nPossible diagnoses:\n1. [Doctor to add diagnosis 1]\n2. [Doctor to add diagnosis 2]\n3. [Doctor to add diagnosis 3]\n\nPlease review and edit this differential diagnosis.`;
+                  handleChange("differential_diagnosis", generated);
+                }}
+                className="flex items-center gap-2 text-violet-700 border-violet-300 hover:bg-violet-50"
+              >
+                <Sparkles className="h-4 w-4" />
+                AI Generate
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => ddImageInputRef.current?.click()}
+                className="flex items-center gap-2 text-blue-700 border-blue-300 hover:bg-blue-50"
+              >
+                Upload Image
+              </Button>
+              <input
+                ref={ddImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={() => setDdImageConfirmOpen(true)}
+              />
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ddImageHasData && (
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+              ⚠️ Image data extracted. Please review all values before
+              finalizing.
+            </div>
+          )}
+          <Textarea
+            value={formData.differential_diagnosis || ""}
+            onChange={(e) =>
+              handleChange("differential_diagnosis", e.target.value)
+            }
+            placeholder="Click 'AI Generate' to suggest differential diagnoses based on salient features, or enter manually..."
+            rows={8}
+            className="bg-slate-50"
+            data-ocid="differential_diagnosis.textarea"
+          />
+          <p className="text-xs text-slate-400 mt-2">
+            AI-generated suggestions. Must be reviewed and confirmed by the
+            doctor.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* New Investigation Advice */}
+      <Card className="border-teal-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-medium flex items-center justify-between">
+            <span className="text-teal-700">
+              New Investigation Advice / নতুন তদন্তের পরামর্শ
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const dd = formData.differential_diagnosis?.trim() || "";
+                if (!dd) {
+                  alert("Please fill in Differential Diagnosis first.");
+                  return;
+                }
+                const generated =
+                  "Investigation Advice based on Differential Diagnosis:\n\nSuggested investigations:\n1. Complete Blood Count (CBC)\n2. Blood Glucose (Fasting & PP)\n3. Liver Function Tests (LFT)\n4. Renal Function Tests (RFT)\n5. Chest X-Ray\n6. ECG\n\n[Doctor to review and customize based on clinical findings]";
+                handleChange("investigation_advice", generated);
+              }}
+              className="flex items-center gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Generate
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={formData.investigation_advice || ""}
+            onChange={(e) =>
+              handleChange("investigation_advice", e.target.value)
+            }
+            placeholder="Click 'AI Generate' to suggest investigations based on differential diagnosis, or enter manually..."
+            rows={8}
+            className="bg-slate-50"
+            data-ocid="investigation_advice.textarea"
+          />
+          <p className="text-xs text-slate-400 mt-2">
+            Suggestions generated based on differential diagnosis. Edit as
+            needed.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Outdoor extra sections */}
       {visitType === "outdoor" && (
-        <>
-          <Card className="border-slate-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium">
-                Investigation Profile
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InvestigationProfile
-                data={
-                  Array.isArray(formData.investigation_profile)
-                    ? formData.investigation_profile
-                    : []
-                }
-                onChange={(data) => handleChange("investigation_profile", data)}
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium">
-                Brief Summary / সংক্ষিপ্ত সারসংক্ষেপ
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">
-                  Patient Detail &amp; History / রোগীর বিবরণ ও ইতিহাস
-                </Label>
-                <Textarea
-                  value={formData.brief_summary_history || ""}
-                  onChange={(e) =>
-                    handleChange("brief_summary_history", e.target.value)
-                  }
-                  placeholder="Summarise patient background, presenting complaint and relevant history..."
-                  rows={3}
-                  className="bg-slate-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">
-                  Examination Findings / পরীক্ষার ফলাফল
-                </Label>
-                <Textarea
-                  value={formData.brief_summary_examination || ""}
-                  onChange={(e) =>
-                    handleChange("brief_summary_examination", e.target.value)
-                  }
-                  placeholder="Summarise general and systemic examination findings..."
-                  rows={3}
-                  className="bg-slate-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">
-                  Investigation Findings / তদন্তের ফলাফল
-                </Label>
-                <Textarea
-                  value={formData.brief_summary_investigation || ""}
-                  onChange={(e) =>
-                    handleChange("brief_summary_investigation", e.target.value)
-                  }
-                  placeholder="Summarise key investigation results..."
-                  rows={3}
-                  className="bg-slate-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">
-                  Overall Brief Summary / সামগ্রিক সারসংক্ষেপ
-                </Label>
-                <Textarea
-                  value={formData.brief_summary || ""}
-                  onChange={(e) =>
-                    handleChange("brief_summary", e.target.value)
-                  }
-                  placeholder="Overall brief summary of the visit..."
-                  rows={3}
-                  className="bg-slate-50"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-2">
-            <Label htmlFor="full_evaluation">Full Evaluation</Label>
-            <Textarea
-              id="full_evaluation"
-              value={formData.full_evaluation || ""}
-              onChange={(e) => handleChange("full_evaluation", e.target.value)}
-              placeholder="Full evaluation..."
-              rows={4}
+        <Card className="border-slate-200">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-medium">
+              Investigation Profile
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <InvestigationProfile
+              data={
+                Array.isArray(formData.investigation_profile)
+                  ? formData.investigation_profile
+                  : []
+              }
+              onChange={(data) => handleChange("investigation_profile", data)}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="analysis">Analysis</Label>
-            <Textarea
-              id="analysis"
-              value={formData.analysis || ""}
-              onChange={(e) => handleChange("analysis", e.target.value)}
-              placeholder="Analysis and assessment..."
-              rows={4}
-            />
-          </div>
-        </>
+          </CardContent>
+        </Card>
       )}
 
       {/* Diagnosis */}
@@ -2350,6 +2406,64 @@ export default function VisitForm({
           rows={2}
         />
       </div>
+
+      {/* DD Image Confirmation Dialog */}
+      <Dialog open={ddImageConfirmOpen} onOpenChange={setDdImageConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Report Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-slate-600">
+              Before extracting data from this image, please verify:
+            </p>
+            <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
+              <li>Is the patient name correct?</li>
+              <li>Is the age correct?</li>
+              <li>Is the report date correct?</li>
+            </ul>
+            <p className="text-xs text-slate-500">
+              Only the date will be stored with this report.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="dd_report_date">Report Date</Label>
+              <Input
+                id="dd_report_date"
+                type="date"
+                value={ddReportDate}
+                onChange={(e) => setDdReportDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDdImageConfirmOpen(false);
+                if (ddImageInputRef.current) ddImageInputRef.current.value = "";
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const note = `[Image uploaded - Report Date: ${ddReportDate || "Not specified"}]\nExtracted values: [Doctor to review and complete]\n\n`;
+                handleChange(
+                  "differential_diagnosis",
+                  note + (formData.differential_diagnosis || ""),
+                );
+                setDdImageHasData(true);
+                setDdImageConfirmOpen(false);
+                if (ddImageInputRef.current) ddImageInputRef.current.value = "";
+              }}
+            >
+              Confirm & Extract
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4">
