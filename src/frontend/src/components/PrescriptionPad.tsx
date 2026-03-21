@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { doctors } from "@/data/doctorsData";
 import { Pencil, Printer, Save } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -23,6 +24,7 @@ interface PrescriptionPadProps {
     jaundice?: string;
   };
   nextVisitDate?: string;
+  linkedVisitId?: string;
 }
 
 type PadSize = "A4" | "A5";
@@ -109,6 +111,84 @@ function EditableSpan({
   );
 }
 
+// ─── Visit data helpers ────────────────────────────────────────────────────
+
+function buildCCText(vd: any): string {
+  if (!vd) return "";
+  const lines: string[] = [];
+  const complaints: string[] = vd.chiefComplaints || [];
+  if (complaints.length > 0) {
+    lines.push(`Chief Complaints: ${complaints.join(", ")}`);
+    const answers: Record<
+      string,
+      Record<string, string>
+    > = vd.complaintAnswers || {};
+    for (const complaint of complaints) {
+      const qas = answers[complaint];
+      if (qas && Object.keys(qas).length > 0) {
+        const parts = Object.entries(qas)
+          .filter(([, v]) => v)
+          .map(([q, a]) => `${q}: ${a}`);
+        if (parts.length > 0) lines.push(`• ${complaint}: ${parts.join("; ")}`);
+      }
+    }
+  }
+  const sysReview: Record<string, string[]> = vd.systemReviewAnswers || {};
+  const positiveSymptoms: string[] = [];
+  for (const [, symptoms] of Object.entries(sysReview)) {
+    for (const s of symptoms as string[]) {
+      if (s) positiveSymptoms.push(s);
+    }
+  }
+  if (positiveSymptoms.length > 0) {
+    lines.push(`System Review (+): ${positiveSymptoms.join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
+function buildPMHText(vd: any): string {
+  if (!vd) return "";
+  const lines: string[] = [];
+  const pmh: string[] = vd.pastMedicalHistory || [];
+  if (pmh.length > 0) lines.push(`PMH: ${pmh.join(", ")}`);
+  const drugs: Array<{ name: string; dose?: string; duration?: string }> =
+    vd.drugHistory || [];
+  const drugFiltered = drugs.filter((d) => d.name?.trim());
+  if (drugFiltered.length > 0) {
+    const drugStr = drugFiltered
+      .map(
+        (d) =>
+          `${d.name}${d.dose ? ` ${d.dose}` : ""}${d.duration ? ` (${d.duration})` : ""}`,
+      )
+      .join(", ");
+    lines.push(`Drug History: ${drugStr}`);
+  }
+  const surgical: string[] = (vd.surgicalHistory || []).filter(Boolean);
+  if (surgical.length > 0)
+    lines.push(`Surgical History: ${surgical.join(", ")}`);
+  const family: string[] = (vd.familyHistory || []).filter(Boolean);
+  if (family.length > 0) lines.push(`Family History: ${family.join(", ")}`);
+  return lines.join("\n");
+}
+
+function buildInvestigationText(vd: any): string {
+  if (!vd) return "";
+  const lines: string[] = [];
+  const inv = vd.investigationProfile || {};
+  const prev: Array<{ name: string; result: string }> =
+    inv.previousReports || [];
+  if (prev.length > 0) {
+    lines.push(
+      `Previous: ${prev.map((r) => `${r.name} - ${r.result}`).join(", ")}`,
+    );
+  }
+  const advised: Array<{ name: string }> = inv.advised || [];
+  if (advised.length > 0) {
+    lines.push(`Advised: ${advised.map((a) => a.name).join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
 export default function PrescriptionPad({
   prescription,
   patientName,
@@ -120,10 +200,25 @@ export default function PrescriptionPad({
   vitalSigns,
   generalExam,
   nextVisitDate,
+  linkedVisitId,
 }: PrescriptionPadProps) {
   const [size, setSize] = useState<PadSize>("A4");
   const [editMode, setEditMode] = useState(false);
   const [editedFields, setEditedFields] = useState<Record<string, string>>({});
+  const [selectedChamberIdx, setSelectedChamberIdx] = useState(0);
+
+  const getStoredChambers = () => {
+    try {
+      const overrides = JSON.parse(
+        localStorage.getItem("doctorContentOverrides") || "{}",
+      );
+      return overrides?.arman?.chambers || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const chambers: any[] = getStoredChambers() || doctors.arman.chambers;
 
   const rxId =
     prescription?.id !== undefined ? String(prescription.id) : "blank";
@@ -137,6 +232,23 @@ export default function PrescriptionPad({
       // ignore
     }
   }, [storageKey]);
+
+  const [visitData, setVisitData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!linkedVisitId) return;
+    const allKeys = Object.keys(localStorage);
+    const matchKey = allKeys.find((k) =>
+      k.includes(`visit_form_data_${linkedVisitId}`),
+    );
+    if (matchKey) {
+      try {
+        setVisitData(JSON.parse(localStorage.getItem(matchKey) || "null"));
+      } catch {
+        // ignore
+      }
+    }
+  }, [linkedVisitId]);
 
   const customPdfName = localStorage.getItem("prescription_pad_pdf_name");
   const customPdf = localStorage.getItem("prescription_pad_pdf");
@@ -230,6 +342,23 @@ export default function PrescriptionPad({
         style={{ fontFamily: "system-ui" }}
         data-ocid="prescription_pad.panel"
       >
+        {chambers.length > 1 && (
+          <>
+            <span className="text-sm font-medium text-gray-600">Chamber:</span>
+            <select
+              value={selectedChamberIdx}
+              onChange={(e) => setSelectedChamberIdx(Number(e.target.value))}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 mr-2"
+              data-ocid="prescription_pad.select"
+            >
+              {chambers.map((c: any, i: number) => (
+                <option key={c.id || i} value={i}>
+                  {c.address || c.nameBn || `Chamber ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         <span className="text-sm font-medium text-gray-600 mr-2">Size:</span>
         <button
           type="button"
@@ -370,10 +499,25 @@ export default function PrescriptionPad({
                   fontFamily: "'Noto Sans Bengali', Arial, sans-serif",
                 }}
               >
-                <div>ইউনিভার্সিটি ডেন্টাল কলেজ এন্ড হাসপাতাল</div>
-                <div>নিচ তলা ( সেন্চুরি আর্কেড মল ),</div>
-                <div>১২০/এ, আউটার সার্কুলার রোড ,</div>
-                <div>মগবাজার ,ঢাকা .</div>
+                {(() => {
+                  const ch = chambers[selectedChamberIdx] || chambers[0];
+                  if (!ch) return null;
+                  if (ch.nameBn) {
+                    return (
+                      <>
+                        <div>{ch.nameBn}</div>
+                        {ch.addressBn
+                          ? ch.addressBn
+                              .split("\n")
+                              .map((line: string) => (
+                                <div key={line}>{line}</div>
+                              ))
+                          : ch.address && <div>{ch.address}</div>}
+                      </>
+                    );
+                  }
+                  return <div>{ch.address}</div>;
+                })()}
               </div>
             </div>
           </div>
@@ -453,7 +597,7 @@ export default function PrescriptionPad({
             />
           </span>
           <span style={{ whiteSpace: "nowrap" }}>
-            <span style={{ fontWeight: 700 }}>Wt: </span>
+            <span style={{ fontWeight: 700 }}>Weight: </span>
             <EditableSpan
               fieldKey="patient_wt"
               value={patientWeight ?? ""}
@@ -461,7 +605,7 @@ export default function PrescriptionPad({
               editedFields={ef}
               onFieldChange={fc}
               style={{ minWidth: "45px" }}
-              placeholder="Wt"
+              placeholder="Weight"
             />
           </span>
           <span style={{ whiteSpace: "nowrap" }}>
@@ -531,7 +675,9 @@ export default function PrescriptionPad({
                   cursor: editMode ? "text" : "default",
                 }}
               >
-                {ef.cc ?? chiefComplaints ?? ""}
+                {ef.cc ??
+                  (visitData ? buildCCText(visitData) : chiefComplaints) ??
+                  ""}
               </span>
               {!(ef.cc ?? chiefComplaints) && !editMode && (
                 <div style={{ lineHeight: "1.8" }}>
@@ -587,7 +733,9 @@ export default function PrescriptionPad({
                   cursor: editMode ? "text" : "default",
                 }}
               >
-                {ef.dh ?? drugHistory ?? ""}
+                {ef.dh ??
+                  (visitData ? buildPMHText(visitData) : drugHistory) ??
+                  ""}
               </span>
               {!(ef.dh ?? drugHistory) && !editMode && (
                 <div style={{ lineHeight: "1.8" }}>
@@ -621,7 +769,11 @@ export default function PrescriptionPad({
                   <span style={{ fontWeight: 600 }}>Temp: </span>
                   <EditableSpan
                     fieldKey="oe_temp"
-                    value={vitalSigns?.temperature ?? ""}
+                    value={
+                      vitalSigns?.temperature ??
+                      visitData?.vitalSigns?.temperature ??
+                      ""
+                    }
                     editMode={editMode}
                     editedFields={ef}
                     onFieldChange={fc}
@@ -633,7 +785,11 @@ export default function PrescriptionPad({
                   <span style={{ fontWeight: 600 }}>B.P.: </span>
                   <EditableSpan
                     fieldKey="oe_bp"
-                    value={vitalSigns?.bloodPressure ?? ""}
+                    value={
+                      vitalSigns?.bloodPressure ??
+                      visitData?.vitalSigns?.bloodPressure ??
+                      ""
+                    }
                     editMode={editMode}
                     editedFields={ef}
                     onFieldChange={fc}
@@ -645,7 +801,9 @@ export default function PrescriptionPad({
                   <span style={{ fontWeight: 600 }}>Pulse: </span>
                   <EditableSpan
                     fieldKey="oe_pulse"
-                    value={vitalSigns?.pulse ?? ""}
+                    value={
+                      vitalSigns?.pulse ?? visitData?.vitalSigns?.pulse ?? ""
+                    }
                     editMode={editMode}
                     editedFields={ef}
                     onFieldChange={fc}
@@ -660,7 +818,9 @@ export default function PrescriptionPad({
                     value={
                       vitalSigns?.oxygenSaturation
                         ? `${vitalSigns.oxygenSaturation}%`
-                        : ""
+                        : visitData?.vitalSigns?.oxygenSaturation
+                          ? `${visitData.vitalSigns.oxygenSaturation}%`
+                          : ""
                     }
                     editMode={editMode}
                     editedFields={ef}
@@ -682,7 +842,12 @@ export default function PrescriptionPad({
                   <span style={{ fontWeight: 600 }}>Anemia: </span>
                   <EditableSpan
                     fieldKey="oe_anemia"
-                    value={generalExam?.anemia ?? ""}
+                    value={
+                      generalExam?.anemia ??
+                      (visitData?.generalExamFindings?.Anemia ||
+                        visitData?.generalExamFindings?.Anaemia ||
+                        "")
+                    }
                     editMode={editMode}
                     editedFields={ef}
                     onFieldChange={fc}
@@ -694,7 +859,12 @@ export default function PrescriptionPad({
                   <span style={{ fontWeight: 600 }}>Jaundice: </span>
                   <EditableSpan
                     fieldKey="oe_jaundice"
-                    value={generalExam?.jaundice ?? ""}
+                    value={
+                      generalExam?.jaundice ??
+                      (visitData?.generalExamFindings?.Jaundice ||
+                        visitData?.generalExamFindings?.jaundice ||
+                        "")
+                    }
                     editMode={editMode}
                     editedFields={ef}
                     onFieldChange={fc}
@@ -733,7 +903,11 @@ export default function PrescriptionPad({
                   cursor: editMode ? "text" : "default",
                 }}
               >
-                {ef.investigation ?? investigations ?? ""}
+                {ef.investigation ??
+                  (visitData
+                    ? buildInvestigationText(visitData)
+                    : investigations) ??
+                  ""}
               </span>
               {!(ef.investigation ?? investigations) && !editMode && (
                 <div style={{ lineHeight: "1.8" }}>

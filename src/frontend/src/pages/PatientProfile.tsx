@@ -32,6 +32,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Prescription, Visit } from "../backend.d";
+import NewPrescriptionMode from "../components/NewPrescriptionMode";
 import PatientForm from "../components/PatientForm";
 import PrescriptionForm from "../components/PrescriptionForm";
 import PrescriptionPad from "../components/PrescriptionPad";
@@ -539,7 +540,7 @@ export default function PatientProfile() {
         </DialogContent>
       </Dialog>
 
-      {/* New Prescription Dialog */}
+      {/* New Prescription Dialog - Split Screen Mode */}
       <Dialog
         open={showRxForm}
         onOpenChange={(open) => {
@@ -547,24 +548,23 @@ export default function PatientProfile() {
         }}
       >
         <DialogContent
-          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          className="p-0 overflow-hidden"
+          style={{
+            width: "100vw",
+            maxWidth: "100vw",
+            height: "100vh",
+            maxHeight: "100vh",
+            margin: 0,
+            borderRadius: 0,
+            top: 0,
+            left: 0,
+            transform: "none",
+            position: "fixed",
+          }}
           data-ocid="patient_profile.prescriptions.dialog"
         >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              New Prescription
-              {rxInitialDiagnosis && (
-                <Badge
-                  variant="outline"
-                  className="text-xs border-teal-300 text-teal-700 bg-teal-50"
-                >
-                  DIMS Active
-                </Badge>
-              )}
-            </DialogTitle>
-          </DialogHeader>
           {patientId && (
-            <PrescriptionForm
+            <NewPrescriptionMode
               patientId={patientId}
               patientName={patient.fullName}
               initialDiagnosis={rxInitialDiagnosis}
@@ -896,6 +896,15 @@ export default function PatientProfile() {
               prescription={padPrescription}
               patientName={patient.fullName}
               patientAge={age ?? undefined}
+              patientWeight={
+                patient?.weight ? String(patient.weight) : undefined
+              }
+              linkedVisitId={
+                padPrescription?.visitId !== undefined &&
+                padPrescription?.visitId !== null
+                  ? String(padPrescription.visitId)
+                  : undefined
+              }
             />
           </div>
         </DialogContent>

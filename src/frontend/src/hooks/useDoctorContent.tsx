@@ -21,10 +21,12 @@ function saveOverrides(overrides: Overrides) {
 function deepMerge(base: any, overrides: Record<string, any>): any {
   const result = { ...base };
   for (const [key, value] of Object.entries(overrides)) {
-    if (
+    if (Array.isArray(value)) {
+      // Arrays always replace (never recurse) — important for chambers array
+      result[key] = value;
+    } else if (
       value !== null &&
       typeof value === "object" &&
-      !Array.isArray(value) &&
       typeof result[key] === "object" &&
       result[key] !== null &&
       !Array.isArray(result[key])
@@ -71,6 +73,20 @@ export function useDoctorContent() {
     [],
   );
 
+  const updateChambers = useCallback(
+    (doctorKey: DoctorKey, chambers: any[]) => {
+      setOverrides((prev) => {
+        const updated = {
+          ...prev,
+          [doctorKey]: { ...(prev[doctorKey] || {}), chambers },
+        };
+        saveOverrides(updated);
+        return updated;
+      });
+    },
+    [],
+  );
+
   const getAll = useCallback(() => {
     return {
       arman: getContent("arman"),
@@ -78,5 +94,5 @@ export function useDoctorContent() {
     };
   }, [getContent]);
 
-  return { getContent, updateField, getAll };
+  return { getContent, updateField, updateChambers, getAll };
 }

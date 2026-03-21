@@ -77,6 +77,7 @@ interface PublicBooking {
   doctor: string;
   date: string;
   reason: string;
+  chamber: string;
   submittedAt: string;
   status: "pending" | "confirmed" | "cancelled";
 }
@@ -1810,13 +1811,26 @@ export default function LandingPage({
   isAdmin,
   adminLogout,
 }: LandingPageProps) {
-  const { getContent, updateField } = useDoctorContent();
+  const { getContent, updateField, updateChambers } = useDoctorContent();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [editProfileKey, setEditProfileKey] = useState<DoctorKey | null>(null);
+  type ChamberForm = {
+    id: string;
+    nameBn: string;
+    addressBn: string;
+    address: string;
+    visitingHours: string;
+    phone: string;
+    emergencyPhone: string;
+  };
   const [editChamberKey, setEditChamberKey] = useState<DoctorKey | null>(null);
-  const [chamberEditForm, setChamberEditForm] = useState({
+  const [editChamberIdx, setEditChamberIdx] = useState<number>(-1);
+  const [chamberEditForm, setChamberEditForm] = useState<ChamberForm>({
+    id: "",
+    nameBn: "",
+    addressBn: "",
     address: "",
     visitingHours: "",
     phone: "",
@@ -1829,6 +1843,7 @@ export default function LandingPage({
     doctor: "",
     date: "",
     reason: "",
+    chamber: "",
   });
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [bookingCount, setBookingCount] = useState(0);
@@ -1852,11 +1867,25 @@ export default function LandingPage({
 
   const handleBookingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const selectedDocKey =
+      bookingForm.doctor === "Dr. Arman Kabir"
+        ? "arman"
+        : bookingForm.doctor === "Dr. Samia Shikder"
+          ? "samia"
+          : null;
+    const selectedDocData = selectedDocKey
+      ? getContent(selectedDocKey as "arman" | "samia")
+      : null;
+    const selectedDocChambers = selectedDocData
+      ? (selectedDocData.chambers as any[]) || []
+      : [];
+    const needsChamber = selectedDocChambers.length > 1;
     if (
       !bookingForm.patientName ||
       !bookingForm.phone ||
       !bookingForm.doctor ||
-      !bookingForm.date
+      !bookingForm.date ||
+      (needsChamber && !bookingForm.chamber)
     ) {
       toast.error("Please fill in all required fields.");
       return;
@@ -1864,6 +1893,7 @@ export default function LandingPage({
     const newBooking: PublicBooking = {
       id: Math.random().toString(36).slice(2, 10),
       ...bookingForm,
+      chamber: bookingForm.chamber,
       submittedAt: new Date().toISOString(),
       status: "pending",
     };
@@ -2285,9 +2315,9 @@ export default function LandingPage({
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {(["arman", "samia"] as const).map((key, idx) => {
+            {(["arman", "samia"] as const).map((key, docIdx) => {
               const doc = allDocs[key];
-              const chamber = doc.chamber;
+              const chambers = (doc.chambers as any[]) || [];
               const accentColor =
                 key === "arman" ? "text-primary" : "text-rose-600";
               const bg = key === "arman" ? "bg-primary/10" : "bg-rose-100";
@@ -2296,102 +2326,199 @@ export default function LandingPage({
               return (
                 <motion.div
                   key={key}
-                  initial={{ opacity: 0, x: idx === 0 ? -20 : 20 }}
+                  initial={{ opacity: 0, x: docIdx === 0 ? -20 : 20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: idx * 0.1 }}
+                  transition={{ duration: 0.5, delay: docIdx * 0.1 }}
+                  className="space-y-4"
                 >
-                  <Card className={`border-2 ${border}`}>
-                    <CardHeader className="pb-3">
-                      <CardTitle
-                        className={`flex items-center justify-between gap-2 ${accentColor}`}
+                  {/* Doctor header + Add chamber button */}
+                  <div className="flex items-center justify-between">
+                    <h3
+                      className={`flex items-center gap-2 font-semibold text-lg ${accentColor}`}
+                    >
+                      <MapPin className="w-5 h-5" />
+                      {doc.name}
+                    </h3>
+                    {isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-xs"
+                        onClick={() => {
+                          setChamberEditForm({
+                            id: "",
+                            nameBn: "",
+                            addressBn: "",
+                            address: "",
+                            visitingHours: "",
+                            phone: "",
+                            emergencyPhone: "",
+                          });
+                          setEditChamberIdx(-1);
+                          setEditChamberKey(key);
+                        }}
+                        data-ocid="chamber.open_modal_button"
                       >
-                        <span className="flex items-center gap-2">
-                          <MapPin className="w-5 h-5" />
-                          {doc.name}
-                        </span>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 opacity-70 hover:opacity-100"
-                            onClick={() => {
-                              setChamberEditForm({
-                                address: chamber.address,
-                                visitingHours: chamber.visitingHours,
-                                phone: doc.phone,
-                                emergencyPhone: chamber.emergencyPhone,
-                              });
-                              setEditChamberKey(key);
-                            }}
-                            data-ocid="chamber.edit_button"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className={`p-4 rounded-xl ${bg}`}>
-                        <div className="flex items-start gap-3">
-                          <MapPin
-                            className={`w-5 h-5 ${accentColor} shrink-0 mt-0.5`}
-                          />
-                          <p className="text-sm font-medium text-foreground">
-                            {chamber.address}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                          <Clock
-                            className={`w-4 h-4 ${accentColor} shrink-0`}
-                          />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Visiting Hours
-                            </p>
-                            <p className="text-sm font-medium">
-                              {chamber.visitingHours}
-                            </p>
+                        <Plus className="w-3.5 h-3.5" /> Add Chamber
+                      </Button>
+                    )}
+                  </div>
+
+                  {chambers.map((chamber: any, cIdx: number) => (
+                    <Card
+                      key={chamber.id || cIdx}
+                      className={`border-2 ${border}`}
+                    >
+                      <CardHeader className="pb-3">
+                        <CardTitle
+                          className={`flex items-center justify-between gap-2 ${accentColor} text-base`}
+                        >
+                          <span>{chamber.nameBn || chamber.address}</span>
+                          {isAdmin && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 opacity-70 hover:opacity-100"
+                                onClick={() => {
+                                  setChamberEditForm({
+                                    id: chamber.id || String(cIdx),
+                                    nameBn: chamber.nameBn || "",
+                                    addressBn: chamber.addressBn || "",
+                                    address: chamber.address || "",
+                                    visitingHours: chamber.visitingHours || "",
+                                    phone: chamber.phone || "",
+                                    emergencyPhone:
+                                      chamber.emergencyPhone || "",
+                                  });
+                                  setEditChamberIdx(cIdx);
+                                  setEditChamberKey(key);
+                                }}
+                                data-ocid="chamber.edit_button"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 opacity-70 hover:opacity-100 text-destructive hover:text-destructive"
+                                disabled={chambers.length <= 1}
+                                onClick={() => {
+                                  if (!confirm("Delete this chamber?")) return;
+                                  const updated = chambers.filter(
+                                    (_: any, i: number) => i !== cIdx,
+                                  );
+                                  updateChambers(key, updated);
+                                }}
+                                data-ocid="chamber.delete_button"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className={`p-4 rounded-xl ${bg}`}>
+                          <div className="flex items-start gap-3">
+                            <MapPin
+                              className={`w-5 h-5 ${accentColor} shrink-0 mt-0.5`}
+                            />
+                            <div>
+                              {chamber.addressBn && (
+                                <p
+                                  className="text-sm font-medium text-foreground"
+                                  style={{
+                                    fontFamily:
+                                      "'Noto Sans Bengali', Arial, sans-serif",
+                                  }}
+                                >
+                                  {chamber.addressBn
+                                    .split("\n")
+                                    .map(
+                                      (
+                                        line: string,
+                                        lineIdx: number,
+                                        arr: string[],
+                                      ) => (
+                                        <span key={line}>
+                                          {line}
+                                          {lineIdx < arr.length - 1 && <br />}
+                                        </span>
+                                      ),
+                                    )}
+                                </p>
+                              )}
+                              {chamber.address && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {chamber.address}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Phone
-                            className={`w-4 h-4 ${accentColor} shrink-0`}
-                          />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Phone
-                            </p>
-                            <p className="text-sm font-medium">{doc.phone}</p>
+                        <div className="space-y-3">
+                          {chamber.visitingHours && (
+                            <div className="flex items-center gap-3">
+                              <Clock
+                                className={`w-4 h-4 ${accentColor} shrink-0`}
+                              />
+                              <div>
+                                <p className="text-xs text-muted-foreground">
+                                  Visiting Hours
+                                </p>
+                                <p className="text-sm font-medium">
+                                  {chamber.visitingHours}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {chamber.phone && (
+                            <div className="flex items-center gap-3">
+                              <Phone
+                                className={`w-4 h-4 ${accentColor} shrink-0`}
+                              />
+                              <div>
+                                <p className="text-xs text-muted-foreground">
+                                  Phone
+                                </p>
+                                <p className="text-sm font-medium">
+                                  {chamber.phone}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <Mail
+                              className={`w-4 h-4 ${accentColor} shrink-0`}
+                            />
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                Email
+                              </p>
+                              <p className="text-sm font-medium">{doc.email}</p>
+                            </div>
                           </div>
+                          {chamber.emergencyPhone && (
+                            <div className="flex items-center gap-3">
+                              <PhoneCall
+                                className={`w-4 h-4 ${accentColor} shrink-0`}
+                              />
+                              <div>
+                                <p className="text-xs text-muted-foreground">
+                                  Emergency
+                                </p>
+                                <p className="text-sm font-medium">
+                                  {chamber.emergencyPhone}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Mail className={`w-4 h-4 ${accentColor} shrink-0`} />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Email
-                            </p>
-                            <p className="text-sm font-medium">{doc.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <PhoneCall
-                            className={`w-4 h-4 ${accentColor} shrink-0`}
-                          />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Emergency
-                            </p>
-                            <p className="text-sm font-medium">
-                              {chamber.emergencyPhone}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </motion.div>
               );
             })}
@@ -2399,7 +2526,7 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* Chamber Address Edit Dialog */}
+      {/* Chamber Add/Edit Dialog */}
       {editChamberKey && (
         <Dialog
           open={!!editChamberKey}
@@ -2408,7 +2535,7 @@ export default function LandingPage({
           <DialogContent className="max-w-md" data-ocid="chamber.dialog">
             <DialogHeader>
               <DialogTitle>
-                Edit Chamber Address —{" "}
+                {editChamberIdx === -1 ? "Add Chamber" : "Edit Chamber"} —{" "}
                 {editChamberKey === "arman"
                   ? "Dr. Arman Kabir"
                   : "Dr. Samia Shikder"}
@@ -2416,7 +2543,36 @@ export default function LandingPage({
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label>Address</Label>
+                <Label>Name (Bangla)</Label>
+                <Input
+                  value={chamberEditForm.nameBn}
+                  onChange={(e) =>
+                    setChamberEditForm((f) => ({
+                      ...f,
+                      nameBn: e.target.value,
+                    }))
+                  }
+                  placeholder="চেম্বারের নাম"
+                  data-ocid="chamber.input"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address (Bangla)</Label>
+                <Textarea
+                  value={chamberEditForm.addressBn}
+                  onChange={(e) =>
+                    setChamberEditForm((f) => ({
+                      ...f,
+                      addressBn: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  placeholder="বাংলা ঠিকানা"
+                  data-ocid="chamber.textarea"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address (English)</Label>
                 <Textarea
                   value={chamberEditForm.address}
                   onChange={(e) =>
@@ -2425,8 +2581,8 @@ export default function LandingPage({
                       address: e.target.value,
                     }))
                   }
-                  rows={3}
-                  data-ocid="chamber.textarea"
+                  rows={2}
+                  placeholder="English address"
                 />
               </div>
               <div className="space-y-1.5">
@@ -2439,7 +2595,7 @@ export default function LandingPage({
                       visitingHours: e.target.value,
                     }))
                   }
-                  data-ocid="chamber.input"
+                  placeholder="e.g. Sat–Thu: 5 PM – 9 PM"
                 />
               </div>
               <div className="space-y-1.5">
@@ -2463,29 +2619,33 @@ export default function LandingPage({
                   }
                 />
               </div>
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2 pt-2">
                 <Button
                   className="flex-1"
                   onClick={() => {
                     if (!editChamberKey) return;
-                    updateField(
-                      editChamberKey,
-                      "chamber.address",
-                      chamberEditForm.address,
-                    );
-                    updateField(
-                      editChamberKey,
-                      "chamber.visitingHours",
-                      chamberEditForm.visitingHours,
-                    );
-                    updateField(editChamberKey, "phone", chamberEditForm.phone);
-                    updateField(
-                      editChamberKey,
-                      "chamber.emergencyPhone",
-                      chamberEditForm.emergencyPhone,
-                    );
+                    const doc = allDocs[editChamberKey];
+                    const chambers = (doc.chambers as any[]) || [];
+                    if (editChamberIdx === -1) {
+                      // Add new
+                      const newChamber = {
+                        ...chamberEditForm,
+                        id: Date.now().toString(),
+                      };
+                      updateChambers(editChamberKey, [...chambers, newChamber]);
+                    } else {
+                      // Update existing
+                      const updated = chambers.map((c: any, i: number) =>
+                        i === editChamberIdx ? { ...c, ...chamberEditForm } : c,
+                      );
+                      updateChambers(editChamberKey, updated);
+                    }
                     setEditChamberKey(null);
-                    toast.success("Chamber address updated");
+                    toast.success(
+                      editChamberIdx === -1
+                        ? "Chamber added"
+                        : "Chamber updated",
+                    );
                   }}
                   data-ocid="chamber.confirm_button"
                 >
@@ -2564,6 +2724,7 @@ export default function LandingPage({
                       doctor: "",
                       date: "",
                       reason: "",
+                      chamber: "",
                     });
                   }}
                   data-ocid="appointments.new_booking.button"
@@ -2631,7 +2792,11 @@ export default function LandingPage({
                         <Select
                           value={bookingForm.doctor}
                           onValueChange={(v) =>
-                            setBookingForm((f) => ({ ...f, doctor: v }))
+                            setBookingForm((f) => ({
+                              ...f,
+                              doctor: v,
+                              chamber: "",
+                            }))
                           }
                         >
                           <SelectTrigger data-ocid="appointments.booking.select">
@@ -2647,6 +2812,49 @@ export default function LandingPage({
                           </SelectContent>
                         </Select>
                       </div>
+                      {(() => {
+                        const dKey =
+                          bookingForm.doctor === "Dr. Arman Kabir"
+                            ? "arman"
+                            : bookingForm.doctor === "Dr. Samia Shikder"
+                              ? "samia"
+                              : null;
+                        const dChambers = dKey
+                          ? (allDocs[dKey as "arman" | "samia"]
+                              ?.chambers as any[]) || []
+                          : [];
+                        if (dChambers.length <= 1) return null;
+                        return (
+                          <div className="space-y-1.5">
+                            <Label>
+                              Preferred Chamber{" "}
+                              <span className="text-destructive">*</span>
+                            </Label>
+                            <Select
+                              value={bookingForm.chamber}
+                              onValueChange={(v) =>
+                                setBookingForm((f) => ({ ...f, chamber: v }))
+                              }
+                            >
+                              <SelectTrigger data-ocid="appointments.booking.select">
+                                <SelectValue placeholder="Select chamber" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {dChambers.map((ch: any, i: number) => (
+                                  <SelectItem
+                                    key={ch.id || i}
+                                    value={ch.id || String(i)}
+                                  >
+                                    {ch.address ||
+                                      ch.nameBn ||
+                                      `Chamber ${i + 1}`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      })()}
                       <div className="space-y-1.5">
                         <Label htmlFor="booking-date">
                           Preferred Date{" "}

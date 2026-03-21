@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { getDoctorEmail, loadFromStorage } from "@/hooks/useQueries";
 import {
   Activity,
   Heart,
@@ -1125,6 +1126,81 @@ export default function VisitForm({
     const visitDate =
       BigInt(new Date(formData.visit_date || nowDateTimeLocal()).getTime()) *
       1000000n;
+
+    // Save extended visit form data to localStorage for prescription auto-population
+    try {
+      const doctorEmail = getDoctorEmail();
+      const existingVisits = loadFromStorage<{ id: bigint }>(
+        `visits_${doctorEmail}`,
+      );
+      const nextVisitId =
+        existingVisits.length === 0
+          ? 1n
+          : existingVisits.reduce(
+              (max, v) => (v.id > max ? v.id : max),
+              0n as bigint,
+            ) + 1n;
+      const extendedKey = `visit_form_data_${nextVisitId}_${doctorEmail}`;
+      const vs = formData.vital_signs;
+      const extendedData = {
+        chiefComplaints: selectedComplaints,
+        complaintAnswers: (() => {
+          const result: Record<string, Record<string, string>> = {};
+          for (const complaint of selectedComplaints) {
+            const qs = complaintQuestions[complaint] || [];
+            const ans = complaintAnswers[complaint] || [];
+            result[complaint] = {};
+            qs.forEach((q, i) => {
+              if (ans[i]) result[complaint][q.q] = ans[i];
+            });
+          }
+          return result;
+        })(),
+        systemReviewAnswers,
+        pastMedicalHistory: Object.entries(medicalHistory)
+          .filter(([, v]) => v === "+")
+          .map(([k]) => k),
+        drugHistory: (formData.drug_history || [])
+          .filter((d) => d.drug_name?.trim())
+          .map((d) => ({
+            name: d.drug_name,
+            dose: d.dose,
+            duration: d.daily_dose,
+          })),
+        surgicalHistory: surgicalHistoryAnswers.filter(Boolean),
+        familyHistory: familyHistoryAnswers.filter(Boolean),
+        personalHistory: personalHistoryAnswers.filter(Boolean),
+        vitalSigns: {
+          bloodPressure: vs?.blood_pressure?.trim() || undefined,
+          pulse: vs?.pulse ? String(vs.pulse) : undefined,
+          temperature: vs?.temperature ? String(vs.temperature) : undefined,
+          respiratoryRate: vs?.respiratory_rate
+            ? String(vs.respiratory_rate)
+            : undefined,
+          oxygenSaturation: vs?.oxygen_saturation
+            ? String(vs.oxygen_saturation)
+            : undefined,
+          height: vs?.height ? String(vs.height) : undefined,
+        },
+        generalExamFindings,
+        systemicExamFindings,
+        investigationProfile: {
+          previousReports: (formData.investigation_profile || [])
+            .filter((inv) => inv.result?.trim())
+            .map((inv) => ({
+              name: inv.name,
+              result: `${inv.result}${inv.unit ? ` ${inv.unit}` : ""}`,
+              date: undefined,
+            })),
+          advised: (formData.investigation_profile || [])
+            .filter((inv) => !inv.result?.trim() && inv.name?.trim())
+            .map((inv) => ({ name: inv.name, note: inv.unit || undefined })),
+        },
+      };
+      localStorage.setItem(extendedKey, JSON.stringify(extendedData));
+    } catch {
+      // ignore storage errors
+    }
 
     onSubmit({
       patientId,
