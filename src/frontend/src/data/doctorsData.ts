@@ -5,6 +5,10 @@ export const doctors = {
     designation: "Dr.",
     degree: "MBBS (D.U.)",
     degrees: ["MBBS (D.U.)"],
+    posts: [
+      "Emergency Medical Officer, Dr. Sirajul Islam Medical College Hospital",
+      "Registrar, Dept. of General Surgery, University Dental College (uDC)",
+    ],
     specialization: "General Surgery",
     roles: [
       "Emergency Medical Officer, Dr. Sirajul Islam Medical College Hospital",
@@ -127,6 +131,7 @@ export const doctors = {
       "FCPS Part 2 (Reproductive Endocrinology and Infertility)",
       "DMU (CMUD)",
     ],
+    posts: ["FCPS Part 2 Trainee, Dept. of Gynae & Obs, Dhaka Medical College"],
     specialization: "Gynae & Obs, Reproductive Endocrinology and Infertility",
     roles: ["FCPS Part 2 Trainee, Dept. of Gynae & Obs, Dhaka Medical College"],
     regNo: "",

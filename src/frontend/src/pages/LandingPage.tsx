@@ -1556,6 +1556,11 @@ function CVContent({
         </div>
         <h2 className="text-2xl font-bold text-foreground">{doc.name}</h2>
         <p className={`font-medium mt-1 ${color}`}>{doc.degree}</p>
+        {((doc.posts as string[]) || []).map((post) => (
+          <p key={post} className="text-sm text-muted-foreground mt-0.5">
+            {post}
+          </p>
+        ))}
         <p className="text-muted-foreground text-sm mt-0.5">
           {doc.specialization}
         </p>
@@ -1699,6 +1704,7 @@ function ProfileEditDialog({
   const [form, setForm] = useState({
     name: doc.name,
     degree: doc.degree,
+    posts: (doc.posts as string[]) || [],
     specialization: doc.specialization,
     hospital: doc.hospital,
     phone: doc.phone,
@@ -1707,7 +1713,15 @@ function ProfileEditDialog({
 
   const handleSave = () => {
     for (const [key, value] of Object.entries(form)) {
-      updateField(doctorKey, key, value);
+      if (key === "posts") {
+        updateField(
+          doctorKey,
+          key,
+          (value as string[]).filter((p) => p.trim()),
+        );
+      } else {
+        updateField(doctorKey, key, value);
+      }
     }
     toast.success("Profile updated successfully");
     onClose();
@@ -1738,6 +1752,54 @@ function ProfileEditDialog({
               placeholder="MBBS, FCPS..."
               data-ocid="profile.edit.input"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Posts</Label>
+            <div className="space-y-2">
+              {form.posts.map((post, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: posts are ordered
+                <div key={`post-edit-${i}`} className="flex gap-2 items-center">
+                  <Input
+                    value={post}
+                    onChange={(e) =>
+                      setForm((f) => {
+                        const updated = [...f.posts];
+                        updated[i] = e.target.value;
+                        return { ...f, posts: updated };
+                      })
+                    }
+                    placeholder="e.g. Registrar, Dept. of Surgery"
+                    data-ocid="profile.edit.input"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        posts: f.posts.filter((_, j) => j !== i),
+                      }))
+                    }
+                    data-ocid="profile.edit.delete_button"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() =>
+                  setForm((f) => ({ ...f, posts: [...f.posts, ""] }))
+                }
+                data-ocid="profile.edit.button"
+                className="w-full"
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add Post
+              </Button>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label>Specialization</Label>
@@ -2177,6 +2239,14 @@ export default function LandingPage({
                           <p className="text-primary font-medium text-sm">
                             {doc.degree}
                           </p>
+                          {((doc.posts as string[]) || []).map((post) => (
+                            <p
+                              key={post}
+                              className="text-xs text-muted-foreground mt-0.5"
+                            >
+                              {post}
+                            </p>
+                          ))}
                           <p className="text-muted-foreground text-sm">
                             {doc.specialization}
                           </p>

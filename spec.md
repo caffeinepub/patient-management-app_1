@@ -1,48 +1,33 @@
 # Dr. Arman Kabir's Care
 
 ## Current State
-VisitForm.tsx has these sections (in order):
-- Chief Complaints, System Review, History, Drug History, Vital Signs, General Exam, Systemic Exam
-- Salient Features (with Auto-Generate button)
-- Brief Summary bar (with 4 sub-fields: history, examination, investigation, overall)
-- Full Evaluation field
-- Analysis field
-- Diagnosis
-- Notes
+Full rebuild requested. Draft has expired. All features from Version 37 need to be restored.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Previous Investigation Report** bar: placed BEFORE Salient Features. Has a text area for entering previous report details AND an image/photo upload option. When Auto-Generate is clicked on Salient Features, the previous investigation data is included in the generated narrative.
-- **Differential Diagnosis** bar: placed AFTER Salient Features. Has:
-  - AI Auto-Generate button that generates differential diagnosis based on salient features content
-  - Image/photo upload: extracts values from uploaded image. Before using, checks patient name+age+date on the report for confirmation. Doctor must confirm extracted data before it's applied.
-  - Only date is stored with the report (not name/age validation stored)
-  - PDF note field (PDF processing is manual/noted for future)
-  - Fully editable textarea
-- **New Investigation Advice** bar: placed AFTER Differential Diagnosis. Has:
-  - AI Auto-Generate button that generates investigation suggestions based on differential diagnosis
-  - PDF note field (for future PDF-based list)
-  - Fully editable textarea
+- Full rebuild of all features
 
 ### Modify
-- **Salient Features Auto-Generate**: include previous investigation report data in the generated narrative
-- Remove Brief Summary bar entirely (4 sub-fields + overall)
-- Remove Full Evaluation field
-- Remove Analysis field
-- Admin can edit visit form format (inline edit buttons on section titles/labels when logged in as admin)
+- N/A (rebuild as-is)
 
 ### Remove
-- Brief Summary Card (with all 4 sub-fields)
-- Full Evaluation textarea
-- Analysis textarea
+- N/A
 
 ## Implementation Plan
-1. Update VisitFormData interface: remove brief_summary fields, add previous_investigation_report, differential_diagnosis, investigation_advice fields
-2. Update initial formData state to remove removed fields and add new ones
-3. Update generateSalientFeatures() to include previous_investigation_report
-4. Add Previous Investigation Report Card before Salient Features (textarea + image upload)
-5. Remove Brief Summary Card, Full Evaluation, Analysis sections
-6. Add Differential Diagnosis Card after Salient Features with AI generate button, image upload with name/age/date confirmation dialog
-7. Add New Investigation Advice Card after Differential Diagnosis with AI generate button
-8. Admin inline edit buttons on section labels (already partially implemented - ensure visit form sections have data-ocid for admin editing)
+
+1. Public landing page with two doctor profiles (Dr. Arman Kabir and Dr. Samia Shikder)
+2. Admin login (2 accounts: dr.armankabir011@gmail.com/01197247219 and admin2/admin2)
+3. Staff/doctor login for patient management
+4. Emergency WhatsApp consultation (per-doctor numbers)
+5. Patient registration (DOB or Age), management, visits
+6. Visit form: full-screen, bilingual, specialty exams (Respiratory/Neurological/GI/Musculoskeletal/Cardiovascular), salient features with auto-generate, previous investigation, differential diagnosis, new investigation advice, admin inline editing
+7. Prescription: full-screen split layout, DIMS/Medex integration, physical pad format (A4/A5), auto-fill from visit, editable by doctor, save as new on edit
+8. Appointments: public booking, staff confirmation, chamber selection, serial queue
+9. Multiple chamber addresses per doctor, editable by admin and doctor
+10. Classroom and class schedule, editable by admin
+11. CV section with PDF download (Dr. Samia), admin PDF management
+12. Profile posts (multiple per doctor), editable by admin
+13. Color coding for all non-prescription sections
+14. Height in feet/inches format
+15. Offline support via localStorage
