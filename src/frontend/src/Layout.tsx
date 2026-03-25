@@ -7,10 +7,12 @@ import {
   Stethoscope,
   UserCircle,
   Users,
+  WifiOff,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import { useEmailAuth } from "./hooks/useEmailAuth";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +30,7 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
   const state = useRouterState();
   const pathname = state.location.pathname;
   const { currentDoctor } = useEmailAuth();
+  const isOnline = useOnlineStatus();
 
   const displayName = currentDoctor
     ? `${currentDoctor.designation} ${currentDoctor.name}`.trim()
@@ -48,6 +51,17 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col pb-16 md:pb-0">
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-white text-center text-sm py-2 px-4 flex items-center justify-center gap-2 sticky top-0 z-[60]">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          <span>
+            You are offline. All data is saved locally and will sync when
+            reconnected.
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -93,19 +107,29 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
               ))}
             </nav>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden w-9 h-9"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Online/Offline indicator dot */}
+              <div
+                className={cn(
+                  "w-2 h-2 rounded-full",
+                  isOnline ? "bg-green-500" : "bg-amber-500 animate-pulse",
+                )}
+                title={isOnline ? "Online" : "Offline"}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden w-9 h-9"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 

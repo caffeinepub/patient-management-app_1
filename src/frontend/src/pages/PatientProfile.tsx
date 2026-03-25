@@ -23,6 +23,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  PlusCircle,
   Printer,
   Scissors,
   Stethoscope,
@@ -67,48 +68,70 @@ function VisitCard({
   visit,
   index,
   onClick,
+  onAddNewVisit,
 }: {
   visit: Visit;
   index: number;
   onClick: () => void;
+  onAddNewVisit?: (visit: Visit) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left bg-card border border-border rounded-xl p-4 hover:shadow-card hover:border-primary/30 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      data-ocid={`patient_profile.visits.item.${index + 1}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <Stethoscope className="w-4 h-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-foreground truncate">
-              {visit.chiefComplaint}
-            </p>
-            <Badge
-              variant={visit.visitType === "admitted" ? "default" : "secondary"}
-              className="text-xs flex-shrink-0 capitalize"
-            >
-              {visit.visitType}
-            </Badge>
+    <div className="bg-card border border-border rounded-xl hover:shadow-card hover:border-primary/30 transition-all duration-200">
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full text-left p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+        data-ocid={`patient_profile.visits.item.${index + 1}`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Stethoscope className="w-4 h-4 text-primary" />
           </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {formatDateTime(visit.visitDate)}
-            </span>
-            {visit.diagnosis && (
-              <span className="truncate text-primary/80">
-                Dx: {visit.diagnosis}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-foreground truncate">
+                {visit.chiefComplaint}
+              </p>
+              <Badge
+                variant={
+                  visit.visitType === "admitted" ? "default" : "secondary"
+                }
+                className="text-xs flex-shrink-0 capitalize"
+              >
+                {visit.visitType}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatDateTime(visit.visitDate)}
               </span>
-            )}
+              {visit.diagnosis && (
+                <span className="truncate text-primary/80">
+                  Dx: {visit.diagnosis}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+      {onAddNewVisit && (
+        <div className="px-4 pb-3 pt-0 flex justify-end">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddNewVisit(visit);
+            }}
+            className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 font-medium"
+            data-ocid={`patient_profile.visits.add_new.button.${index + 1}`}
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            Add New Visit / Investigation Update
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -159,6 +182,7 @@ export default function PatientProfile() {
 
   const [showEditForm, setShowEditForm] = useState(false);
   const [showVisitForm, setShowVisitForm] = useState(false);
+  const [newVisitTemplate, setNewVisitTemplate] = useState<Visit | null>(null);
   const [showRxForm, setShowRxForm] = useState(false);
   const [rxInitialDiagnosis, setRxInitialDiagnosis] = useState<
     string | undefined
@@ -421,6 +445,10 @@ export default function PatientProfile() {
                     visit={visit}
                     index={idx}
                     onClick={() => setSelectedVisit(visit)}
+                    onAddNewVisit={(v) => {
+                      setNewVisitTemplate(v);
+                      setShowVisitForm(true);
+                    }}
                   />
                 ))}
             </div>
@@ -515,23 +543,45 @@ export default function PatientProfile() {
         >
           <div className="flex flex-col h-full overflow-hidden">
             <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-              <DialogTitle>Record Visit</DialogTitle>
+              <DialogTitle>
+                {newVisitTemplate
+                  ? "Add New Visit / Investigation Update"
+                  : "Record Visit"}
+              </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {patientId && (
                 <VisitForm
                   patientId={patientId}
                   patient={patient}
+                  visit={
+                    newVisitTemplate
+                      ? {
+                          visit_type: newVisitTemplate.visitType,
+                          chief_complaint:
+                            newVisitTemplate.chiefComplaint ?? "",
+                          diagnosis: newVisitTemplate.diagnosis ?? "",
+                        }
+                      : undefined
+                  }
                   onSubmit={(data) => {
                     createVisitMutation.mutate(data, {
                       onSuccess: () => {
-                        toast.success("Visit recorded");
+                        toast.success(
+                          newVisitTemplate
+                            ? "New follow-up visit recorded"
+                            : "Visit recorded",
+                        );
                         setShowVisitForm(false);
+                        setNewVisitTemplate(null);
                       },
                       onError: () => toast.error("Failed to record visit"),
                     });
                   }}
-                  onCancel={() => setShowVisitForm(false)}
+                  onCancel={() => {
+                    setShowVisitForm(false);
+                    setNewVisitTemplate(null);
+                  }}
                   isLoading={createVisitMutation.isPending}
                 />
               )}

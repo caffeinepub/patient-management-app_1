@@ -14,7 +14,28 @@ declare global {
   }
 }
 
-const queryClient = new QueryClient();
+// Register Service Worker for offline support
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // SW registration failed silently
+    });
+  });
+}
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: "offlineFirst",
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 60 * 24,
+      retry: 1,
+    },
+    mutations: {
+      networkMode: "offlineFirst",
+    },
+  },
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={queryClient}>

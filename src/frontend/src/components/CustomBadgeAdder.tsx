@@ -4,14 +4,56 @@ import { Input } from "@/components/ui/input";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { useRef, useState } from "react";
 
+// Color palette rotating for custom badges
+const BADGE_PALETTE = [
+  {
+    base: "bg-blue-100 text-blue-800 border-blue-300",
+    active: "bg-blue-500 text-white border-blue-500",
+  },
+  {
+    base: "bg-green-100 text-green-800 border-green-300",
+    active: "bg-green-500 text-white border-green-500",
+  },
+  {
+    base: "bg-amber-100 text-amber-800 border-amber-300",
+    active: "bg-amber-500 text-white border-amber-500",
+  },
+  {
+    base: "bg-purple-100 text-purple-800 border-purple-300",
+    active: "bg-purple-500 text-white border-purple-500",
+  },
+  {
+    base: "bg-rose-100 text-rose-800 border-rose-300",
+    active: "bg-rose-500 text-white border-rose-500",
+  },
+  {
+    base: "bg-cyan-100 text-cyan-800 border-cyan-300",
+    active: "bg-cyan-500 text-white border-cyan-500",
+  },
+  {
+    base: "bg-orange-100 text-orange-800 border-orange-300",
+    active: "bg-orange-500 text-white border-orange-500",
+  },
+  {
+    base: "bg-teal-100 text-teal-800 border-teal-300",
+    active: "bg-teal-500 text-white border-teal-500",
+  },
+  {
+    base: "bg-indigo-100 text-indigo-800 border-indigo-300",
+    active: "bg-indigo-500 text-white border-indigo-500",
+  },
+  {
+    base: "bg-lime-100 text-lime-800 border-lime-300",
+    active: "bg-lime-600 text-white border-lime-600",
+  },
+];
+
 interface CustomBadgeAdderProps {
-  /** examData field that holds the selected values (string for single, string[] for multi) */
   field: string;
-  /** examData field that holds the custom options list, e.g. "custom_chest_shape" */
   customField: string;
   examData: any;
   isMulti?: boolean;
-  accentColor?: string; // e.g. "teal-600"
+  accentColor?: string;
   onUpdate: (patch: Record<string, any>) => void;
   placeholder?: string;
 }
@@ -21,7 +63,6 @@ export default function CustomBadgeAdder({
   customField,
   examData,
   isMulti = true,
-  accentColor = "teal-600",
   onUpdate,
   placeholder = "Add custom finding...",
 }: CustomBadgeAdderProps) {
@@ -54,7 +95,6 @@ export default function CustomBadgeAdder({
     if (!trimmed || customOptions.includes(trimmed)) return;
     const newOptions = [...customOptions, trimmed];
     const patch: Record<string, any> = { [customField]: newOptions };
-    // auto-select the newly added badge
     if (isMulti) {
       patch[field] = [...((selected as string[]) || []), trimmed];
     } else {
@@ -104,10 +144,10 @@ export default function CustomBadgeAdder({
 
   return (
     <div className="space-y-2">
-      {/* Custom badges */}
       {customOptions.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {customOptions.map((opt) => {
+          {customOptions.map((opt, optIdx) => {
+            const colors = BADGE_PALETTE[optIdx % BADGE_PALETTE.length];
             const active = isSelected(opt);
             if (editingValue === opt) {
               return (
@@ -138,9 +178,9 @@ export default function CustomBadgeAdder({
             return (
               <Badge
                 key={opt}
-                variant={active ? "default" : "outline"}
-                className={`cursor-pointer text-sm py-2 px-2 flex items-center gap-1 group ${
-                  active ? `bg-${accentColor}` : ""
+                variant="outline"
+                className={`cursor-pointer text-sm py-2 px-2 flex items-center gap-1 group border transition-all min-h-[36px] ${
+                  active ? colors.active : colors.base
                 }`}
                 onClick={() => toggleValue(opt)}
               >
@@ -173,7 +213,6 @@ export default function CustomBadgeAdder({
         </div>
       )}
 
-      {/* Add new custom finding */}
       <div className="flex items-center gap-2">
         <Input
           value={inputVal}
@@ -191,7 +230,7 @@ export default function CustomBadgeAdder({
           type="button"
           size="icon"
           variant="outline"
-          className="h-8 w-8 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0 min-h-[44px] min-w-[44px]"
           onClick={addCustom}
           disabled={!inputVal.trim()}
           title="Add custom finding"

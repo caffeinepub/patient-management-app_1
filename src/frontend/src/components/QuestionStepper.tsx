@@ -22,6 +22,50 @@ interface QuestionStepperProps {
   numberOffset?: number;
 }
 
+// Color palette for options - each option gets a distinct color based on index
+const OPTION_PALETTE = [
+  {
+    base: "bg-blue-100 text-blue-800 border-blue-300",
+    active: "bg-blue-500 text-white border-blue-500 shadow-sm",
+  },
+  {
+    base: "bg-green-100 text-green-800 border-green-300",
+    active: "bg-green-500 text-white border-green-500 shadow-sm",
+  },
+  {
+    base: "bg-amber-100 text-amber-800 border-amber-300",
+    active: "bg-amber-500 text-white border-amber-500 shadow-sm",
+  },
+  {
+    base: "bg-purple-100 text-purple-800 border-purple-300",
+    active: "bg-purple-500 text-white border-purple-500 shadow-sm",
+  },
+  {
+    base: "bg-rose-100 text-rose-800 border-rose-300",
+    active: "bg-rose-500 text-white border-rose-500 shadow-sm",
+  },
+  {
+    base: "bg-cyan-100 text-cyan-800 border-cyan-300",
+    active: "bg-cyan-500 text-white border-cyan-500 shadow-sm",
+  },
+  {
+    base: "bg-orange-100 text-orange-800 border-orange-300",
+    active: "bg-orange-500 text-white border-orange-500 shadow-sm",
+  },
+  {
+    base: "bg-teal-100 text-teal-800 border-teal-300",
+    active: "bg-teal-500 text-white border-teal-500 shadow-sm",
+  },
+  {
+    base: "bg-indigo-100 text-indigo-800 border-indigo-300",
+    active: "bg-indigo-500 text-white border-indigo-500 shadow-sm",
+  },
+  {
+    base: "bg-lime-100 text-lime-800 border-lime-300",
+    active: "bg-lime-600 text-white border-lime-600 shadow-sm",
+  },
+];
+
 export default function QuestionStepper({
   questions = [],
   answers = [],
@@ -57,7 +101,7 @@ export default function QuestionStepper({
             : "border-slate-200 bg-white"
         }`}
       >
-        <div className="flex items-start gap-3 p-4">
+        <div className="flex items-start gap-3 p-3 sm:p-4">
           <div
             className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
               isAnswered
@@ -77,25 +121,27 @@ export default function QuestionStepper({
         </div>
 
         {options.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-4 pb-3">
-            {options.map((option) => (
-              <Badge
-                key={option}
-                variant={answer === option ? "default" : "outline"}
-                className={`cursor-pointer text-sm py-1.5 px-3 transition-all ${
-                  answer === option
-                    ? "bg-teal-600 hover:bg-teal-700 text-white shadow"
-                    : "hover:bg-teal-50 hover:border-teal-400 text-slate-600"
-                }`}
-                onClick={() => handleOptionClick(idx, option)}
-              >
-                {option}
-              </Badge>
-            ))}
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 px-3 sm:px-4 pb-3">
+            {options.map((option, optIdx) => {
+              const colors = OPTION_PALETTE[optIdx % OPTION_PALETTE.length];
+              const isSelected = answer === option;
+              return (
+                <Badge
+                  key={option}
+                  variant="outline"
+                  className={`cursor-pointer text-xs sm:text-sm py-1 sm:py-1.5 px-2 sm:px-3 transition-all border font-medium min-h-[36px] flex items-center ${
+                    isSelected ? colors.active : colors.base
+                  }`}
+                  onClick={() => handleOptionClick(idx, option)}
+                >
+                  {option}
+                </Badge>
+              );
+            })}
           </div>
         )}
 
-        <div className="px-4 pb-4">
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4">
           {isAnswered && !isEditing ? (
             <button
               type="button"
@@ -185,7 +231,7 @@ export default function QuestionStepper({
               size="sm"
               onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
               disabled={currentStep === 0}
-              className="h-9 px-4"
+              className="h-9 px-4 min-h-[44px]"
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
               Prev
@@ -214,7 +260,7 @@ export default function QuestionStepper({
               size="sm"
               onClick={() => setCurrentStep((s) => Math.min(total - 1, s + 1))}
               disabled={currentStep === total - 1}
-              className={`h-9 px-4 ${
+              className={`h-9 px-4 min-h-[44px] ${
                 currentStep === total - 1 ? "bg-teal-600 hover:bg-teal-700" : ""
               }`}
             >

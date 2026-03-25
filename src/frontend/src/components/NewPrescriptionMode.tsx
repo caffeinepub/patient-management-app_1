@@ -4,8 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { getDoctorEmail } from "@/hooks/useQueries";
 import {
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   Info,
   Plus,
@@ -198,6 +202,532 @@ function todayDateString() {
   return new Date().toISOString().split("T")[0];
 }
 
+// ─── Types for visit extended data ──────────────────────────────────────────
+
+interface VisitExtendedData {
+  chiefComplaints?: string[];
+  complaintAnswers?: Record<string, Record<string, string>>;
+  systemReviewAnswers?: Record<string, string>;
+  pastMedicalHistory?: string[];
+  pastMedicalHistoryAll?: Record<string, string>;
+  drugHistory?: { name?: string; dose?: string; duration?: string }[];
+  surgicalHistory?: string[];
+  familyHistory?: string[];
+  personalHistory?: string[];
+  immunizationHistory?: string[];
+  epiSchedule?: string;
+  allergyHistory?: string[];
+  obstetricHistory?: string[];
+  gynaecologicalHistory?: string[];
+  vitalSigns?: Record<string, string | undefined>;
+  generalExamFindings?: Record<string, string>;
+  respiratoryExam?: Record<string, unknown>;
+  neurologicalExam?: Record<string, unknown>;
+  gastrointestinalExam?: Record<string, unknown>;
+  musculoskeletalExam?: Record<string, unknown>;
+  cardiovascularExam?: Record<string, unknown>;
+  previousInvestigationRows?: {
+    date: string;
+    name: string;
+    result: string;
+    unit: string;
+    interpretation: string;
+  }[];
+  differentialDiagnosis?: string;
+  investigationAdvice?: string;
+}
+
+function loadVisitData(visitId: bigint | undefined): VisitExtendedData | null {
+  if (!visitId) return null;
+  try {
+    const doctorEmail = getDoctorEmail();
+    const keys = Object.keys(localStorage).filter(
+      (k) =>
+        k.startsWith(`visit_form_data_${visitId}_`) ||
+        k === `visit_form_data_${visitId}_${doctorEmail}`,
+    );
+    if (keys.length === 0) {
+      // Try all keys that include the visitId
+      const allKeys = Object.keys(localStorage).filter((k) =>
+        k.includes(`visit_form_data_${visitId}`),
+      );
+      if (allKeys.length > 0) {
+        const raw = localStorage.getItem(allKeys[0]);
+        return raw ? JSON.parse(raw) : null;
+      }
+      return null;
+    }
+    const raw = localStorage.getItem(keys[0]);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildClinicalSummary(vd: VisitExtendedData) {
+  // C/C
+  const ccLines: string[] = [];
+  if (vd.chiefComplaints && vd.complaintAnswers) {
+    vd.chiefComplaints.forEach((complaint, i) => {
+      const answers = vd.complaintAnswers?.[complaint] || {};
+      const parts = Object.values(answers).filter(Boolean).slice(0, 3);
+      if (parts.length > 0) {
+        ccLines.push(`${i + 1}. ${complaint} — ${parts.join(", ")}`);
+      } else {
+        ccLines.push(`${i + 1}. ${complaint}`);
+      }
+    });
+  }
+  // Positive system review
+  if (vd.systemReviewAnswers) {
+    const positive = Object.entries(vd.systemReviewAnswers)
+      .filter(([, v]) => v && v !== "Normal" && v !== "None" && v !== "No")
+      .map(([k, v]) => `${k}: ${v}`);
+    if (positive.length > 0) {
+      ccLines.push(`Positive system review: ${positive.join("; ")}`);
+    }
+  }
+
+  // P/M/H
+  const pmhLines: string[] = [];
+  if (vd.pastMedicalHistoryAll) {
+    const pos = Object.entries(vd.pastMedicalHistoryAll)
+      .map(([k, v]) => `${k}${v === "+" ? "+" : v === "-" ? "-" : ""}`)
+      .join(", ");
+    if (pos) pmhLines.push(pos);
+  } else if (vd.pastMedicalHistory && vd.pastMedicalHistory.length > 0) {
+    pmhLines.push(`${vd.pastMedicalHistory.join(", ")} — positive`);
+  }
+  if (vd.surgicalHistory && vd.surgicalHistory.length > 0) {
+    pmhLines.push(`Surgical: ${vd.surgicalHistory.join(", ")}`);
+  }
+
+  // History
+  const histLines: string[] = [];
+  if (vd.personalHistory?.some(Boolean)) {
+    histLines.push(
+      `Personal: ${vd.personalHistory.filter(Boolean).join(", ")}`,
+    );
+  }
+  if (vd.familyHistory?.some(Boolean)) {
+    histLines.push(`Family: ${vd.familyHistory.filter(Boolean).join(", ")}`);
+  }
+  if (vd.immunizationHistory?.some(Boolean)) {
+    const epiNote = vd.epiSchedule
+      ? ` (EPI Schedule: ${vd.epiSchedule.toUpperCase()})`
+      : "";
+    histLines.push(
+      `Immunization: ${vd.immunizationHistory.filter(Boolean).join(", ")}${epiNote}`,
+    );
+  } else if (vd.epiSchedule) {
+    histLines.push(`EPI Schedule: ${vd.epiSchedule.toUpperCase()}`);
+  }
+  if (vd.allergyHistory?.some(Boolean)) {
+    histLines.push(`Allergy: ${vd.allergyHistory.filter(Boolean).join(", ")}`);
+  }
+  if (vd.obstetricHistory?.some(Boolean)) {
+    histLines.push(
+      `Obstetric: ${vd.obstetricHistory.filter(Boolean).join(", ")}`,
+    );
+  }
+  if (vd.gynaecologicalHistory?.some(Boolean)) {
+    histLines.push(
+      `Gynae: ${vd.gynaecologicalHistory.filter(Boolean).join(", ")}`,
+    );
+  }
+
+  // D/H
+  const dhLines: string[] = [];
+  if (vd.drugHistory && vd.drugHistory.length > 0) {
+    vd.drugHistory.forEach((d, i) => {
+      if (d.name) {
+        const parts = [d.name, d.dose, d.duration].filter(Boolean);
+        dhLines.push(`${i + 1}. ${parts.join(" — ")}`);
+      }
+    });
+  }
+
+  // O/E
+  const oeLines: string[] = [];
+  if (vd.vitalSigns) {
+    const vs = vd.vitalSigns;
+    const parts: string[] = [];
+    if (vs.bloodPressure) parts.push(`BP: ${vs.bloodPressure}`);
+    if (vs.pulse) parts.push(`Pulse: ${vs.pulse} bpm`);
+    if (vs.temperature) parts.push(`Temp: ${vs.temperature}°F`);
+    if (vs.respiratoryRate) parts.push(`RR: ${vs.respiratoryRate}/min`);
+    if (vs.oxygenSaturation) parts.push(`SpO2: ${vs.oxygenSaturation}%`);
+    if (parts.length > 0) oeLines.push(`Vitals: ${parts.join(", ")}`);
+  }
+  if (vd.generalExamFindings) {
+    const pos = Object.entries(vd.generalExamFindings)
+      .filter(
+        ([, v]) =>
+          v && v !== "Normal" && v !== "None" && v !== "No" && v !== "Absent",
+      )
+      .map(([k, v]) => `${k}: ${v}`);
+    if (pos.length > 0) oeLines.push(`General: ${pos.join("; ")}`);
+  }
+  // Cardiovascular exam summary
+  if (vd.cardiovascularExam) {
+    const cvs = vd.cardiovascularExam as Record<string, unknown>;
+    const parts: string[] = [];
+    if (
+      cvs.precordium &&
+      Array.isArray(cvs.precordium) &&
+      cvs.precordium.length > 0
+    )
+      parts.push(`Inspection: ${(cvs.precordium as string[]).join(", ")}`);
+    if (cvs.apex_beat && cvs.apex_beat !== "Normal position (5th ICS MCL)")
+      parts.push(`Apex: ${cvs.apex_beat}`);
+    if (
+      cvs.murmurs &&
+      Array.isArray(cvs.murmurs) &&
+      cvs.murmurs.length > 0 &&
+      !(cvs.murmurs as string[]).includes("No murmur")
+    )
+      parts.push(`Murmur: ${(cvs.murmurs as string[]).join(", ")}`);
+    if (
+      cvs.heart_sounds &&
+      Array.isArray(cvs.heart_sounds) &&
+      cvs.heart_sounds.length > 0
+    )
+      parts.push(`Sounds: ${(cvs.heart_sounds as string[]).join(", ")}`);
+    if (parts.length > 0) oeLines.push(`CVS: ${parts.join(". ")}`);
+  }
+
+  // Investigation
+  const invLines: string[] = [];
+  if (vd.previousInvestigationRows && vd.previousInvestigationRows.length > 0) {
+    const rows = vd.previousInvestigationRows.filter((r) => r.name && r.result);
+    if (rows.length > 0) {
+      invLines.push(
+        `Previous reports: ${rows
+          .map((r) => `${r.name}: ${r.result}${r.unit ? ` ${r.unit}` : ""}`)
+          .join("; ")}`,
+      );
+    }
+  }
+  if (vd.investigationAdvice) {
+    invLines.push(`Advised: ${vd.investigationAdvice.slice(0, 200)}`);
+  }
+
+  return {
+    cc: ccLines.join("\n"),
+    pmh: pmhLines.join("\n"),
+    history: histLines.join("\n"),
+    dh: dhLines.join("\n"),
+    oe: oeLines.join("\n"),
+    investigation: invLines.join("\n"),
+    investigationRows:
+      vd.previousInvestigationRows?.filter((r) => r.name) || [],
+    investigationAdvice: vd.investigationAdvice || "",
+  };
+}
+
+// ─── ClinicalSummaryPanel ─────────────────────────────────────────────────────
+
+function ClinicalSummaryPanel({ visitId }: { visitId?: bigint }) {
+  const visitData = visitId ? loadVisitData(visitId) : null;
+  const summary = visitData ? buildClinicalSummary(visitData) : null;
+
+  const [cc, setCc] = useState(summary?.cc || "");
+  const [pmh, setPmh] = useState(summary?.pmh || "");
+  const [history, setHistory] = useState(summary?.history || "");
+  const [dh, setDh] = useState(summary?.dh || "");
+  const [oe, setOe] = useState(summary?.oe || "");
+  type InvRow = {
+    date: string;
+    name: string;
+    result: string;
+    unit: string;
+    interpretation: string;
+  };
+  const [invRows, setInvRows] = useState<InvRow[]>(
+    summary?.investigationRows || [],
+  );
+  const [invAdvice, setInvAdvice] = useState(
+    summary?.investigationAdvice || "",
+  );
+  const [collapsed, setCollapsed] = useState(false);
+
+  const loadFromVisit = () => {
+    const fresh = visitId ? loadVisitData(visitId) : null;
+    if (!fresh) return;
+    const freshSummary = buildClinicalSummary(fresh);
+    setInvRows(freshSummary.investigationRows || []);
+    setInvAdvice(freshSummary.investigationAdvice || "");
+    setCc(freshSummary.cc);
+    setPmh(freshSummary.pmh);
+    setHistory(freshSummary.history);
+    setDh(freshSummary.dh);
+    setOe(freshSummary.oe);
+  };
+
+  const updateInvRow = (idx: number, field: keyof InvRow, value: string) => {
+    setInvRows((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)),
+    );
+  };
+
+  const addInvRow = () => {
+    setInvRows((prev) => [
+      ...prev,
+      {
+        date: new Date().toISOString().split("T")[0],
+        name: "",
+        result: "",
+        unit: "",
+        interpretation: "",
+      },
+    ]);
+  };
+
+  const removeInvRow = (idx: number) => {
+    setInvRows((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const fieldStyle =
+    "bg-white border border-gray-200 rounded text-xs p-2 w-full resize-none focus:outline-none focus:ring-1 focus:ring-gray-300 font-mono";
+  const labelStyle =
+    "text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1";
+
+  if (collapsed) {
+    return (
+      <div className="border-b border-gray-200 px-3 py-2 bg-gray-50">
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+          Show Clinical Summary (C/C · P/M/H · History · D/H · O/E ·
+          Investigation)
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-b border-gray-200 bg-gray-50">
+      <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200">
+        <span className="text-xs font-semibold text-gray-700">
+          Clinical Summary{" "}
+          {!visitData && (
+            <span className="text-amber-600 font-normal">
+              (fill from visit form)
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          className="text-gray-400 hover:text-gray-600"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="p-3 space-y-2.5 max-h-[50vh] overflow-y-auto">
+        {/* C/C */}
+        <div>
+          <p className={labelStyle}>C/C — Chief Complaints</p>
+          <textarea
+            value={cc}
+            onChange={(e) => setCc(e.target.value)}
+            rows={3}
+            placeholder="1. Cough for 5 days, dry, white sputum&#10;2. Fever for 3 days, high grade&#10;Positive system review: Dyspnoea on exertion"
+            className={fieldStyle}
+          />
+        </div>
+        {/* P/M/H */}
+        <div>
+          <p className={labelStyle}>P/M/H — Past Medical & Surgical History</p>
+          <textarea
+            value={pmh}
+            onChange={(e) => setPmh(e.target.value)}
+            rows={2}
+            placeholder="DM+, HTN-, IHD-&#10;Surgical: Appendectomy 2015"
+            className={fieldStyle}
+          />
+        </div>
+        {/* History */}
+        <div>
+          <p className={labelStyle}>
+            History — Personal / Family / Immunization / Allergy / Others
+          </p>
+          <textarea
+            value={history}
+            onChange={(e) => setHistory(e.target.value)}
+            rows={3}
+            placeholder="Personal: Smoker 10 cigarettes/day&#10;Family: Father — DM&#10;Immunization: BCG — Yes (EPI: YES)&#10;Allergy: Penicillin"
+            className={fieldStyle}
+          />
+        </div>
+        {/* D/H */}
+        <div>
+          <p className={labelStyle}>D/H — Drug History</p>
+          <textarea
+            value={dh}
+            onChange={(e) => setDh(e.target.value)}
+            rows={2}
+            placeholder="1. Metformin 500mg — BD&#10;2. Amlodipine 5mg — Once daily"
+            className={fieldStyle}
+          />
+        </div>
+        {/* O/E */}
+        <div>
+          <p className={labelStyle}>O/E — On Examination</p>
+          <textarea
+            value={oe}
+            onChange={(e) => setOe(e.target.value)}
+            rows={4}
+            placeholder="Vitals: BP 130/80, Pulse 78 bpm, Temp 98.6°F, SpO2 98%&#10;Anaemia: Absent. Jaundice: Absent.&#10;General: Alert, cooperative&#10;CVS: On Inspection — no precordial bulge. Heart sounds S1 S2 normal."
+            className={fieldStyle}
+          />
+        </div>
+        {/* Investigation Table */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className={labelStyle}>Investigation Report</p>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={loadFromVisit}
+                className="text-[10px] px-2 py-0.5 bg-cyan-50 border border-cyan-200 text-cyan-700 rounded hover:bg-cyan-100"
+                data-ocid="rx.load_visit.button"
+              >
+                ↻ Load from Visit
+              </button>
+              <button
+                type="button"
+                onClick={addInvRow}
+                className="text-[10px] px-2 py-0.5 bg-gray-50 border border-gray-200 text-gray-600 rounded hover:bg-gray-100"
+                data-ocid="rx.add_inv_row.button"
+              >
+                + Row
+              </button>
+            </div>
+          </div>
+          {invRows.length > 0 ? (
+            <div className="overflow-x-auto rounded border border-gray-200">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="bg-cyan-600 text-white">
+                    <th className="px-1.5 py-1 text-left font-semibold w-20">
+                      Date
+                    </th>
+                    <th className="px-1.5 py-1 text-left font-semibold">
+                      Name
+                    </th>
+                    <th className="px-1.5 py-1 text-left font-semibold w-14">
+                      Result
+                    </th>
+                    <th className="px-1.5 py-1 text-left font-semibold w-12">
+                      Unit
+                    </th>
+                    <th className="px-1.5 py-1 text-left font-semibold">
+                      Interp.
+                    </th>
+                    <th className="w-5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {invRows.map((row, idx) => (
+                    <tr
+                      key={`inv-${row.name}-${row.date}-${idx}`}
+                      className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                    >
+                      <td className="p-0.5">
+                        <input
+                          type="date"
+                          value={row.date}
+                          onChange={(e) =>
+                            updateInvRow(idx, "date", e.target.value)
+                          }
+                          className="w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded bg-white"
+                        />
+                      </td>
+                      <td className="p-0.5">
+                        <input
+                          value={row.name}
+                          onChange={(e) =>
+                            updateInvRow(idx, "name", e.target.value)
+                          }
+                          placeholder="e.g. Hb"
+                          className="w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded bg-white"
+                        />
+                      </td>
+                      <td className="p-0.5">
+                        <input
+                          value={row.result}
+                          onChange={(e) =>
+                            updateInvRow(idx, "result", e.target.value)
+                          }
+                          placeholder="12.5"
+                          className="w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded bg-white"
+                        />
+                      </td>
+                      <td className="p-0.5">
+                        <input
+                          value={row.unit}
+                          onChange={(e) =>
+                            updateInvRow(idx, "unit", e.target.value)
+                          }
+                          placeholder="g/dL"
+                          className="w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded bg-white"
+                        />
+                      </td>
+                      <td className="p-0.5">
+                        <input
+                          value={row.interpretation}
+                          onChange={(e) =>
+                            updateInvRow(idx, "interpretation", e.target.value)
+                          }
+                          placeholder="Normal"
+                          className="w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded bg-white"
+                        />
+                      </td>
+                      <td className="p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => removeInvRow(idx)}
+                          className="text-red-400 hover:text-red-600 px-0.5"
+                          data-ocid={`rx.inv_row.delete_button.${idx + 1}`}
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div
+              className="text-center py-3 text-[10px] text-gray-400 border border-dashed border-gray-200 rounded"
+              data-ocid="rx.inv_table.empty_state"
+            >
+              No investigation rows. Click &ldquo;Load from Visit&rdquo; or
+              &ldquo;+ Row&rdquo;.
+            </div>
+          )}
+        </div>
+        {/* Investigation Advice */}
+        <div>
+          <p className={labelStyle}>Advice / New Investigation</p>
+          <textarea
+            value={invAdvice}
+            onChange={(e) => setInvAdvice(e.target.value)}
+            rows={2}
+            placeholder="CBC, RFT, LFT, ECG, Chest X-Ray..."
+            className={fieldStyle}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── RxPreviewPanel ────────────────────────────────────────────────────────
 
 function RxPreviewPanel({
@@ -370,11 +900,6 @@ function MedicationCard({
       ? "ring-2 ring-offset-1 ring-teal-500 font-bold scale-105"
       : "opacity-70 hover:opacity-100";
 
-  const activeFreqStyle = (fr: string) =>
-    med.frequency === fr
-      ? "bg-teal-600 text-white border-teal-600"
-      : "hover:bg-teal-50";
-
   return (
     <div className="border-2 border-teal-100 rounded-xl p-4 space-y-3 bg-white shadow-sm relative">
       {/* Header row */}
@@ -484,32 +1009,38 @@ function MedicationCard({
         />
       </div>
 
-      {/* Frequency */}
+      {/* Frequency — editable combobox */}
       <div className="space-y-1.5">
         <Label className="text-xs text-gray-500">Frequency / বার</Label>
-        <div className="flex flex-wrap gap-1.5">
-          {FREQ_OPTIONS.map(({ en, bn }) => (
+        {/* Free-text input with quick-select chips below */}
+        <Input
+          value={med.frequency}
+          onChange={(e) => onChange("frequency", e.target.value)}
+          placeholder="Type or select frequency..."
+          className="h-9 text-sm"
+          data-ocid="rx.frequency.input"
+        />
+        <div className="flex flex-wrap gap-1">
+          {FREQ_OPTIONS.filter((f) => f.en !== "Other").map(({ en, bn }) => (
             <button
               key={en}
               type="button"
               onClick={() =>
                 onChange("frequency", med.frequency === en ? "" : en)
               }
-              className={`px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${activeFreqStyle(en)}`}
+              className={`px-2 py-1 rounded text-[11px] border transition-colors ${
+                med.frequency === en
+                  ? "bg-teal-600 text-white border-teal-600"
+                  : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-teal-50 hover:border-teal-300"
+              }`}
             >
               <span className="font-bold">{en}</span>
-              <span className="block text-[10px] opacity-70">{bn}</span>
+              <span className="ml-0.5 opacity-60 text-[9px]">
+                {bn.split(" ")[0]}
+              </span>
             </button>
           ))}
         </div>
-        {med.frequency === "Other" && (
-          <Input
-            value={med.frequencyOther}
-            onChange={(e) => onChange("frequencyOther", e.target.value)}
-            placeholder="Specify frequency / বার উল্লেখ করুন"
-            className="h-9 text-sm mt-1"
-          />
-        )}
       </div>
 
       {/* Duration */}
@@ -752,9 +1283,9 @@ export default function NewPrescriptionMode({
       </div>
 
       {/* Split layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
         {/* LEFT: Input panel */}
-        <div className="flex-1 overflow-y-auto bg-gray-50 border-r">
+        <div className="flex-1 overflow-y-auto bg-gray-50 md:border-r">
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
             {/* Diagnosis */}
             <div className="space-y-1.5">
@@ -826,11 +1357,16 @@ export default function NewPrescriptionMode({
                 )}
               </div>
               {dimsAutoFilled && (
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <Sparkles className="w-3.5 h-3.5 text-teal-600" />
                   <span className="text-xs text-teal-700">
                     Auto-filled from DIMS
                   </span>
+                  {localStorage.getItem("treatmentReferencePDF") && (
+                    <span className="text-[10px] text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                      + {localStorage.getItem("treatmentReferencePDF")}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={resetToDims}
@@ -920,15 +1456,36 @@ export default function NewPrescriptionMode({
           </form>
         </div>
 
-        {/* RIGHT: Rx preview */}
-        <div className="w-96 flex-shrink-0 flex flex-col border-l overflow-hidden">
-          <RxPreviewPanel
-            diagnosis={diagnosis}
-            medications={medications}
-            advice={advice}
-            prescriptionDate={prescriptionDate}
-            patientName={patientName}
-          />
+        {/* RIGHT: Clinical Summary + Rx preview */}
+        <div className="w-full md:w-[420px] flex-shrink-0 flex flex-col md:border-l border-t md:border-t-0 overflow-hidden">
+          <Tabs defaultValue="clinical" className="flex flex-col h-full">
+            <TabsList className="w-full grid grid-cols-2 rounded-none border-b shrink-0">
+              <TabsTrigger value="clinical" className="text-xs rounded-none">
+                Clinical Summary
+              </TabsTrigger>
+              <TabsTrigger value="rx" className="text-xs rounded-none">
+                ℞ Rx Preview
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent
+              value="clinical"
+              className="flex-1 overflow-y-auto m-0 p-0"
+            >
+              <ClinicalSummaryPanel visitId={visitId} />
+            </TabsContent>
+            <TabsContent
+              value="rx"
+              className="flex-1 overflow-hidden m-0 p-0 flex flex-col"
+            >
+              <RxPreviewPanel
+                diagnosis={diagnosis}
+                medications={medications}
+                advice={advice}
+                prescriptionDate={prescriptionDate}
+                patientName={patientName}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

@@ -1,0 +1,17 @@
+{
+  "name": "Dr. Arman Kabir's Care",
+  "short_name": "AK Care",
+  "description": "Patient Management & Doctor Portal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

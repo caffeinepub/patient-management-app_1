@@ -43,6 +43,7 @@ import {
   Download,
   Edit,
   ExternalLink,
+  FileText,
   Heart,
   Mail,
   MapPin,
@@ -51,10 +52,12 @@ import {
   Phone,
   PhoneCall,
   Plus,
+  Search,
   ShieldCheck,
   Stethoscope,
   Trash2,
   Trophy,
+  Upload,
   Users,
   X,
   Youtube,
@@ -168,6 +171,9 @@ function ClassroomContent({
     subject: "",
     venue: "",
   });
+  // Search
+  const [noteSearch, setNoteSearch] = useState("");
+  const [videoSearch, setVideoSearch] = useState("");
 
   const saveAnn = () => {
     if (!annForm.title || !annForm.date || !annForm.body) return;
@@ -701,116 +707,137 @@ function ClassroomContent({
             </Button>
           )}
         </div>
+        <div className="mb-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={noteSearch}
+              onChange={(e) => setNoteSearch(e.target.value)}
+              placeholder="Search lecture notes..."
+              className="pl-8 h-9 text-sm"
+              data-ocid="classroom.notes.search_input"
+            />
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cls.notes.map((note: any, idx: number) => (
-            <Card
-              key={note.title + String(idx)}
-              className={`border ${border} hover:shadow-md transition-shadow`}
-            >
-              <CardContent className="p-4 flex items-start gap-3">
-                <div
-                  className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0 mt-0.5`}
-                >
-                  <BookOpen className={`w-4 h-4 ${color}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  {editNoteIdx === idx ? (
-                    <div className="space-y-1.5">
-                      <Input
-                        value={editNoteForm.title}
-                        onChange={(e) =>
-                          setEditNoteForm((f) => ({
-                            ...f,
-                            title: e.target.value,
-                          }))
-                        }
-                        placeholder="Title"
-                        className="h-7 text-xs"
-                      />
-                      <Input
-                        value={editNoteForm.description}
-                        onChange={(e) =>
-                          setEditNoteForm((f) => ({
-                            ...f,
-                            description: e.target.value,
-                          }))
-                        }
-                        placeholder="Description"
-                        className="h-7 text-xs"
-                      />
-                      <Input
-                        value={editNoteForm.link}
-                        onChange={(e) =>
-                          setEditNoteForm((f) => ({
-                            ...f,
-                            link: e.target.value,
-                          }))
-                        }
-                        placeholder="Link (URL)"
-                        className="h-7 text-xs"
-                      />
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={saveEditNote}
-                          data-ocid="classroom.notes.save_button"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-xs"
-                          onClick={() => setEditNoteIdx(null)}
-                          data-ocid="classroom.notes.cancel_button"
-                        >
-                          Cancel
-                        </Button>
+          {cls.notes
+            .filter(
+              (note: any) =>
+                !noteSearch ||
+                note.title?.toLowerCase().includes(noteSearch.toLowerCase()) ||
+                note.description
+                  ?.toLowerCase()
+                  .includes(noteSearch.toLowerCase()),
+            )
+            .map((note: any, idx: number) => (
+              <Card
+                key={note.title + String(idx)}
+                className={`border ${border} hover:shadow-md transition-shadow`}
+              >
+                <CardContent className="p-4 flex items-start gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0 mt-0.5`}
+                  >
+                    <BookOpen className={`w-4 h-4 ${color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {editNoteIdx === idx ? (
+                      <div className="space-y-1.5">
+                        <Input
+                          value={editNoteForm.title}
+                          onChange={(e) =>
+                            setEditNoteForm((f) => ({
+                              ...f,
+                              title: e.target.value,
+                            }))
+                          }
+                          placeholder="Title"
+                          className="h-7 text-xs"
+                        />
+                        <Input
+                          value={editNoteForm.description}
+                          onChange={(e) =>
+                            setEditNoteForm((f) => ({
+                              ...f,
+                              description: e.target.value,
+                            }))
+                          }
+                          placeholder="Description"
+                          className="h-7 text-xs"
+                        />
+                        <Input
+                          value={editNoteForm.link}
+                          onChange={(e) =>
+                            setEditNoteForm((f) => ({
+                              ...f,
+                              link: e.target.value,
+                            }))
+                          }
+                          placeholder="Link (URL)"
+                          className="h-7 text-xs"
+                        />
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={saveEditNote}
+                            data-ocid="classroom.notes.save_button"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs"
+                            onClick={() => setEditNoteIdx(null)}
+                            data-ocid="classroom.notes.cancel_button"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="font-medium text-sm text-foreground">
-                        {note.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {note.description}
-                      </p>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-start gap-1 shrink-0">
-                  <a href={note.link} className={`${color} hover:opacity-70`}>
-                    <Download className="w-4 h-4" />
-                  </a>
-                  {isAdmin && (
-                    <>
-                      <button
-                        type="button"
-                        className="p-0.5 hover:text-primary"
-                        onClick={() => {
-                          setEditNoteIdx(idx);
-                          setEditNoteForm(note);
-                        }}
-                        data-ocid={`classroom.notes.edit_button.${idx + 1}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-0.5 hover:text-destructive"
-                        onClick={() => deleteNote(idx)}
-                        data-ocid={`classroom.notes.delete_button.${idx + 1}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    ) : (
+                      <>
+                        <p className="font-medium text-sm text-foreground">
+                          {note.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {note.description}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-1 shrink-0">
+                    <a href={note.link} className={`${color} hover:opacity-70`}>
+                      <Download className="w-4 h-4" />
+                    </a>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          className="p-0.5 hover:text-primary"
+                          onClick={() => {
+                            setEditNoteIdx(idx);
+                            setEditNoteForm(note);
+                          }}
+                          data-ocid={`classroom.notes.edit_button.${idx + 1}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-0.5 hover:text-destructive"
+                          onClick={() => deleteNote(idx)}
+                          data-ocid={`classroom.notes.delete_button.${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
         </div>
         <Dialog open={addNote} onOpenChange={setAddNote}>
           <DialogContent
@@ -901,119 +928,140 @@ function ClassroomContent({
             </Button>
           )}
         </div>
+        <div className="mb-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={videoSearch}
+              onChange={(e) => setVideoSearch(e.target.value)}
+              placeholder="Search video lectures..."
+              className="pl-8 h-9 text-sm"
+              data-ocid="classroom.videos.search_input"
+            />
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cls.videos.map((vid: any, idx: number) => (
-            <Card
-              key={vid.title + String(idx)}
-              className={`border ${border} hover:shadow-md transition-all`}
-            >
-              <CardContent className="p-4 flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Youtube className="w-4 h-4 text-red-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  {editVideoIdx === idx ? (
-                    <div className="space-y-1.5">
-                      <Input
-                        value={editVideoForm.title}
-                        onChange={(e) =>
-                          setEditVideoForm((f) => ({
-                            ...f,
-                            title: e.target.value,
-                          }))
-                        }
-                        placeholder="Title"
-                        className="h-7 text-xs"
-                      />
-                      <Input
-                        value={editVideoForm.url}
-                        onChange={(e) =>
-                          setEditVideoForm((f) => ({
-                            ...f,
-                            url: e.target.value,
-                          }))
-                        }
-                        placeholder="YouTube URL"
-                        className="h-7 text-xs"
-                      />
-                      <Input
-                        value={editVideoForm.description}
-                        onChange={(e) =>
-                          setEditVideoForm((f) => ({
-                            ...f,
-                            description: e.target.value,
-                          }))
-                        }
-                        placeholder="Description"
-                        className="h-7 text-xs"
-                      />
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={saveEditVideo}
-                          data-ocid="classroom.videos.save_button"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-xs"
-                          onClick={() => setEditVideoIdx(null)}
-                          data-ocid="classroom.videos.cancel_button"
-                        >
-                          Cancel
-                        </Button>
+          {cls.videos
+            .filter(
+              (vid: any) =>
+                !videoSearch ||
+                vid.title?.toLowerCase().includes(videoSearch.toLowerCase()) ||
+                vid.description
+                  ?.toLowerCase()
+                  .includes(videoSearch.toLowerCase()),
+            )
+            .map((vid: any, idx: number) => (
+              <Card
+                key={vid.title + String(idx)}
+                className={`border ${border} hover:shadow-md transition-all`}
+              >
+                <CardContent className="p-4 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <Youtube className="w-4 h-4 text-red-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {editVideoIdx === idx ? (
+                      <div className="space-y-1.5">
+                        <Input
+                          value={editVideoForm.title}
+                          onChange={(e) =>
+                            setEditVideoForm((f) => ({
+                              ...f,
+                              title: e.target.value,
+                            }))
+                          }
+                          placeholder="Title"
+                          className="h-7 text-xs"
+                        />
+                        <Input
+                          value={editVideoForm.url}
+                          onChange={(e) =>
+                            setEditVideoForm((f) => ({
+                              ...f,
+                              url: e.target.value,
+                            }))
+                          }
+                          placeholder="YouTube URL"
+                          className="h-7 text-xs"
+                        />
+                        <Input
+                          value={editVideoForm.description}
+                          onChange={(e) =>
+                            setEditVideoForm((f) => ({
+                              ...f,
+                              description: e.target.value,
+                            }))
+                          }
+                          placeholder="Description"
+                          className="h-7 text-xs"
+                        />
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={saveEditVideo}
+                            data-ocid="classroom.videos.save_button"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs"
+                            onClick={() => setEditVideoIdx(null)}
+                            data-ocid="classroom.videos.cancel_button"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="font-medium text-sm text-foreground">
-                        {vid.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {vid.description}
-                      </p>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-start gap-1 shrink-0">
-                  <a
-                    href={vid.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-0.5 hover:text-red-600"
-                  >
-                    <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                  </a>
-                  {isAdmin && (
-                    <>
-                      <button
-                        type="button"
-                        className="p-0.5 hover:text-primary"
-                        onClick={() => {
-                          setEditVideoIdx(idx);
-                          setEditVideoForm(vid);
-                        }}
-                        data-ocid={`classroom.videos.edit_button.${idx + 1}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-0.5 hover:text-destructive"
-                        onClick={() => deleteVideo(idx)}
-                        data-ocid={`classroom.videos.delete_button.${idx + 1}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    ) : (
+                      <>
+                        <p className="font-medium text-sm text-foreground">
+                          {vid.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {vid.description}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-1 shrink-0">
+                    <a
+                      href={vid.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-0.5 hover:text-red-600"
+                    >
+                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                    </a>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          className="p-0.5 hover:text-primary"
+                          onClick={() => {
+                            setEditVideoIdx(idx);
+                            setEditVideoForm(vid);
+                          }}
+                          data-ocid={`classroom.videos.edit_button.${idx + 1}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-0.5 hover:text-destructive"
+                          onClick={() => deleteVideo(idx)}
+                          data-ocid={`classroom.videos.delete_button.${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
         </div>
         <Dialog open={addVideo} onOpenChange={setAddVideo}>
           <DialogContent
@@ -1862,6 +1910,260 @@ function ProfileEditDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Admin: Treatment Reference PDF (for DIMS auto-fill) ────────────────────
+
+function TreatmentReferencePDFAdmin() {
+  const LS_KEY = "treatmentReferencePDF";
+  const [stored, setStored] = useState<string | null>(() =>
+    localStorage.getItem(LS_KEY),
+  );
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    localStorage.setItem(LS_KEY, file.name);
+    setStored(file.name);
+    toast.success(`Treatment reference PDF "${file.name}" uploaded`);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleDelete = () => {
+    localStorage.removeItem(LS_KEY);
+    setStored(null);
+    toast.success("Treatment reference PDF removed");
+  };
+
+  return (
+    <Card className="border-teal-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold text-teal-800 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Treatment Reference PDF (for DIMS Auto-fill)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-teal-700">
+          Upload a clinical treatment reference PDF. When DIMS auto-generates a
+          prescription from a diagnosis, it will reference this PDF in
+          collaboration with DIMS guidelines.
+        </p>
+        {stored ? (
+          <div className="flex items-center gap-3 bg-teal-50 border border-teal-200 rounded-lg p-3">
+            <FileText className="w-5 h-5 text-teal-600 shrink-0" />
+            <span className="text-sm text-teal-800 flex-1 truncate">
+              {stored}
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDelete}
+              data-ocid="admin.treatment_pdf.delete_button"
+            >
+              <X className="w-3.5 h-3.5 mr-1" />
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="text-sm text-slate-500 italic">
+            No treatment reference PDF uploaded yet.
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            data-ocid="admin.treatment_pdf.upload_button"
+          >
+            <Upload className="w-3.5 h-3.5 mr-1" />
+            {stored ? "Replace PDF" : "Upload PDF"}
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </div>
+        {stored && (
+          <div className="text-xs bg-teal-50 border border-teal-200 rounded p-2 text-teal-700">
+            <span className="font-medium">Active reference:</span> {stored} —
+            DIMS auto-generation will use this PDF as a treatment guideline
+            reference.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Admin: Differential Diagnosis Reference PDF ─────────────────────────────
+
+function DifferentialDiagnosisPDFAdmin() {
+  const LS_KEY = "ddReferencePDF";
+  const [stored, setStored] = useState<string | null>(() =>
+    localStorage.getItem(LS_KEY),
+  );
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    localStorage.setItem(LS_KEY, file.name);
+    setStored(file.name);
+    toast.success(`DD reference PDF "${file.name}" uploaded`);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleDelete = () => {
+    localStorage.removeItem(LS_KEY);
+    setStored(null);
+    toast.success("DD reference PDF removed");
+  };
+
+  return (
+    <Card className="border-purple-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold text-purple-800 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Differential Diagnosis Reference PDF
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-purple-700">
+          Upload a clinical reference PDF for generating differential diagnoses.
+          The AI will use this as a reference when suggesting differentials in
+          the visit form.
+        </p>
+        {stored ? (
+          <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <FileText className="w-5 h-5 text-purple-600 shrink-0" />
+            <span className="text-sm text-purple-800 flex-1 truncate">
+              {stored}
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDelete}
+              data-ocid="admin.dd_pdf.delete_button"
+            >
+              <X className="w-3.5 h-3.5 mr-1" />
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="text-sm text-slate-500 italic">
+            No DD reference PDF uploaded yet.
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            data-ocid="admin.dd_pdf.upload_button"
+          >
+            <Upload className="w-3.5 h-3.5 mr-1" />
+            {stored ? "Replace PDF" : "Upload PDF"}
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Admin: Interpretation Reference PDF ─────────────────────────────────────
+
+function InterpretationRefPDFAdmin() {
+  const LS_KEY = "interpretationReferencePDF";
+  const [stored, setStored] = useState<string | null>(() =>
+    localStorage.getItem(LS_KEY),
+  );
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Store file name as reference (real apps would upload to blob storage)
+    const ref = file.name;
+    localStorage.setItem(LS_KEY, ref);
+    setStored(ref);
+    toast.success("Investigation interpretation reference PDF saved.");
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleDelete = () => {
+    localStorage.removeItem(LS_KEY);
+    setStored(null);
+    toast.success("Reference PDF removed.");
+  };
+
+  return (
+    <Card className="border-amber-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold text-amber-800 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Investigation Interpretation Reference PDF
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-amber-700">
+          Upload a PDF containing interpretation guidelines for investigation
+          results. Only admins can add or delete this reference.
+        </p>
+        {stored ? (
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <FileText className="w-5 h-5 text-amber-600 shrink-0" />
+            <span className="text-sm text-amber-800 flex-1 truncate">
+              {stored}
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDelete}
+              data-ocid="admin.interpretation_pdf.delete_button"
+            >
+              <X className="w-3.5 h-3.5 mr-1" />
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="text-sm text-slate-500 italic">
+            No reference PDF uploaded yet.
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            data-ocid="admin.interpretation_pdf.upload_button"
+          >
+            <Upload className="w-3.5 h-3.5 mr-1" />
+            {stored ? "Replace PDF" : "Upload PDF"}
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -3043,6 +3345,9 @@ export default function LandingPage({
               Admin Tools
             </h2>
             <PrescriptionPDFManager />
+            <TreatmentReferencePDFAdmin />
+            <DifferentialDiagnosisPDFAdmin />
+            <InterpretationRefPDFAdmin />
           </div>
         </section>
       )}

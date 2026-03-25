@@ -24,10 +24,15 @@ import {
   X,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
+import CardiovascularExam from "./CardiovascularExam";
 import GastrointestinalExam from "./GastrointestinalExam";
 import InvestigationProfile from "./InvestigationProfile";
 import MusculoskeletalExam from "./MusculoskeletalExam";
 import NeurologicalExam from "./NeurologicalExam";
+import PreviousInvestigationTable, {
+  type InvestigationRow,
+} from "./PreviousInvestigationTable";
 import QuestionStepper from "./QuestionStepper";
 import RespiratoryExam from "./RespiratoryExam";
 import SystemicExaminationSection from "./SystemicExaminationSection";
@@ -581,6 +586,7 @@ interface VisitFormData {
   other_medical_history?: string;
   salient_features?: string;
   previous_investigation_report?: string;
+  previous_investigation_rows?: InvestigationRow[];
   differential_diagnosis?: string;
   investigation_advice?: string;
 }
@@ -670,6 +676,7 @@ export default function VisitForm({
       physical_examination: "",
       investigation_profile: [],
       previous_investigation_report: "",
+      previous_investigation_rows: [],
       differential_diagnosis: "",
       investigation_advice: "",
       diagnosis: "",
@@ -718,6 +725,7 @@ export default function VisitForm({
   const [neurologicalExam, setNeurologicalExam] = useState<any>({});
   const [gastrointestinalExam, setGastrointestinalExam] = useState<any>({});
   const [musculoskeletalExam, setMusculoskeletalExam] = useState<any>({});
+  const [cardiovascularExam, setCardiovascularExam] = useState<any>({});
 
   const [showSurgicalQuestions, setShowSurgicalQuestions] = useState(false);
   const [showPersonalQuestions, setShowPersonalQuestions] = useState(false);
@@ -741,6 +749,7 @@ export default function VisitForm({
   const [immunizationAnswers, setImmunizationAnswers] = useState(
     Array(immunizationQuestions.length).fill("") as string[],
   );
+  const [epiSchedule, setEpiSchedule] = useState<"yes" | "no" | "">("");
   const [allergyAnswers, setAllergyAnswers] = useState(
     Array(allergyQuestions.length).fill("") as string[],
   );
@@ -782,9 +791,15 @@ export default function VisitForm({
     field: string,
     value: string,
   ) => {
-    const newDrugs = [...(formData.drug_history || [])];
-    newDrugs[index] = { ...newDrugs[index], [field]: value };
-    setFormData((prev) => ({ ...prev, drug_history: newDrugs }));
+    setFormData((prev) => {
+      const current = prev.drug_history?.length
+        ? prev.drug_history
+        : [{ drug_name: "", dose: "", daily_dose: "" }];
+      const newDrugs = current.map((d, i) =>
+        i === index ? { ...d, [field]: value } : d,
+      );
+      return { ...prev, drug_history: newDrugs };
+    });
   };
 
   const addDrugHistory = () => {
@@ -1161,6 +1176,7 @@ export default function VisitForm({
         pastMedicalHistory: Object.entries(medicalHistory)
           .filter(([, v]) => v === "+")
           .map(([k]) => k),
+        pastMedicalHistoryAll: medicalHistory,
         drugHistory: (formData.drug_history || [])
           .filter((d) => d.drug_name?.trim())
           .map((d) => ({
@@ -1171,6 +1187,11 @@ export default function VisitForm({
         surgicalHistory: surgicalHistoryAnswers.filter(Boolean),
         familyHistory: familyHistoryAnswers.filter(Boolean),
         personalHistory: personalHistoryAnswers.filter(Boolean),
+        immunizationHistory: immunizationAnswers.filter(Boolean),
+        epiSchedule,
+        allergyHistory: allergyAnswers.filter(Boolean),
+        obstetricHistory: obstetricAnswers.filter(Boolean),
+        gynaecologicalHistory: gynaecologicalAnswers.filter(Boolean),
         vitalSigns: {
           bloodPressure: vs?.blood_pressure?.trim() || undefined,
           pulse: vs?.pulse ? String(vs.pulse) : undefined,
@@ -1181,22 +1202,21 @@ export default function VisitForm({
           oxygenSaturation: vs?.oxygen_saturation
             ? String(vs.oxygen_saturation)
             : undefined,
-          height: vs?.height ? String(vs.height) : undefined,
         },
         generalExamFindings,
         systemicExamFindings,
-        investigationProfile: {
-          previousReports: (formData.investigation_profile || [])
-            .filter((inv) => inv.result?.trim())
-            .map((inv) => ({
-              name: inv.name,
-              result: `${inv.result}${inv.unit ? ` ${inv.unit}` : ""}`,
-              date: undefined,
-            })),
-          advised: (formData.investigation_profile || [])
-            .filter((inv) => !inv.result?.trim() && inv.name?.trim())
-            .map((inv) => ({ name: inv.name, note: inv.unit || undefined })),
-        },
+        respiratoryExam,
+        neurologicalExam,
+        gastrointestinalExam,
+        musculoskeletalExam,
+        cardiovascularExam,
+        previousInvestigationRows: Array.isArray(
+          formData.previous_investigation_rows,
+        )
+          ? formData.previous_investigation_rows
+          : [],
+        differentialDiagnosis: formData.differential_diagnosis || "",
+        investigationAdvice: formData.investigation_advice || "",
       };
       localStorage.setItem(extendedKey, JSON.stringify(extendedData));
     } catch {
@@ -1395,25 +1415,63 @@ export default function VisitForm({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {Object.keys(allComplaints).map((complaint) => (
-            <Badge
-              key={complaint}
-              variant={
-                selectedComplaints.includes(complaint) ? "default" : "outline"
-              }
-              className={`cursor-pointer hover:bg-teal-50 ${
-                selectedComplaints.includes(complaint)
-                  ? "bg-teal-600 hover:bg-teal-700"
-                  : ""
-              }`}
-              onClick={() => handleTemplateSelect(complaint)}
-            >
-              {complaint}
-              {selectedComplaints.includes(complaint) && (
-                <X className="h-3 w-3 ml-1" />
-              )}
-            </Badge>
-          ))}
+          {Object.keys(allComplaints).map((complaint, ccIdx) => {
+            const PALETTE = [
+              {
+                base: "bg-blue-100 text-blue-800 border-blue-300",
+                active: "bg-blue-500 text-white",
+              },
+              {
+                base: "bg-green-100 text-green-800 border-green-300",
+                active: "bg-green-500 text-white",
+              },
+              {
+                base: "bg-amber-100 text-amber-800 border-amber-300",
+                active: "bg-amber-500 text-white",
+              },
+              {
+                base: "bg-purple-100 text-purple-800 border-purple-300",
+                active: "bg-purple-500 text-white",
+              },
+              {
+                base: "bg-rose-100 text-rose-800 border-rose-300",
+                active: "bg-rose-500 text-white",
+              },
+              {
+                base: "bg-cyan-100 text-cyan-800 border-cyan-300",
+                active: "bg-cyan-500 text-white",
+              },
+              {
+                base: "bg-orange-100 text-orange-800 border-orange-300",
+                active: "bg-orange-500 text-white",
+              },
+              {
+                base: "bg-teal-100 text-teal-800 border-teal-300",
+                active: "bg-teal-500 text-white",
+              },
+              {
+                base: "bg-indigo-100 text-indigo-800 border-indigo-300",
+                active: "bg-indigo-500 text-white",
+              },
+              {
+                base: "bg-lime-100 text-lime-800 border-lime-300",
+                active: "bg-lime-600 text-white",
+              },
+            ];
+            const colors = PALETTE[ccIdx % PALETTE.length];
+            const isActive = selectedComplaints.includes(complaint);
+            return (
+              <Badge
+                key={complaint}
+                variant="outline"
+                className={`cursor-pointer border min-h-[36px] flex items-center transition-all ${isActive ? colors.active : colors.base}`}
+                onClick={() => handleTemplateSelect(complaint)}
+              >
+                {complaint}
+                {isActive && <X className="h-3 w-3 ml-1" />}
+              </Badge>
+            );
+          })}
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-slate-100 border-dashed"
@@ -1566,7 +1624,7 @@ export default function VisitForm({
           <Card className="border-slate-200">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-medium">
+                <CardTitle className="text-base font-medium text-white">
                   System Review
                 </CardTitle>
                 <Button
@@ -1597,24 +1655,55 @@ export default function VisitForm({
                       {system}
                     </Label>
                     <div className="flex flex-wrap gap-2">
-                      {symptoms.map((symptom) => (
-                        <Badge
-                          key={symptom}
-                          variant={
-                            systemReviewAnswers[system]?.includes(symptom)
-                              ? "default"
-                              : "outline"
-                          }
-                          className={`cursor-pointer ${
-                            systemReviewAnswers[system]?.includes(symptom)
-                              ? "bg-teal-600"
-                              : ""
-                          }`}
-                          onClick={() => toggleSystemReview(system, symptom)}
-                        >
-                          {symptom}
-                        </Badge>
-                      ))}
+                      {symptoms.map((symptom, sIdx) => {
+                        const PALETTE = [
+                          {
+                            base: "bg-blue-100 text-blue-800 border-blue-300",
+                            active: "bg-blue-500 text-white",
+                          },
+                          {
+                            base: "bg-green-100 text-green-800 border-green-300",
+                            active: "bg-green-500 text-white",
+                          },
+                          {
+                            base: "bg-amber-100 text-amber-800 border-amber-300",
+                            active: "bg-amber-500 text-white",
+                          },
+                          {
+                            base: "bg-purple-100 text-purple-800 border-purple-300",
+                            active: "bg-purple-500 text-white",
+                          },
+                          {
+                            base: "bg-rose-100 text-rose-800 border-rose-300",
+                            active: "bg-rose-500 text-white",
+                          },
+                          {
+                            base: "bg-cyan-100 text-cyan-800 border-cyan-300",
+                            active: "bg-cyan-500 text-white",
+                          },
+                          {
+                            base: "bg-orange-100 text-orange-800 border-orange-300",
+                            active: "bg-orange-500 text-white",
+                          },
+                          {
+                            base: "bg-teal-100 text-teal-800 border-teal-300",
+                            active: "bg-teal-500 text-white",
+                          },
+                        ];
+                        const colors = PALETTE[sIdx % PALETTE.length];
+                        const isActive =
+                          systemReviewAnswers[system]?.includes(symptom);
+                        return (
+                          <Badge
+                            key={symptom}
+                            variant="outline"
+                            className={`cursor-pointer border min-h-[36px] flex items-center transition-all ${isActive ? colors.active : colors.base}`}
+                            onClick={() => toggleSystemReview(system, symptom)}
+                          >
+                            {symptom}
+                          </Badge>
+                        );
+                      })}
                       <Badge
                         variant="outline"
                         className="cursor-pointer hover:bg-slate-100 border-dashed"
@@ -1651,9 +1740,11 @@ export default function VisitForm({
           </Card>
 
           {/* History */}
-          <Card className="border-slate-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium">History</CardTitle>
+          <Card className="border-amber-200 bg-amber-50/30">
+            <CardHeader className="pb-4 bg-amber-600 rounded-t-xl">
+              <CardTitle className="text-base font-medium text-white">
+                History
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Past Medical History */}
@@ -1862,40 +1953,138 @@ export default function VisitForm({
                 ),
               )}
 
+              {/* EPI Schedule */}
+              <div className="space-y-2 bg-lime-50 border border-lime-200 rounded-lg p-3">
+                <Label className="text-lime-800 font-semibold text-sm">
+                  Immunized as per EPI Schedule / ইপিআই সূচি অনুযায়ী টিকা
+                </Label>
+                <div className="flex gap-3 flex-wrap">
+                  {(["yes", "no"] as const).map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() =>
+                        setEpiSchedule(epiSchedule === val ? "" : val)
+                      }
+                      className={`px-5 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
+                        epiSchedule === val
+                          ? val === "yes"
+                            ? "bg-lime-500 border-lime-500 text-white"
+                            : "bg-rose-500 border-rose-500 text-white"
+                          : "bg-white border-slate-300 text-slate-600 hover:border-lime-400"
+                      }`}
+                      data-ocid={`epi_schedule.${val === "yes" ? "primary_button" : "secondary_button"}`}
+                    >
+                      {val === "yes" ? "✓ Yes / হ্যাঁ" : "✗ No / না"}
+                    </button>
+                  ))}
+                  {epiSchedule && (
+                    <span
+                      className={`text-xs font-medium px-3 py-1 rounded-full self-center ${
+                        epiSchedule === "yes"
+                          ? "bg-lime-100 text-lime-700"
+                          : "bg-rose-100 text-rose-700"
+                      }`}
+                    >
+                      {epiSchedule === "yes"
+                        ? "Immunized as per EPI schedule"
+                        : "Not immunized as per EPI schedule"}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Drug History */}
-              <div className="space-y-3">
+              <div className="space-y-3 bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <Label>Drug History</Label>
+                  <Label className="text-fuchsia-700 font-semibold">
+                    Drug History
+                  </Label>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={addDrugHistory}
                     className="h-8"
+                    data-ocid="drug_history.add_button"
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Add Drug
                   </Button>
                 </div>
+                {/* Drug Search Bar */}
+                <div className="flex gap-2 items-center bg-slate-100 rounded-lg p-2">
+                  <Input
+                    id="drugSearchInput"
+                    placeholder="Search drug name to check in DIMS or Medex..."
+                    className="h-8 text-sm bg-white flex-1"
+                    data-ocid="drug_history.search_input"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.preventDefault();
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs whitespace-nowrap"
+                    onClick={() => {
+                      const val = (
+                        document.getElementById(
+                          "drugSearchInput",
+                        ) as HTMLInputElement
+                      )?.value;
+                      if (!val.trim()) {
+                        toast.error("Enter a drug name first");
+                        return;
+                      }
+                      window.open(
+                        `https://medex.com.bd/?search=${encodeURIComponent(val.trim())}`,
+                        "_blank",
+                      );
+                    }}
+                    data-ocid="drug_history.medex_button"
+                  >
+                    Search Medex
+                  </Button>
+                </div>
                 {drugHistory.map((drug, index) => (
                   <Card
-                    key={drug.drug_name || String(index)}
+                    key={String(index)}
                     className="bg-slate-50 border-slate-200 p-3"
                   >
                     <div className="flex items-start gap-2">
                       <div className="flex-1 grid grid-cols-3 gap-2">
-                        <Input
-                          value={drug.drug_name}
-                          onChange={(e) =>
-                            handleDrugHistoryChange(
-                              index,
-                              "drug_name",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="Drug name"
-                          className="h-9 bg-white"
-                        />
+                        <div className="relative">
+                          <Input
+                            value={drug.drug_name}
+                            onChange={(e) =>
+                              handleDrugHistoryChange(
+                                index,
+                                "drug_name",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="Drug name"
+                            className="h-9 bg-white pr-16"
+                            data-ocid={`drug_history.input.${index + 1}`}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-1 top-1 text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-100"
+                            onClick={() => {
+                              if (drug.drug_name.trim()) {
+                                window.open(
+                                  `https://medex.com.bd/?search=${encodeURIComponent(drug.drug_name.trim())}`,
+                                  "_blank",
+                                );
+                              }
+                            }}
+                            title="Search on Medex"
+                          >
+                            Medex
+                          </button>
+                        </div>
                         <Input
                           value={drug.dose}
                           onChange={(e) =>
@@ -1974,10 +2163,10 @@ export default function VisitForm({
       )}
 
       {/* Vital Signs */}
-      <Card className="border-slate-200">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <Activity className="h-5 w-5 text-teal-600" />
+      <Card className="border-green-200 bg-green-50/30">
+        <CardHeader className="pb-4 bg-green-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center gap-2 text-white">
+            <Activity className="h-5 w-5 text-white/80" />
             Vital Signs
           </CardTitle>
         </CardHeader>
@@ -2060,23 +2249,13 @@ export default function VisitForm({
               className="h-10"
             />
           </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Height</Label>
-            <Input
-              type="text"
-              value={formData.vital_signs?.height || ""}
-              onChange={(e) => handleVitalChange("height", e.target.value)}
-              placeholder={"5'8\""}
-              className="h-10"
-            />
-          </div>
         </CardContent>
       </Card>
 
       {/* General Examination */}
-      <Card className="border-slate-200">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-medium">
+      <Card className="border-purple-200 bg-purple-50/30">
+        <CardHeader className="pb-4 bg-purple-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
             General Examination / সাধারণ পরীক্ষা
           </CardTitle>
         </CardHeader>
@@ -2088,24 +2267,54 @@ export default function VisitForm({
                   {category}
                 </Label>
                 <div className="flex flex-wrap gap-2">
-                  {options.map((option) => (
-                    <Badge
-                      key={option}
-                      variant={
-                        generalExamFindings[category] === option
-                          ? "default"
-                          : "outline"
-                      }
-                      className={`cursor-pointer ${
-                        generalExamFindings[category] === option
-                          ? "bg-teal-600"
-                          : ""
-                      }`}
-                      onClick={() => toggleGeneralExam(category, option)}
-                    >
-                      {option}
-                    </Badge>
-                  ))}
+                  {options.map((option, optIdx) => {
+                    const PALETTE = [
+                      {
+                        base: "bg-blue-100 text-blue-800 border-blue-300",
+                        active: "bg-blue-500 text-white",
+                      },
+                      {
+                        base: "bg-green-100 text-green-800 border-green-300",
+                        active: "bg-green-500 text-white",
+                      },
+                      {
+                        base: "bg-amber-100 text-amber-800 border-amber-300",
+                        active: "bg-amber-500 text-white",
+                      },
+                      {
+                        base: "bg-purple-100 text-purple-800 border-purple-300",
+                        active: "bg-purple-500 text-white",
+                      },
+                      {
+                        base: "bg-rose-100 text-rose-800 border-rose-300",
+                        active: "bg-rose-500 text-white",
+                      },
+                      {
+                        base: "bg-cyan-100 text-cyan-800 border-cyan-300",
+                        active: "bg-cyan-500 text-white",
+                      },
+                      {
+                        base: "bg-orange-100 text-orange-800 border-orange-300",
+                        active: "bg-orange-500 text-white",
+                      },
+                      {
+                        base: "bg-teal-100 text-teal-800 border-teal-300",
+                        active: "bg-teal-500 text-white",
+                      },
+                    ];
+                    const colors = PALETTE[optIdx % PALETTE.length];
+                    const isActive = generalExamFindings[category] === option;
+                    return (
+                      <Badge
+                        key={option}
+                        variant="outline"
+                        className={`cursor-pointer border min-h-[36px] flex items-center transition-all ${isActive ? colors.active : colors.base}`}
+                        onClick={() => toggleGeneralExam(category, option)}
+                      >
+                        {option}
+                      </Badge>
+                    );
+                  })}
                 </div>
                 <Input
                   value={generalExamFindings[`${category}_note`] || ""}
@@ -2125,40 +2334,57 @@ export default function VisitForm({
       </Card>
 
       {/* Systemic Examination */}
-      <Card className="border-slate-200">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-medium">
+      <Card className="border-teal-200 bg-teal-50/30">
+        <CardHeader className="pb-4 bg-teal-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
             Systemic Examination / পদ্ধতিগত পরীক্ষা
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="respiratory">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs defaultValue="cardiovascular">
+            <TabsList className="flex flex-wrap w-full gap-1 h-auto">
+              <TabsTrigger
+                value="cardiovascular"
+                className="flex-1 min-w-[80px]"
+                data-ocid="systemic.cardiovascular.tab"
+              >
+                CVS
+              </TabsTrigger>
               <TabsTrigger
                 value="respiratory"
+                className="flex-1 min-w-[80px]"
                 data-ocid="systemic.respiratory.tab"
               >
                 Respiratory
               </TabsTrigger>
               <TabsTrigger
                 value="neurological"
+                className="flex-1 min-w-[80px]"
                 data-ocid="systemic.neurological.tab"
               >
                 Neurological
               </TabsTrigger>
               <TabsTrigger
                 value="gastrointestinal"
+                className="flex-1 min-w-[80px]"
                 data-ocid="systemic.gastrointestinal.tab"
               >
                 GI
               </TabsTrigger>
               <TabsTrigger
                 value="musculoskeletal"
+                className="flex-1 min-w-[80px]"
                 data-ocid="systemic.musculoskeletal.tab"
               >
                 MSK
               </TabsTrigger>
             </TabsList>
+            <TabsContent value="cardiovascular">
+              <CardiovascularExam
+                data={cardiovascularExam}
+                onChange={setCardiovascularExam}
+              />
+            </TabsContent>
             <TabsContent value="respiratory">
               <RespiratoryExam
                 data={respiratoryExam}
@@ -2188,34 +2414,44 @@ export default function VisitForm({
       </Card>
 
       {/* Previous Investigation Report */}
-      <Card className="border-blue-200">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium text-blue-700">
+      <Card className="border-cyan-200 bg-cyan-50/30">
+        <CardHeader className="pb-3 bg-cyan-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
             Previous Investigation Report / পূর্ববর্তী তদন্ত প্রতিবেদন
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Textarea
-            value={formData.previous_investigation_report || ""}
-            onChange={(e) =>
-              handleChange("previous_investigation_report", e.target.value)
+          <PreviousInvestigationTable
+            rows={
+              Array.isArray(formData.previous_investigation_rows)
+                ? formData.previous_investigation_rows
+                : []
             }
-            placeholder="Enter previous investigation results, lab values, imaging findings..."
-            rows={6}
-            className="bg-slate-50"
-            data-ocid="previous_investigation_report.textarea"
+            onChange={(rows) =>
+              handleChange("previous_investigation_rows", rows)
+            }
+            onArchive={() => {
+              const rows = formData.previous_investigation_rows || [];
+              if (rows.length === 0) return;
+              const key = `archived_investigations_${patientId}`;
+              const existing = JSON.parse(localStorage.getItem(key) || "[]");
+              localStorage.setItem(key, JSON.stringify([...existing, ...rows]));
+              handleChange("previous_investigation_rows", []);
+              toast.success("Investigation profile archived successfully.");
+            }}
           />
           <p className="text-xs text-slate-400 mt-2">
-            These will be included in the Auto-Generated Salient Features.
+            Five-field structured report. Values are included in Auto-Generated
+            Salient Features.
           </p>
         </CardContent>
       </Card>
 
       {/* Salient Features */}
-      <Card className="border-slate-200">
-        <CardHeader className="pb-3">
+      <Card className="border-rose-200 bg-rose-50/30">
+        <CardHeader className="pb-3 bg-rose-600 rounded-t-xl">
           <CardTitle className="text-base font-medium flex items-center justify-between">
-            <span>Salient Features / বিশেষ বৈশিষ্ট্য</span>
+            <span className="text-white">Salient Features / বিশেষ বৈশিষ্ট্য</span>
             <Button
               type="button"
               variant="outline"
@@ -2248,10 +2484,10 @@ export default function VisitForm({
       </Card>
 
       {/* Differential Diagnosis */}
-      <Card className="border-violet-200">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium flex items-center justify-between">
-            <span className="text-violet-700">
+      <Card className="border-orange-200 bg-orange-50/30">
+        <CardHeader className="pb-3 bg-orange-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
+            <span className="text-white">
               Differential Diagnosis / ডিফারেনশিয়াল ডায়াগনসিস
             </span>
             <div className="flex gap-2">
@@ -2317,10 +2553,10 @@ export default function VisitForm({
       </Card>
 
       {/* New Investigation Advice */}
-      <Card className="border-teal-200">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium flex items-center justify-between">
-            <span className="text-teal-700">
+      <Card className="border-lime-200 bg-lime-50/30">
+        <CardHeader className="pb-3 bg-lime-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
+            <span className="text-white">
               New Investigation Advice / নতুন তদন্তের পরামর্শ
             </span>
             <Button
@@ -2361,27 +2597,6 @@ export default function VisitForm({
           </p>
         </CardContent>
       </Card>
-
-      {/* Outdoor extra sections */}
-      {visitType === "outdoor" && (
-        <Card className="border-slate-200">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium">
-              Investigation Profile
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <InvestigationProfile
-              data={
-                Array.isArray(formData.investigation_profile)
-                  ? formData.investigation_profile
-                  : []
-              }
-              onChange={(data) => handleChange("investigation_profile", data)}
-            />
-          </CardContent>
-        </Card>
-      )}
 
       {/* Diagnosis */}
       <div className="space-y-2">
