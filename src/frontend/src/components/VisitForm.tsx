@@ -1250,40 +1250,59 @@ export default function VisitForm({
     const htn = medicalHistory.HTN === "+" ? "hypertensive" : "normotensive";
     const dm = medicalHistory.DM === "+" ? "diabetic" : "nondiabetic";
 
-    // Chief complaints
-    const complaints =
-      selectedComplaints.length > 0
-        ? selectedComplaints.join(", ")
-        : formData.chief_complaint?.trim() || "...";
+    // Chief complaints with answers
+    const complaintLines: string[] = [];
+    if (selectedComplaints.length > 0) {
+      selectedComplaints.forEach((complaint, i) => {
+        const answers = complaintAnswers[complaint] || [];
+        const parts = answers.filter(Boolean).slice(0, 4);
+        if (parts.length > 0) {
+          complaintLines.push(`${i + 1}. ${complaint} — ${parts.join(", ")}`);
+        } else {
+          complaintLines.push(`${i + 1}. ${complaint}`);
+        }
+      });
+    } else if (formData.chief_complaint?.trim()) {
+      complaintLines.push(`1. ${formData.chief_complaint.trim()}`);
+    }
 
-    // Personal history - smoking
-    const smokingStatus = personalHistoryAnswers[0]?.trim();
-    const smokingLine =
-      smokingStatus && smokingStatus !== "Non-smoker"
-        ? `He/She is a ${smokingStatus.toLowerCase()}.`
+    const presentedWith =
+      complaintLines.length > 0
+        ? `presented with:\n${complaintLines.join("\n")}`
+        : "presented with various complaints";
+
+    // Positive system review
+    const positiveSysReview: string[] = [];
+    if (systemReviewAnswers) {
+      for (const [k, v] of Object.entries(systemReviewAnswers)) {
+        const vals = Array.isArray(v) ? v.filter(Boolean) : [];
+        if (
+          vals.length > 0 &&
+          !vals.every((x) => x === "Normal" || x === "None" || x === "No")
+        ) {
+          positiveSysReview.push(`${k}: ${vals.join(", ")}`);
+        }
+      }
+    }
+    const sysReviewLine =
+      positiveSysReview.length > 0
+        ? `He/She also complains of ${positiveSysReview.join("; ")}.`
         : "";
 
-    // Family history - non-"No" entries
-    const familyLines = familyHistoryAnswers
-      .map((ans, i) =>
-        ans && ans !== "No"
-          ? `${familyHistoryQuestions[i].q.split("/")[0].trim()}: ${ans}`
-          : "",
-      )
-      .filter(Boolean);
-    const familyLine =
-      familyLines.length > 0
-        ? `On query, family history reveals ${familyLines.join("; ")}.`
-        : "";
-
-    // Drug history
-    const drugs = (formData.drug_history || []).filter((d) =>
-      d.drug_name?.trim(),
-    );
-    const drugLine =
-      drugs.length > 0
-        ? `He/She uses ${drugs.map((d) => d.drug_name.trim()).join(", ")}.`
-        : "";
+    // Vital signs
+    const vitalParts: string[] = [];
+    if (formData.vital_signs?.blood_pressure)
+      vitalParts.push(`BP ${formData.vital_signs.blood_pressure}`);
+    if (formData.vital_signs?.pulse)
+      vitalParts.push(`Pulse ${formData.vital_signs.pulse} bpm`);
+    if (formData.vital_signs?.temperature)
+      vitalParts.push(`Temperature ${formData.vital_signs.temperature}°F`);
+    if (formData.vital_signs?.respiratory_rate)
+      vitalParts.push(`RR ${formData.vital_signs.respiratory_rate}/min`);
+    if (formData.vital_signs?.oxygen_saturation)
+      vitalParts.push(`SpO2 ${formData.vital_signs.oxygen_saturation}%`);
+    const vitalsLine =
+      vitalParts.length > 0 ? `On examination, ${vitalParts.join(", ")}.` : "";
 
     // General examination
     const genExamParts = Object.entries(generalExamFindings)
@@ -1319,30 +1338,74 @@ export default function VisitForm({
     const neuroLine = flattenExam(neurologicalExam, "Neurological system");
     const giLine = flattenExam(gastrointestinalExam, "Gastrointestinal system");
     const mskLine = flattenExam(musculoskeletalExam, "Musculoskeletal system");
-    const systemicLines = [respLine, neuroLine, giLine, mskLine].filter(
+    const cvLine = flattenExam(
+      cardiovascularExam || {},
+      "Cardiovascular system",
+    );
+    const systemicParts = [respLine, neuroLine, giLine, mskLine, cvLine].filter(
       Boolean,
     );
     const systemicLine =
-      systemicLines.length > 0
-        ? `On systemic examination: ${systemicLines.join(" ")}`
+      systemicParts.length > 0
+        ? `On systemic examination:\n${systemicParts.join("\n")}`
         : "";
 
+    // Personal history - smoking
+    const smokingStatus = personalHistoryAnswers[0]?.trim();
+    const smokingLine =
+      smokingStatus && smokingStatus !== "Non-smoker"
+        ? `He/She is a ${smokingStatus.toLowerCase()}.`
+        : "";
+
+    // Family history
+    const familyLines = familyHistoryAnswers
+      .map((ans, i) =>
+        ans && ans !== "No"
+          ? `${familyHistoryQuestions[i].q.split("/")[0].trim()}: ${ans}`
+          : "",
+      )
+      .filter(Boolean);
+    const familyLine =
+      familyLines.length > 0
+        ? `On query, family history reveals ${familyLines.join("; ")}.`
+        : "";
+
+    // Drug history
+    const drugs = (formData.drug_history || []).filter((d) =>
+      d.drug_name?.trim(),
+    );
+    const drugLine =
+      drugs.length > 0
+        ? `He/She uses ${drugs.map((d) => d.drug_name.trim()).join(", ")}.`
+        : "";
+
+    // Previous investigation report
+    let invLine = "";
+    const prevInvRows = formData.previous_investigation_rows || [];
+    if (prevInvRows.length > 0) {
+      const invItems = prevInvRows
+        .filter((r) => r.name)
+        .map(
+          (r) =>
+            `${r.date ? `${r.date} - ` : ""}${r.name}${r.result ? ` ${r.result}` : ""}${r.unit ? ` ${r.unit}` : ""}${r.interpretation ? ` (${r.interpretation})` : ""}`,
+        )
+        .join("; ");
+      if (invItems) invLine = `Previous investigations: ${invItems}.`;
+    }
+
     const parts = [
-      `${title} ${name}, ${age} years old, ${occupation}, ${htn}, ${dm}, hailing from ${address}, presented with ${complaints}.`,
+      `${title} ${name}, ${age} years old, ${occupation}, ${htn}, ${dm}, hailing from ${address}, ${presentedWith}.`,
+      sysReviewLine,
       smokingLine,
       familyLine,
       drugLine,
+      vitalsLine,
       genExamLine,
       systemicLine,
+      invLine,
     ].filter(Boolean);
 
-    if (formData.previous_investigation_report?.trim()) {
-      parts.push(
-        `Previous Investigations:\n${formData.previous_investigation_report.trim()}`,
-      );
-    }
-
-    return `Salient Features\n\n${parts.join(" ")}`;
+    return `Salient Features\n\n${parts.join("\n\n")}`;
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -1946,6 +2009,50 @@ export default function VisitForm({
                             <Plus className="h-3 w-3 mr-1" />
                             Add
                           </Button>
+                          {key === "immunization" && (
+                            <div className="mt-3 space-y-2 bg-lime-50 border border-lime-200 rounded-lg p-3">
+                              <Label className="text-lime-800 font-semibold text-sm">
+                                Immunized as per EPI Schedule / ইপিআই সূচি অনুযায়ী
+                                টিকা
+                              </Label>
+                              <div className="flex gap-3 flex-wrap">
+                                {(["yes", "no"] as const).map((val) => (
+                                  <button
+                                    key={val}
+                                    type="button"
+                                    onClick={() =>
+                                      setEpiSchedule(
+                                        epiSchedule === val ? "" : val,
+                                      )
+                                    }
+                                    className={`px-5 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
+                                      epiSchedule === val
+                                        ? val === "yes"
+                                          ? "bg-lime-500 border-lime-500 text-white"
+                                          : "bg-rose-500 border-rose-500 text-white"
+                                        : "bg-white border-slate-300 text-slate-600 hover:border-lime-400"
+                                    }`}
+                                    data-ocid={`epi_schedule.${val === "yes" ? "primary_button" : "secondary_button"}`}
+                                  >
+                                    {val === "yes" ? "✓ Yes / হ্যাঁ" : "✗ No / না"}
+                                  </button>
+                                ))}
+                                {epiSchedule && (
+                                  <span
+                                    className={`text-xs font-medium px-3 py-1 rounded-full self-center ${
+                                      epiSchedule === "yes"
+                                        ? "bg-lime-100 text-lime-700"
+                                        : "bg-rose-100 text-rose-700"
+                                    }`}
+                                  >
+                                    {epiSchedule === "yes"
+                                      ? "Immunized as per EPI schedule"
+                                      : "Not immunized as per EPI schedule"}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -1953,7 +2060,7 @@ export default function VisitForm({
                 ),
               )}
 
-              {/* EPI Schedule */}
+              {/* Drug History */}
               <div className="space-y-2 bg-lime-50 border border-lime-200 rounded-lg p-3">
                 <Label className="text-lime-800 font-semibold text-sm">
                   Immunized as per EPI Schedule / ইপিআই সূচি অনুযায়ী টিকা
@@ -2483,6 +2590,58 @@ export default function VisitForm({
         </CardContent>
       </Card>
 
+      {/* Diagnosis */}
+      <Card className="border-teal-200 bg-teal-50/30">
+        <CardHeader className="pb-3 bg-teal-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
+            <span className="text-white">Diagnosis / রোগ নির্ণয়</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const complaints =
+                  selectedComplaints.length > 0
+                    ? selectedComplaints.join(", ")
+                    : formData.chief_complaint?.trim() || "";
+                const pmh = Object.entries(medicalHistory)
+                  .map(([k, v]) => `${k}${v}`)
+                  .join(", ");
+                const salient = formData.salient_features?.trim() || "";
+                const generated = salient
+                  ? `Based on clinical presentation and examination findings:
+
+Possible Diagnosis: [Review and enter diagnosis based on: ${complaints ? `complaints of ${complaints}, ` : ""}${pmh ? `history of ${pmh}, ` : ""}salient features reviewed]`
+                  : `Based on presenting complaints${complaints ? ` (${complaints})` : ""} and examination findings:
+
+Possible Diagnosis: [Enter diagnosis here]`;
+                handleChange("diagnosis", generated);
+              }}
+              className="flex items-center gap-2 text-teal-700 border-teal-200 hover:bg-teal-50"
+              data-ocid="diagnosis.button"
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Generate
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            id="diagnosis"
+            value={formData.diagnosis || ""}
+            onChange={(e) => handleChange("diagnosis", e.target.value)}
+            placeholder="Enter diagnosis here, or click AI Generate for a suggestion based on collected data..."
+            rows={3}
+            className="bg-slate-50"
+            data-ocid="diagnosis.textarea"
+          />
+          <p className="text-xs text-slate-400 mt-2">
+            Enter confirmed diagnosis. Use AI Generate for suggestions based on
+            clinical data.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Differential Diagnosis */}
       <Card className="border-orange-200 bg-orange-50/30">
         <CardHeader className="pb-3 bg-orange-600 rounded-t-xl">
@@ -2496,12 +2655,16 @@ export default function VisitForm({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const salient = formData.salient_features?.trim() || "";
-                  if (!salient) {
-                    alert("Please fill in Salient Features first.");
-                    return;
-                  }
-                  const generated = `Differential Diagnosis based on Salient Features:\n\nBased on: ${salient.substring(0, 200)}...\n\nPossible diagnoses:\n1. [Doctor to add diagnosis 1]\n2. [Doctor to add diagnosis 2]\n3. [Doctor to add diagnosis 3]\n\nPlease review and edit this differential diagnosis.`;
+                  const complaints =
+                    selectedComplaints.length > 0
+                      ? selectedComplaints.join(", ")
+                      : formData.chief_complaint?.trim() || "";
+                  const pmh = Object.entries(medicalHistory)
+                    .filter(([, v]) => v === "+")
+                    .map(([k]) => k)
+                    .join(", ");
+                  const diagnosis = formData.diagnosis?.trim() || "";
+                  const generated = `Differential Diagnosis:\n\nBased on: ${complaints ? `complaints of ${complaints}` : "presenting symptoms"}${pmh ? `, history of ${pmh}` : ""}${diagnosis ? `, diagnosis of ${diagnosis}` : ""}\n\nDifferential diagnoses to consider:\n1. [Review and enter DDx 1]\n2. [Review and enter DDx 2]\n3. [Review and enter DDx 3]\n\nPlease review and edit based on clinical findings.`;
                   handleChange("differential_diagnosis", generated);
                 }}
                 className="flex items-center gap-2 text-violet-700 border-violet-300 hover:bg-violet-50"
@@ -2597,18 +2760,6 @@ export default function VisitForm({
           </p>
         </CardContent>
       </Card>
-
-      {/* Diagnosis */}
-      <div className="space-y-2">
-        <Label htmlFor="diagnosis">Diagnosis</Label>
-        <Textarea
-          id="diagnosis"
-          value={formData.diagnosis || ""}
-          onChange={(e) => handleChange("diagnosis", e.target.value)}
-          placeholder="Diagnosis..."
-          rows={2}
-        />
-      </div>
 
       {/* Notes */}
       <div className="space-y-2">

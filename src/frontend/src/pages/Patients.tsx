@@ -12,6 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Calendar,
   Droplets,
+  Hash,
   Mail,
   Phone,
   Search,
@@ -28,7 +29,7 @@ import { useCreatePatient, useGetAllPatients } from "../hooks/useQueries";
 const SKELETON_KEYS = ["sk1", "sk2", "sk3", "sk4", "sk5", "sk6"];
 
 function getAge(dateOfBirth?: bigint): string {
-  if (!dateOfBirth) return "—";
+  if (!dateOfBirth) return "\u2014";
   const dob = new Date(Number(dateOfBirth / 1000000n));
   const age = Math.floor(
     (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000),
@@ -39,6 +40,8 @@ function getAge(dateOfBirth?: bigint): string {
 function PatientCard({ patient, index }: { patient: Patient; index: number }) {
   const navigate = useNavigate();
   const initial = patient.fullName.charAt(0).toUpperCase();
+  const registerNumber = (patient as any).registerNumber;
+  const photo = (patient as any).photo;
 
   return (
     <motion.div
@@ -60,13 +63,21 @@ function PatientCard({ patient, index }: { patient: Patient; index: number }) {
       >
         <div className="flex items-start gap-4">
           <div
-            className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center text-lg font-bold text-white shadow-sm"
+            className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center text-lg font-bold text-white shadow-sm overflow-hidden"
             style={{
               background:
                 "linear-gradient(135deg, oklch(0.62 0.14 195), oklch(0.52 0.14 215))",
             }}
           >
-            {initial}
+            {photo ? (
+              <img
+                src={photo}
+                alt={patient.fullName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              initial
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
@@ -77,6 +88,12 @@ function PatientCard({ patient, index }: { patient: Patient; index: number }) {
                 {patient.nameBn && (
                   <p className="text-xs text-muted-foreground">
                     {patient.nameBn}
+                  </p>
+                )}
+                {registerNumber && (
+                  <p className="text-xs font-mono text-primary/80 flex items-center gap-1 mt-0.5">
+                    <Hash className="w-3 h-3" />
+                    {registerNumber}
                   </p>
                 )}
               </div>
@@ -115,12 +132,6 @@ function PatientCard({ patient, index }: { patient: Patient; index: number }) {
                   {patient.email}
                 </span>
               )}
-              {patient.chronicConditions.length > 0 && (
-                <span className="text-amber-600 font-medium">
-                  {patient.chronicConditions.length} condition
-                  {patient.chronicConditions.length > 1 ? "s" : ""}
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -140,13 +151,19 @@ export default function Patients() {
       p.fullName.toLowerCase().includes(search.toLowerCase()) ||
       (p.nameBn ?? "").includes(search) ||
       (p.phone ?? "").includes(search) ||
-      (p.email ?? "").toLowerCase().includes(search.toLowerCase()),
+      (p.email ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      ((p as any).registerNumber ?? "")
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
 
   const handleCreate = (data: Parameters<typeof createMutation.mutate>[0]) => {
     createMutation.mutate(data, {
-      onSuccess: () => {
-        toast.success("Patient registered");
+      onSuccess: (patient) => {
+        const regNum = (patient as any)?.registerNumber;
+        toast.success(
+          regNum ? `Patient registered \u2014 ${regNum}` : "Patient registered",
+        );
         setShowForm(false);
       },
       onError: () => toast.error("Failed to register patient"),
@@ -179,7 +196,7 @@ export default function Patients() {
       <div className="relative mb-5">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Search by name, phone, or email…"
+          placeholder="Search by name, register no., phone, or email\u2026"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -207,7 +224,7 @@ export default function Patients() {
           </p>
           <p className="text-sm text-muted-foreground">
             {search
-              ? "Try a different search term"
+              ? "Try a different search term or register number"
               : "Register your first patient to get started"}
           </p>
           {!search && (

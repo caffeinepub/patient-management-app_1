@@ -63,7 +63,7 @@ import {
   Youtube,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface LandingPageProps {
@@ -79,6 +79,7 @@ interface PublicBooking {
   phone: string;
   doctor: string;
   date: string;
+  time?: string;
   reason: string;
   chamber: string;
   submittedAt: string;
@@ -2086,6 +2087,107 @@ function DifferentialDiagnosisPDFAdmin() {
 
 // ─── Admin: Interpretation Reference PDF ─────────────────────────────────────
 
+function StaffApprovalsAdmin() {
+  const [accounts, setAccounts] = useState<any[]>([]);
+
+  const refresh = useCallback(() => {
+    try {
+      const registry = JSON.parse(
+        localStorage.getItem("medicare_doctors_registry") || "[]",
+      );
+      setAccounts(registry.filter((d: any) => d.status === "pending"));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const approve = (id: string) => {
+    try {
+      const registry = JSON.parse(
+        localStorage.getItem("medicare_doctors_registry") || "[]",
+      );
+      const idx = registry.findIndex((d: any) => d.id === id);
+      if (idx >= 0) {
+        registry[idx] = { ...registry[idx], status: "approved" };
+        localStorage.setItem(
+          "medicare_doctors_registry",
+          JSON.stringify(registry),
+        );
+        toast.success("Account approved");
+        refresh();
+      }
+    } catch {}
+  };
+
+  const reject = (id: string) => {
+    try {
+      const registry = JSON.parse(
+        localStorage.getItem("medicare_doctors_registry") || "[]",
+      );
+      const idx = registry.findIndex((d: any) => d.id === id);
+      if (idx >= 0) {
+        registry[idx] = { ...registry[idx], status: "rejected" };
+        localStorage.setItem(
+          "medicare_doctors_registry",
+          JSON.stringify(registry),
+        );
+        toast.success("Account rejected");
+        refresh();
+      }
+    } catch {}
+  };
+
+  return (
+    <div className="bg-white border border-amber-200 rounded-xl p-5">
+      <h3 className="font-semibold text-amber-900 mb-3 flex items-center gap-2">
+        <Users className="w-4 h-4" />
+        Pending Staff Approvals ({accounts.length})
+      </h3>
+      {accounts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No pending approvals.</p>
+      ) : (
+        <div className="space-y-3">
+          {accounts.map((acc: any) => (
+            <div
+              key={acc.id}
+              className="flex items-center justify-between gap-3 border border-border rounded-lg p-3"
+            >
+              <div>
+                <p className="font-medium text-sm">{acc.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {acc.email} · {acc.role}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1 h-7 text-xs"
+                  onClick={() => approve(acc.id)}
+                  data-ocid="admin.approve.button"
+                >
+                  <CheckCircle2 className="w-3 h-3" /> Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-700 border-red-300 hover:bg-red-50 gap-1 h-7 text-xs"
+                  onClick={() => reject(acc.id)}
+                  data-ocid="admin.reject.button"
+                >
+                  <X className="w-3 h-3" /> Reject
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InterpretationRefPDFAdmin() {
   const LS_KEY = "interpretationReferencePDF";
   const [stored, setStored] = useState<string | null>(() =>
@@ -2206,9 +2308,39 @@ export default function LandingPage({
     phone: "",
     doctor: "",
     date: "",
+    time: "",
     reason: "",
     chamber: "",
+    registerNumber: "",
   });
+
+  // Look up patient by register number for booking form
+  const handleBookingRegLookup = (regNum: string) => {
+    setBookingForm((f) => ({ ...f, registerNumber: regNum }));
+    if (!regNum.trim()) return;
+    try {
+      const registry = JSON.parse(
+        localStorage.getItem("medicare_doctors_registry") || "[]",
+      );
+      for (const doc of registry) {
+        const key = `patients_${doc.email}`;
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const patients = JSON.parse(raw);
+        const found = patients.find(
+          (p: any) => p.registerNumber?.toUpperCase() === regNum.toUpperCase(),
+        );
+        if (found) {
+          setBookingForm((f) => ({
+            ...f,
+            patientName: found.fullName || f.patientName,
+            phone: found.phone || f.phone,
+          }));
+          break;
+        }
+      }
+    } catch {}
+  };
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [bookingCount, setBookingCount] = useState(0);
 
@@ -2256,7 +2388,12 @@ export default function LandingPage({
     }
     const newBooking: PublicBooking = {
       id: Math.random().toString(36).slice(2, 10),
-      ...bookingForm,
+      patientName: bookingForm.patientName,
+      phone: bookingForm.phone,
+      doctor: bookingForm.doctor,
+      date: bookingForm.date,
+      time: bookingForm.time,
+      reason: bookingForm.reason,
       chamber: bookingForm.chamber,
       submittedAt: new Date().toISOString(),
       status: "pending",
@@ -2529,11 +2666,28 @@ export default function LandingPage({
                   >
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
-                        <div
-                          className={`w-16 h-16 rounded-2xl ${accentColor} flex items-center justify-center text-xl font-bold shrink-0`}
-                        >
-                          {initials}
-                        </div>
+                        {(() => {
+                          const photoKey =
+                            key === "arman"
+                              ? "medicare_doctor_photo_arman"
+                              : "medicare_doctor_photo_samia";
+                          const savedPhoto = localStorage.getItem(photoKey);
+                          return savedPhoto ? (
+                            <div className="w-16 h-16 rounded-2xl shrink-0 overflow-hidden border-2 border-border">
+                              <img
+                                src={savedPhoto}
+                                alt={doc.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className={`w-16 h-16 rounded-2xl ${accentColor} flex items-center justify-center text-xl font-bold shrink-0`}
+                            >
+                              {initials}
+                            </div>
+                          );
+                        })()}
                         <div className="flex-1 min-w-0">
                           <h2 className="font-display text-xl font-bold text-foreground">
                             {doc.name}
@@ -2584,16 +2738,50 @@ export default function LandingPage({
                           View CV
                         </button>
                         {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
-                            onClick={() => setEditProfileKey(key)}
-                            data-ocid={`profile.${key}.edit_button`}
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                            Edit Profile
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                              onClick={() => setEditProfileKey(key)}
+                              data-ocid={`profile.${key}.edit_button`}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              Edit Profile
+                            </Button>
+                            <label className="cursor-pointer">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
+                                <Upload className="w-3 h-3" />
+                                Photo
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const reader = new FileReader();
+                                  reader.onload = (ev) => {
+                                    const photoKey =
+                                      key === "arman"
+                                        ? "medicare_doctor_photo_arman"
+                                        : "medicare_doctor_photo_samia";
+                                    localStorage.setItem(
+                                      photoKey,
+                                      ev.target?.result as string,
+                                    );
+                                    import("sonner").then(({ toast }) =>
+                                      toast.success(
+                                        "Photo updated — refresh to see",
+                                      ),
+                                    );
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                          </>
                         )}
                       </div>
                     </CardContent>
@@ -3095,8 +3283,10 @@ export default function LandingPage({
                       phone: "",
                       doctor: "",
                       date: "",
+                      time: "",
                       reason: "",
                       chamber: "",
+                      registerNumber: "",
                     });
                   }}
                   data-ocid="appointments.new_booking.button"
@@ -3247,6 +3437,37 @@ export default function LandingPage({
                         />
                       </div>
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="booking-time">Preferred Time</Label>
+                        <Input
+                          id="booking-time"
+                          type="time"
+                          value={bookingForm.time}
+                          onChange={(e) =>
+                            setBookingForm((f) => ({
+                              ...f,
+                              time: e.target.value,
+                            }))
+                          }
+                          data-ocid="appointments.booking.input"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="booking-regnum">
+                          Register No. (returning patient)
+                        </Label>
+                        <Input
+                          id="booking-regnum"
+                          placeholder="e.g. REG-0001/26"
+                          value={bookingForm.registerNumber}
+                          onChange={(e) =>
+                            handleBookingRegLookup(e.target.value)
+                          }
+                          data-ocid="appointments.booking.input"
+                        />
+                      </div>
+                    </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="booking-reason">Reason for Visit</Label>
                       <Textarea
@@ -3344,6 +3565,7 @@ export default function LandingPage({
             <h2 className="text-xl font-bold text-amber-900 flex items-center gap-2">
               Admin Tools
             </h2>
+            <StaffApprovalsAdmin />
             <PrescriptionPDFManager />
             <TreatmentReferencePDFAdmin />
             <DifferentialDiagnosisPDFAdmin />

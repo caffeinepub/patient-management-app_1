@@ -33,9 +33,12 @@ import {
   CheckCircle2,
   Clock,
   Edit2,
+  ExternalLink,
   Inbox,
   ListOrdered,
   Loader2,
+  MessageCircle,
+  Monitor,
   Plus,
   RefreshCcw,
   Trash2,
@@ -46,6 +49,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import PatientForm, { type PatientFormData } from "../components/PatientForm";
+import { useEmailAuth } from "../hooks/useEmailAuth";
 import { useCreatePatient, useGetAllPatients } from "../hooks/useQueries";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ interface AppointmentEntry {
   time: string;
   reason: string;
   status: AppointmentStatus;
+  doctor?: string;
 }
 
 // ─── Storage helpers ─────────────────────────────────────────────────────────
@@ -229,9 +234,19 @@ function DoctorSerialTab() {
 
   const [form, setForm] = useState({ name: "", phone: "" });
 
+  const { currentDoctor } = useEmailAuth();
+  const isDoctor = !currentDoctor || currentDoctor.role === "doctor";
+
   const persist = (data: SerialEntry[]) => {
     setSerials(data);
     saveSerials(data);
+    // Sync display screen queue
+    const nowServing = data.find((s) => s.status === "in-progress") || null;
+    const queue = data.filter((s) => s.status === "waiting");
+    localStorage.setItem(
+      "medicare_serial_queue",
+      JSON.stringify({ nowServing, queue }),
+    );
   };
 
   function addSerial() {
@@ -405,7 +420,7 @@ function DoctorSerialTab() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {s.status === "waiting" && (
+                        {s.status === "waiting" && isDoctor && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -416,7 +431,7 @@ function DoctorSerialTab() {
                             Start
                           </Button>
                         )}
-                        {s.status === "in-progress" && (
+                        {s.status === "in-progress" && isDoctor && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -545,6 +560,7 @@ function AppointmentsTab() {
     time: "",
     reason: "",
     status: "scheduled" as AppointmentStatus,
+    doctor: "",
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -567,6 +583,7 @@ function AppointmentsTab() {
       time: appt.time,
       reason: appt.reason,
       status: appt.status,
+      doctor: appt.doctor || "",
     });
     setEditTarget(appt);
     setAddOpen(true);
@@ -607,6 +624,7 @@ function AppointmentsTab() {
         time: form.time,
         reason: form.reason.trim(),
         status: form.status,
+        doctor: form.doctor || undefined,
       };
       persist([...appointments, entry]);
       toast.success(`Appointment scheduled for ${entry.patientName}`);
@@ -709,6 +727,11 @@ function AppointmentsTab() {
                       </Badge>
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 text-sm text-muted-foreground flex-wrap">
+                      {appt.doctor && (
+                        <span className="text-primary font-medium text-xs">
+                          {appt.doctor}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1">
                         <CalendarCheck className="w-3.5 h-3.5" />
                         {new Date(appt.date).toLocaleDateString("en-BD", {
@@ -736,6 +759,44 @@ function AppointmentsTab() {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                      title="Send WhatsApp confirmation"
+                      onClick={() => {
+                        const DOCTOR_NUMBERS: Record<string, string> = {
+                          "Dr. Arman Kabir": "8801751959262",
+                          "Dr. Samia Shikder": "8801957212210",
+                        };
+                        const docName = appt.doctor || "Dr. Arman Kabir";
+                        const docNum =
+                          DOCTOR_NUMBERS[docName] || "8801751959262";
+                        const patientPhone = appt.phone
+                          ? appt.phone.replace(/[^0-9]/g, "")
+                          : null;
+                        const msg = `Dear ${appt.patientName}, your appointment with ${docName} is confirmed on ${appt.date}${appt.time ? ` at ${appt.time}` : ""}. - Dr. Arman Kabir's Care`;
+                        // Send to doctor
+                        window.open(
+                          `https://wa.me/${docNum}?text=${encodeURIComponent(`Appointment confirmed: ${msg}`)}`,
+                          "_blank",
+                        );
+                        // Send to patient if phone available
+                        if (patientPhone && patientPhone.length >= 10) {
+                          setTimeout(
+                            () =>
+                              window.open(
+                                `https://wa.me/${patientPhone}?text=${encodeURIComponent(msg)}`,
+                                "_blank",
+                              ),
+                            800,
+                          );
+                        }
+                      }}
+                      data-ocid={`appointments.secondary_button.${idx + 1}`}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -816,6 +877,25 @@ function AppointmentsTab() {
                   data-ocid="appointments.input"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Doctor</Label>
+              <Select
+                value={form.doctor}
+                onValueChange={(v) => setForm((f) => ({ ...f, doctor: v }))}
+              >
+                <SelectTrigger data-ocid="appointments.select">
+                  <SelectValue placeholder="Select doctor (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Dr. Arman Kabir">
+                    Dr. Arman Kabir
+                  </SelectItem>
+                  <SelectItem value="Dr. Samia Shikder">
+                    Dr. Samia Shikder
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Reason / Notes</Label>

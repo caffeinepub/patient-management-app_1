@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,16 +25,31 @@ import {
   createRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { Loader2, ShieldCheck, Stethoscope } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  ShieldCheck,
+  Stethoscope,
+  UserCheck,
+  UserX,
+  XCircle,
+} from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Layout from "./Layout";
 import { useAdminAuth } from "./hooks/useAdminAuth";
-import { EmailAuthProvider, useEmailAuth } from "./hooks/useEmailAuth";
+import {
+  EmailAuthProvider,
+  loadRegistry,
+  saveRegistry,
+  useEmailAuth,
+} from "./hooks/useEmailAuth";
+import type { DoctorAccount } from "./hooks/useEmailAuth";
 import Appointments from "./pages/Appointments";
 import LandingPage from "./pages/LandingPage";
 import PatientProfile from "./pages/PatientProfile";
 import Patients from "./pages/Patients";
+import SerialDisplay from "./pages/SerialDisplay";
 import Settings from "./pages/Settings";
 
 // ── Route tree ──────────────────────────────────────────────────────────────────
@@ -106,6 +122,7 @@ function AuthScreenContent() {
   const [siEmail, setSiEmail] = useState("");
   const [siPassword, setSiPassword] = useState("");
   const [siError, setSiError] = useState("");
+  const [siSuccess, setSiSuccess] = useState("");
 
   const [suName, setSuName] = useState("");
   const [suEmail, setSuEmail] = useState("");
@@ -116,11 +133,14 @@ function AuthScreenContent() {
   const [suSpecialization, setSuSpecialization] = useState("");
   const [suHospital, setSuHospital] = useState("");
   const [suPhone, setSuPhone] = useState("");
+  const [suRole, setSuRole] = useState<"doctor" | "staff">("doctor");
   const [suErrors, setSuErrors] = useState<Record<string, string>>({});
+  const [suSuccess, setSuSuccess] = useState("");
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setSiError("");
+    setSiSuccess("");
     if (!siEmail || !siPassword) {
       setSiError("Please enter email and password.");
       return;
@@ -146,6 +166,7 @@ function AuthScreenContent() {
       return;
     }
     setSuErrors({});
+    setSuSuccess("");
     try {
       await signUp({
         name: suName.trim(),
@@ -156,9 +177,19 @@ function AuthScreenContent() {
         specialization: suSpecialization.trim(),
         hospital: suHospital.trim(),
         phone: suPhone.trim(),
+        role: suRole,
       });
     } catch (err: any) {
-      setSuErrors({ general: err.message ?? "Sign up failed." });
+      const msg = err.message ?? "Sign up failed.";
+      if (
+        msg.includes("approval") ||
+        msg.includes("pending") ||
+        msg.includes("re-submitted")
+      ) {
+        setSuSuccess(msg);
+      } else {
+        setSuErrors({ general: msg });
+      }
     }
   };
 
@@ -172,7 +203,7 @@ function AuthScreenContent() {
           Staff Login
         </h2>
         <p className="text-muted-foreground text-sm">
-          Dr. Arman Kabir&apos;s Care – Patient Management System
+          Dr. Arman Kabir&apos;s Care \u2013 Patient Management System
         </p>
       </div>
 
@@ -194,7 +225,7 @@ function AuthScreenContent() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Sign In ── */}
+        {/* \u2500\u2500 Sign In \u2500\u2500 */}
         <TabsContent value="signin">
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-1.5">
@@ -214,7 +245,7 @@ function AuthScreenContent() {
               <Input
                 id="si-password"
                 type="password"
-                placeholder="••••••"
+                placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"
                 value={siPassword}
                 onChange={(e) => setSiPassword(e.target.value)}
                 autoComplete="current-password"
@@ -228,6 +259,9 @@ function AuthScreenContent() {
               >
                 {siError || authError}
               </p>
+            )}
+            {siSuccess && (
+              <p className="text-sm text-emerald-600">{siSuccess}</p>
             )}
             <Button
               type="submit"
@@ -243,7 +277,7 @@ function AuthScreenContent() {
           </form>
         </TabsContent>
 
-        {/* ── Sign Up ── */}
+        {/* \u2500\u2500 Sign Up \u2500\u2500 */}
         <TabsContent value="signup">
           <form onSubmit={handleSignUp} className="space-y-3">
             {suErrors.general && (
@@ -253,6 +287,13 @@ function AuthScreenContent() {
               >
                 {suErrors.general}
               </p>
+            )}
+            {suSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-emerald-700 font-medium">
+                  {suSuccess}
+                </p>
+              </div>
             )}
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1.5">
@@ -283,6 +324,21 @@ function AuthScreenContent() {
                   <p className="text-xs text-destructive">{suErrors.name}</p>
                 )}
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Role *</Label>
+              <Select
+                value={suRole}
+                onValueChange={(v) => setSuRole(v as "doctor" | "staff")}
+              >
+                <SelectTrigger data-ocid="auth.signup.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="doctor">Doctor</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="su-email">Email *</Label>
@@ -385,9 +441,108 @@ function AuthScreenContent() {
               ) : null}
               {isLoggingIn ? "Creating account..." : "Create Account"}
             </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              New accounts require admin approval before login.
+            </p>
           </form>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ── Admin Pending Approvals ────────────────────────────────────────────────────
+
+function PendingApprovalsPanel() {
+  const [accounts, setAccounts] = useState<DoctorAccount[]>([]);
+
+  const refresh = useCallback(() => {
+    const pending = loadRegistry().filter((d) => d.status === "pending");
+    setAccounts(pending);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const iv = setInterval(refresh, 5000);
+    return () => clearInterval(iv);
+  }, [refresh]);
+
+  const approve = (id: string) => {
+    const registry = loadRegistry();
+    const idx = registry.findIndex((d) => d.id === id);
+    if (idx >= 0) {
+      registry[idx] = { ...registry[idx], status: "approved" };
+      saveRegistry(registry);
+      refresh();
+      import("sonner").then(({ toast }) => toast.success("Account approved"));
+    }
+  };
+
+  const reject = (id: string) => {
+    const registry = loadRegistry();
+    const idx = registry.findIndex((d) => d.id === id);
+    if (idx >= 0) {
+      registry[idx] = { ...registry[idx], status: "rejected" };
+      saveRegistry(registry);
+      refresh();
+      import("sonner").then(({ toast }) => toast.success("Account rejected"));
+    }
+  };
+
+  if (accounts.length === 0) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center text-sm text-amber-700">
+        No pending staff approvals.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {accounts.map((acc) => (
+        <div
+          key={acc.id}
+          className="bg-white border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-3"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900">{acc.name}</p>
+            <p className="text-sm text-gray-500">{acc.email}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge
+                variant="outline"
+                className="text-xs border-blue-200 text-blue-700"
+              >
+                {acc.role}
+              </Badge>
+              <span className="text-xs text-gray-400">
+                {new Date(acc.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1.5"
+              onClick={() => approve(acc.id)}
+              data-ocid="admin.approve.button"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-700 border-red-300 hover:bg-red-50 gap-1.5"
+              onClick={() => reject(acc.id)}
+              data-ocid="admin.reject.button"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              Reject
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -403,9 +558,30 @@ function AppInner() {
   } = useAdminAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showPendingPanel, setShowPendingPanel] = useState(false);
   const [adminUser, setAdminUser] = useState("");
   const [adminPass, setAdminPass] = useState("");
   const [adminError, setAdminError] = useState("");
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Count pending accounts
+  useEffect(() => {
+    const count = () =>
+      setPendingCount(
+        loadRegistry().filter((d) => d.status === "pending").length,
+      );
+    count();
+    const iv = setInterval(count, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Check if this is the serial display route
+  const isSerialDisplay =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/serial-display";
+  if (isSerialDisplay) {
+    return <SerialDisplay />;
+  }
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -487,7 +663,7 @@ function AppInner() {
                   id="admin-user"
                   value={adminUser}
                   onChange={(e) => setAdminUser(e.target.value)}
-                  placeholder="admin1 or admin2"
+                  placeholder="admin email or username"
                   autoComplete="username"
                   data-ocid="admin.login.input"
                 />
@@ -499,7 +675,7 @@ function AppInner() {
                   type="password"
                   value={adminPass}
                   onChange={(e) => setAdminPass(e.target.value)}
-                  placeholder="••••••"
+                  placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"
                   autoComplete="current-password"
                   data-ocid="admin.login.input"
                 />
@@ -523,6 +699,33 @@ function AppInner() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Pending approvals floating button */}
+        {isAdminState && pendingCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowPendingPanel(true)}
+            className="fixed bottom-6 left-6 z-50 flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-3 rounded-full shadow-lg font-semibold text-sm transition-colors"
+            data-ocid="admin.pending.button"
+          >
+            <UserCheck className="w-4 h-4" />
+            {pendingCount} Pending Approval{pendingCount !== 1 ? "s" : ""}
+          </button>
+        )}
+
+        {/* Pending Approvals Panel */}
+        <Dialog open={showPendingPanel} onOpenChange={setShowPendingPanel}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-amber-600" />
+                <DialogTitle>Pending Staff Approvals</DialogTitle>
+              </div>
+            </DialogHeader>
+            <PendingApprovalsPanel />
+          </DialogContent>
+        </Dialog>
+
         <Toaster position="top-right" richColors />
       </>
     );

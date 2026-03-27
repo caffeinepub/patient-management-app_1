@@ -37,8 +37,10 @@ import NewPrescriptionMode from "../components/NewPrescriptionMode";
 import PatientForm from "../components/PatientForm";
 import PrescriptionForm from "../components/PrescriptionForm";
 import PrescriptionPad from "../components/PrescriptionPad";
+import UpgradedPrescriptionEMR from "../components/UpgradedPrescriptionEMR";
 import VisitForm from "../components/VisitForm";
 import {
+  getDoctorEmail,
   useCreatePrescription,
   useCreateVisit,
   useGetPatient,
@@ -187,6 +189,12 @@ export default function PatientProfile() {
   const [rxInitialDiagnosis, setRxInitialDiagnosis] = useState<
     string | undefined
   >(undefined);
+  const [rxVisitExtendedData, setRxVisitExtendedData] = useState<
+    Record<string, unknown> | undefined
+  >(undefined);
+  const [rxPatientRegisterNumber, setRxPatientRegisterNumber] = useState<
+    string | undefined
+  >(undefined);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
   const [editRx, setEditRx] = useState<Prescription | null>(null);
@@ -205,8 +213,35 @@ export default function PatientProfile() {
   const createVisitMutation = useCreateVisit();
   const createRxMutation = useCreatePrescription();
 
-  const openRxForm = (diagnosis?: string) => {
+  const openRxForm = (diagnosis?: string, forVisitId?: bigint) => {
     setRxInitialDiagnosis(diagnosis);
+    // Load visit extended data from localStorage
+    try {
+      const doctorEmail = getDoctorEmail();
+      const targetVisitId =
+        forVisitId ??
+        (visits.length > 0
+          ? [...visits].sort((a, b) => Number(b.visitDate - a.visitDate))[0]?.id
+          : undefined);
+      if (targetVisitId !== undefined) {
+        const keys = Object.keys(localStorage).filter(
+          (k) =>
+            k.startsWith(`visit_form_data_${targetVisitId}_`) ||
+            k === `visit_form_data_${targetVisitId}_${doctorEmail}`,
+        );
+        if (keys.length > 0) {
+          const raw = localStorage.getItem(keys[0]);
+          if (raw) setRxVisitExtendedData(JSON.parse(raw));
+        }
+      }
+      // Load register number
+      if (patientId) {
+        const regRaw = localStorage.getItem(`patient_register_${patientId}`);
+        if (regRaw) setRxPatientRegisterNumber(regRaw);
+      }
+    } catch {
+      /* ignore */
+    }
     setShowRxForm(true);
   };
 
@@ -614,10 +649,22 @@ export default function PatientProfile() {
           data-ocid="patient_profile.prescriptions.dialog"
         >
           {patientId && (
-            <NewPrescriptionMode
+            <UpgradedPrescriptionEMR
               patientId={patientId}
               patientName={patient.fullName}
               initialDiagnosis={rxInitialDiagnosis}
+              patientAge={age}
+              patientGender={patient.gender}
+              patientWeight={
+                patient.weight ? String(patient.weight) : undefined
+              }
+              patientAddress={patient.address}
+              patientBloodGroup={patient.bloodGroup}
+              registerNumber={(patient as any)?.registerNumber}
+              visitExtendedData={rxVisitExtendedData}
+              patientRegisterNumber={
+                rxPatientRegisterNumber || (patient as any)?.registerNumber
+              }
               onSubmit={(data) => {
                 createRxMutation.mutate(data, {
                   onSuccess: () => {
@@ -949,6 +996,7 @@ export default function PatientProfile() {
               patientWeight={
                 patient?.weight ? String(patient.weight) : undefined
               }
+              registerNumber={(patient as any)?.registerNumber}
               linkedVisitId={
                 padPrescription?.visitId !== undefined &&
                 padPrescription?.visitId !== null

@@ -388,10 +388,7 @@ export default function PreviousInvestigationTable({
                 {filteredRows.map((row, idx) => {
                   const realIdx = rows.indexOf(row);
                   return (
-                    <TableRow
-                      key={`${row.name}-${realIdx}`}
-                      className={ROW_COLORS[idx % 2]}
-                    >
+                    <TableRow key={realIdx} className={ROW_COLORS[idx % 2]}>
                       <TableCell className="p-1">
                         <Input
                           type="date"
@@ -409,7 +406,7 @@ export default function PreviousInvestigationTable({
                             updateRow(realIdx, "name", e.target.value)
                           }
                           placeholder="e.g. Hemoglobin (Hb)"
-                          className="h-8 text-xs"
+                          className="h-8 text-xs w-full focus:ring-1 focus:ring-blue-300"
                         />
                       </TableCell>
                       <TableCell className="p-1">

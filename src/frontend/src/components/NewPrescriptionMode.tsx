@@ -25,7 +25,7 @@ import { type DimsEntry, getDimsByDiagnosis, searchDims } from "./DimsData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DrugType = "TAB." | "SYP." | "INJ." | "INF." | "SUPP." | "";
+type DrugType = "TAB." | "CAP." | "SYP." | "INJ." | "INF." | "SUPP." | "";
 type NameType = "generic" | "brand";
 
 interface MedEntry {
@@ -40,6 +40,7 @@ interface MedEntry {
   durationBn: string;
   instructionEn: string;
   instructionBn: string;
+  dosePattern: string;
   fromDims: boolean;
   originalDims?: Partial<MedEntry>;
 }
@@ -65,6 +66,7 @@ interface NewPrescriptionModeProps {
 
 const DRUG_TYPES: { label: DrugType; color: string }[] = [
   { label: "TAB.", color: "bg-blue-100 text-blue-800 border-blue-300" },
+  { label: "CAP.", color: "bg-green-100 text-green-700 border-green-300" },
   { label: "SYP.", color: "bg-green-100 text-green-800 border-green-300" },
   { label: "INJ.", color: "bg-red-100 text-red-800 border-red-300" },
   { label: "INF.", color: "bg-purple-100 text-purple-800 border-purple-300" },
@@ -123,6 +125,7 @@ function emptyMed(): MedEntry {
     durationBn: "",
     instructionEn: "",
     instructionBn: "",
+    dosePattern: "",
     fromDims: false,
   };
 }
@@ -138,7 +141,14 @@ function dimsToMed(m: {
   const name = m.name || "";
   let drugType: DrugType = "";
   let cleanName = name;
-  for (const dt of ["TAB.", "SYP.", "INJ.", "INF.", "SUPP."] as DrugType[]) {
+  for (const dt of [
+    "TAB.",
+    "CAP.",
+    "SYP.",
+    "INJ.",
+    "INF.",
+    "SUPP.",
+  ] as DrugType[]) {
     if (name.toUpperCase().startsWith(dt)) {
       drugType = dt;
       cleanName = name.slice(dt.length).trim();
@@ -172,6 +182,7 @@ function dimsToMed(m: {
       INSTRUCTION_PRESETS.find(
         (p) => p.en.toLowerCase() === (m.instructions || "").toLowerCase(),
       )?.bn || "",
+    dosePattern: "",
     fromDims: true,
     originalDims: undefined,
   };
@@ -511,14 +522,20 @@ function ClinicalSummaryPanel({ visitId }: { visitId?: bigint }) {
   return (
     <div className="border-b border-gray-200 bg-gray-50">
       <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200">
-        <span className="text-xs font-semibold text-gray-700">
-          Clinical Summary{" "}
-          {!visitData && (
-            <span className="text-amber-600 font-normal">
-              (fill from visit form)
-            </span>
-          )}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-700">
+            Clinical Summary
+          </span>
+          <button
+            type="button"
+            onClick={loadFromVisit}
+            className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-[10px] rounded-md hover:bg-blue-700 transition-colors"
+            data-ocid="rx.generate_clinical.button"
+          >
+            <Sparkles className="w-3 h-3" />
+            Generate from Visit
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
@@ -590,14 +607,6 @@ function ClinicalSummaryPanel({ visitId }: { visitId?: bigint }) {
           <div className="flex items-center justify-between">
             <p className={labelStyle}>Investigation Report</p>
             <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={loadFromVisit}
-                className="text-[10px] px-2 py-0.5 bg-cyan-50 border border-cyan-200 text-cyan-700 rounded hover:bg-cyan-100"
-                data-ocid="rx.load_visit.button"
-              >
-                ↻ Load from Visit
-              </button>
               <button
                 type="button"
                 onClick={addInvRow}
@@ -830,6 +839,11 @@ function RxPreviewPanel({
                       <p className="text-xs text-gray-600">
                         <span className="font-medium">Freq:</span>{" "}
                         {formatFreqDisplay(med)}
+                        {med.dosePattern && (
+                          <span className="font-semibold ml-1 text-gray-800">
+                            ({med.dosePattern})
+                          </span>
+                        )}
                         {med.frequency !== "Other" &&
                           FREQ_OPTIONS.find((f) => f.en === med.frequency)
                             ?.bn && (
@@ -976,26 +990,14 @@ function MedicationCard({
             </button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Input
-            value={med.name}
-            onChange={(e) => onChange("name", e.target.value)}
-            placeholder={
-              med.nameType === "generic" ? "Generic drug name" : "Brand name"
-            }
-            className="flex-1 h-9 text-sm"
-          />
-          <a
-            href={`https://medex.com.bd/brands?search=${encodeURIComponent(med.name)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
-            title="Search on Medex"
-          >
-            <ExternalLink className="w-3 h-3" />
-            Medex
-          </a>
-        </div>
+        <Input
+          value={med.name}
+          onChange={(e) => onChange("name", e.target.value)}
+          placeholder={
+            med.nameType === "generic" ? "Generic drug name" : "Brand name"
+          }
+          className="h-9 text-sm"
+        />
       </div>
 
       {/* Dose */}
@@ -1040,6 +1042,36 @@ function MedicationCard({
               </span>
             </button>
           ))}
+        </div>
+        {/* Dose Pattern */}
+        <div className="mt-2">
+          <Label className="text-xs text-gray-500">
+            Dose Pattern / মাত্রার ধরন
+          </Label>
+          <Input
+            value={med.dosePattern || ""}
+            onChange={(e) => onChange("dosePattern", e.target.value)}
+            placeholder="e.g. 1+0+1"
+            className="h-9 text-sm mt-1"
+          />
+          <div className="flex flex-wrap gap-1 mt-1">
+            {[
+              ["BD", "1+0+1"],
+              ["TDS", "1+1+1"],
+              ["QDS", "1+1+1+1"],
+              ["Once Daily", "1+0+0"],
+              ["12 Hourly", "1+0+1"],
+            ].map(([freq, pattern]) => (
+              <button
+                key={freq}
+                type="button"
+                onClick={() => onChange("dosePattern", pattern)}
+                className="px-2 py-0.5 rounded text-[10px] border bg-gray-50 border-gray-200 text-gray-600 hover:bg-teal-50 hover:border-teal-300"
+              >
+                {freq}: {pattern}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1475,7 +1507,7 @@ export default function NewPrescriptionMode({
             </TabsContent>
             <TabsContent
               value="rx"
-              className="flex-1 overflow-hidden m-0 p-0 flex flex-col"
+              className="flex-1 overflow-y-auto m-0 p-0 flex flex-col"
             >
               <RxPreviewPanel
                 diagnosis={diagnosis}

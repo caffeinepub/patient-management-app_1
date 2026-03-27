@@ -21,21 +21,31 @@ export interface DoctorAccount {
   hospital: string;
   phone: string;
   createdAt: string;
+  role: "doctor" | "staff";
+  status: "pending" | "approved" | "rejected";
 }
 
 function hashPassword(email: string, password: string): string {
   return btoa(`${email.toLowerCase()}::${password}`);
 }
 
-function loadRegistry(): DoctorAccount[] {
+export function loadRegistry(): DoctorAccount[] {
   try {
     const raw = localStorage.getItem(REGISTRY_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw) as any[];
+      // Backfill existing accounts with defaults
+      return parsed.map((d) => ({
+        ...d,
+        role: d.role ?? "doctor",
+        status: d.status ?? "approved",
+      }));
+    }
   } catch {}
   return [];
 }
 
-function saveRegistry(registry: DoctorAccount[]) {
+export function saveRegistry(registry: DoctorAccount[]) {
   localStorage.setItem(REGISTRY_KEY, JSON.stringify(registry));
 }
 
@@ -45,7 +55,10 @@ interface EmailAuthContextValue {
   isLoggingIn: boolean;
   authError: string | null;
   signUp: (
-    data: Omit<DoctorAccount, "id" | "passwordHash" | "createdAt"> & {
+    data: Omit<
+      DoctorAccount,
+      "id" | "passwordHash" | "createdAt" | "status"
+    > & {
       password: string;
     },
   ) => Promise<void>;
@@ -54,6 +67,9 @@ interface EmailAuthContextValue {
   updateProfile: (
     data: Partial<Omit<DoctorAccount, "id" | "passwordHash" | "createdAt">>,
   ) => void;
+  getPendingAccounts: () => DoctorAccount[];
+  approveAccount: (id: string) => void;
+  rejectAccount: (id: string) => void;
 }
 
 const EmailAuthContext = createContext<EmailAuthContextValue | null>(null);
@@ -78,7 +94,10 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = useCallback(
     async (
-      data: Omit<DoctorAccount, "id" | "passwordHash" | "createdAt"> & {
+      data: Omit<
+        DoctorAccount,
+        "id" | "passwordHash" | "createdAt" | "status"
+      > & {
         password: string;
       },
     ) => {
@@ -86,11 +105,26 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
       setAuthError(null);
       try {
         const registry = loadRegistry();
-        if (
-          registry.find(
-            (d) => d.email.toLowerCase() === data.email.toLowerCase(),
-          )
-        ) {
+        const existing = registry.find(
+          (d) => d.email.toLowerCase() === data.email.toLowerCase(),
+        );
+        if (existing) {
+          if (existing.status === "rejected") {
+            // Allow re-registration: overwrite rejected account
+            const idx = registry.findIndex((d) => d.id === existing.id);
+            const { password, ...rest } = data;
+            registry[idx] = {
+              ...rest,
+              id: existing.id,
+              passwordHash: hashPassword(data.email, password),
+              createdAt: new Date().toISOString(),
+              status: "pending",
+            };
+            saveRegistry(registry);
+            throw new Error(
+              "Your account has been re-submitted for approval. Please wait for admin approval.",
+            );
+          }
           throw new Error("An account with this email already exists.");
         }
         const { password, ...rest } = data;
@@ -99,11 +133,14 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
           id: Date.now().toString(36) + Math.random().toString(36).slice(2),
           passwordHash: hashPassword(data.email, password),
           createdAt: new Date().toISOString(),
+          status: "pending",
         };
         registry.push(newDoctor);
         saveRegistry(registry);
-        localStorage.setItem(SESSION_KEY, newDoctor.id);
-        setCurrentDoctor(newDoctor);
+        // Do NOT auto-login — account is pending
+        throw new Error(
+          "Account created! Please wait for admin approval before logging in.",
+        );
       } catch (e: any) {
         setAuthError(e.message ?? "Sign up failed.");
         throw e;
@@ -125,6 +162,12 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
       if (!doctor) throw new Error("No account found with this email.");
       if (doctor.passwordHash !== hashPassword(email, password))
         throw new Error("Incorrect password.");
+      if (doctor.status === "pending")
+        throw new Error("Your account is pending admin approval. Please wait.");
+      if (doctor.status === "rejected")
+        throw new Error(
+          "Your account has been rejected. Please contact the admin or re-register.",
+        );
       localStorage.setItem(SESSION_KEY, doctor.id);
       setCurrentDoctor(doctor);
     } catch (e: any) {
@@ -157,6 +200,28 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
     [currentDoctor],
   );
 
+  const getPendingAccounts = useCallback((): DoctorAccount[] => {
+    return loadRegistry().filter((d) => d.status === "pending");
+  }, []);
+
+  const approveAccount = useCallback((id: string) => {
+    const registry = loadRegistry();
+    const idx = registry.findIndex((d) => d.id === id);
+    if (idx >= 0) {
+      registry[idx] = { ...registry[idx], status: "approved" };
+      saveRegistry(registry);
+    }
+  }, []);
+
+  const rejectAccount = useCallback((id: string) => {
+    const registry = loadRegistry();
+    const idx = registry.findIndex((d) => d.id === id);
+    if (idx >= 0) {
+      registry[idx] = { ...registry[idx], status: "rejected" };
+      saveRegistry(registry);
+    }
+  }, []);
+
   return (
     <EmailAuthContext.Provider
       value={{
@@ -168,6 +233,9 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signOut,
         updateProfile,
+        getPendingAccounts,
+        approveAccount,
+        rejectAccount,
       }}
     >
       {children}

@@ -85,6 +85,17 @@ function nextId<T extends { id: bigint }>(items: T[]): bigint {
   return items.reduce((max, item) => (item.id > max ? item.id : max), 0n) + 1n;
 }
 
+// ─── Register number generator ───────────────────────────────────────────────
+
+function generateRegisterNumber(): string {
+  const counter =
+    Number.parseInt(localStorage.getItem("medicare_register_counter") || "0") +
+    1;
+  localStorage.setItem("medicare_register_counter", String(counter));
+  const year = new Date().getFullYear().toString().slice(-2);
+  return `REG-${String(counter).padStart(4, "0")}/${year}`;
+}
+
 // ─── Direct patient creation (used by appointment confirmation) ───────────────
 
 export function createPatientInStorage(data: {
@@ -106,7 +117,8 @@ export function createPatientInStorage(data: {
   );
   if (exists) return exists;
 
-  const newPatient: Patient = {
+  const registerNumber = generateRegisterNumber();
+  const newPatient = {
     id: nextId(patients),
     fullName: data.fullName,
     phone: data.phone ?? undefined,
@@ -116,7 +128,8 @@ export function createPatientInStorage(data: {
     allergies: data.allergies ?? [],
     chronicConditions: data.chronicConditions ?? [],
     createdAt: BigInt(Date.now()) * 1000000n,
-  };
+    registerNumber,
+  } as Patient;
   saveToStorage(key, [...patients, newPatient]);
   return newPatient;
 }
@@ -162,10 +175,12 @@ export function useCreatePatient() {
       chronicConditions: string[];
       pastSurgicalHistory: string | null;
       patientType: string;
+      photo?: string | null;
     }) => {
       try {
         const key = storageKey("patients");
         const patients = loadFromStorage<Patient>(key);
+        const registerNumber = generateRegisterNumber();
         const newPatient: Patient = {
           id: nextId(patients),
           fullName: data.fullName,
@@ -183,7 +198,11 @@ export function useCreatePatient() {
           pastSurgicalHistory: data.pastSurgicalHistory ?? undefined,
           patientType: data.patientType as any,
           createdAt: BigInt(Date.now()) * 1000000n,
-        };
+        } as any;
+        (newPatient as any).registerNumber = registerNumber;
+        if ((data as any).photo !== undefined) {
+          (newPatient as any).photo = (data as any).photo;
+        }
         saveToStorage(key, [...patients, newPatient]);
         return newPatient;
       } catch (err) {

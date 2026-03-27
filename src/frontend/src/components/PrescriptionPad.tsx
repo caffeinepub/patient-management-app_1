@@ -10,6 +10,7 @@ interface PrescriptionPadProps {
   patientName?: string;
   patientAge?: number | null;
   patientWeight?: string;
+  registerNumber?: string;
   chiefComplaints?: string;
   investigations?: string;
   drugHistory?: string;
@@ -194,6 +195,7 @@ export default function PrescriptionPad({
   patientName,
   patientAge,
   patientWeight,
+  registerNumber,
   chiefComplaints,
   investigations,
   drugHistory,
@@ -580,6 +582,14 @@ export default function PrescriptionPad({
               placeholder="Patient Name"
             />
           </span>
+          {registerNumber && (
+            <span style={{ whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: 700 }}>Reg.: </span>
+              <span style={{ fontFamily: "monospace", fontSize: "10px" }}>
+                {registerNumber}
+              </span>
+            </span>
+          )}
           <span style={{ whiteSpace: "nowrap" }}>
             <span style={{ fontWeight: 700 }}>Age: </span>
             <EditableSpan

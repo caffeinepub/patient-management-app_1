@@ -15,8 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { loadFromStorage, storageKey } from "@/hooks/useQueries";
 import { AlertTriangle, Phone, Send } from "lucide-react";
 import { useState } from "react";
+import type { Patient } from "../backend.d";
 
 const WHATSAPP_NUMBERS: Record<string, string> = {
   arman: "8801751959262",
@@ -28,17 +30,66 @@ const DOCTOR_LABELS: Record<string, string> = {
   samia: "Dr. Samia Shikder",
 };
 
+function findPatientByRegNumber(regNum: string): Patient | null {
+  try {
+    // Try all doctor emails stored in registry
+    const registry = JSON.parse(
+      localStorage.getItem("medicare_doctors_registry") || "[]",
+    );
+    for (const doc of registry) {
+      const key = `patients_${doc.email}`;
+      const patients = loadFromStorage<Patient>(key);
+      const found = patients.find(
+        (p) =>
+          (p as any).registerNumber?.toUpperCase() === regNum.toUpperCase(),
+      );
+      if (found) return found;
+    }
+    // Also try default key
+    const patients = loadFromStorage<Patient>(storageKey("patients"));
+    const found = patients.find(
+      (p) => (p as any).registerNumber?.toUpperCase() === regNum.toUpperCase(),
+    );
+    if (found) return found;
+  } catch {}
+  return null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
 export default function EmergencyConsultationModal({ open, onClose }: Props) {
+  const [registerNumber, setRegisterNumber] = useState("");
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [doctor, setDoctor] = useState("");
   const [error, setError] = useState("");
+  const [regLookupMsg, setRegLookupMsg] = useState("");
+
+  const handleRegLookup = (val: string) => {
+    setRegisterNumber(val);
+    if (!val.trim()) {
+      setRegLookupMsg("");
+      return;
+    }
+    const patient = findPatientByRegNumber(val.trim());
+    if (patient) {
+      setName(patient.fullName);
+      if (patient.dateOfBirth) {
+        const ageYrs = Math.floor(
+          (Date.now() - Number(patient.dateOfBirth / 1000000n)) /
+            (365.25 * 24 * 3600 * 1000),
+        );
+        setAge(String(ageYrs));
+      }
+      setRegLookupMsg(`\u2713 Found: ${patient.fullName}`);
+    } else {
+      setRegLookupMsg("Patient not found with this register number.");
+    }
+  };
 
   const handleSend = () => {
     if (!name.trim() || !age || !symptoms.trim() || !doctor) {
@@ -48,13 +99,16 @@ export default function EmergencyConsultationModal({ open, onClose }: Props) {
     setError("");
     const number = WHATSAPP_NUMBERS[doctor];
     const docName = DOCTOR_LABELS[doctor];
-    const message = `🚨 Emergency Consultation Request\n\nDoctor: ${docName}\nName: ${name}\nAge: ${age}\nSymptoms: ${symptoms}\n\nSent from Dr. Arman Kabir's Care portal.`;
+    const regPart = registerNumber ? `\nReg. No.: ${registerNumber}` : "";
+    const message = `\ud83d\udea8 Emergency Consultation Request\n\nDoctor: ${docName}\nName: ${name}${regPart}\nAge: ${age}\nSymptoms: ${symptoms}\n\nSent from Dr. Arman Kabir's Care portal.`;
     const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
+    setRegisterNumber("");
     setName("");
     setAge("");
     setSymptoms("");
     setDoctor("");
+    setRegLookupMsg("");
     onClose();
   };
 
@@ -77,6 +131,29 @@ export default function EmergencyConsultationModal({ open, onClose }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
+          {/* Register number lookup */}
+          <div className="space-y-1.5">
+            <Label htmlFor="em-regnum">Register Number (optional)</Label>
+            <Input
+              id="em-regnum"
+              placeholder="e.g. REG-0001/26"
+              value={registerNumber}
+              onChange={(e) => handleRegLookup(e.target.value)}
+              data-ocid="emergency.input"
+            />
+            {regLookupMsg && (
+              <p
+                className={`text-xs ${
+                  regLookupMsg.startsWith("\u2713")
+                    ? "text-emerald-600"
+                    : "text-amber-600"
+                }`}
+              >
+                {regLookupMsg}
+              </p>
+            )}
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="em-name">Patient Name *</Label>
             <Input
