@@ -743,7 +743,7 @@ export default function UpgradedPrescriptionEMR(
           <button
             type="button"
             onClick={() => setWithHeader(true)}
-            className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
+            className={`px-2 py-0.5 rounded text-sm font-medium border transition-colors ${
               withHeader
                 ? "bg-white text-teal-800 border-white"
                 : "border-teal-400 text-teal-100 hover:bg-teal-600"
@@ -755,7 +755,7 @@ export default function UpgradedPrescriptionEMR(
           <button
             type="button"
             onClick={() => setWithHeader(false)}
-            className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
+            className={`px-2 py-0.5 rounded text-sm font-medium border transition-colors ${
               !withHeader
                 ? "bg-white text-teal-800 border-white"
                 : "border-teal-400 text-teal-100 hover:bg-teal-600"
@@ -778,7 +778,7 @@ export default function UpgradedPrescriptionEMR(
             size="sm"
             variant="secondary"
             onClick={onCancel}
-            className="h-7 text-xs"
+            className="h-7 text-sm"
             data-ocid="rx.cancel.button"
           >
             <X className="w-3.5 h-3.5 mr-1" /> Cancel
@@ -787,7 +787,7 @@ export default function UpgradedPrescriptionEMR(
             size="sm"
             onClick={handleSave}
             disabled={isLoading}
-            className="h-7 text-xs bg-white text-teal-800 hover:bg-teal-50"
+            className="h-7 text-sm bg-white text-teal-800 hover:bg-teal-50"
             data-ocid="rx.save.button"
           >
             <Save className="w-3.5 h-3.5 mr-1" />
@@ -812,7 +812,7 @@ export default function UpgradedPrescriptionEMR(
             },
           ].map((f) => (
             <div key={f.label} className="col-span-2">
-              <span className="text-muted-foreground text-[10px] block mb-0.5">
+              <span className="text-muted-foreground text-sm block mb-0.5">
                 {f.label}
               </span>
               <input
@@ -824,7 +824,7 @@ export default function UpgradedPrescriptionEMR(
             </div>
           ))}
           <div>
-            <span className="text-muted-foreground text-[10px] block mb-0.5">
+            <span className="text-muted-foreground text-sm block mb-0.5">
               Age
             </span>
             <input
@@ -835,7 +835,7 @@ export default function UpgradedPrescriptionEMR(
             />
           </div>
           <div>
-            <span className="text-muted-foreground text-[10px] block mb-0.5">
+            <span className="text-muted-foreground text-sm block mb-0.5">
               Sex
             </span>
             <select
@@ -877,7 +877,7 @@ export default function UpgradedPrescriptionEMR(
             },
           ].map((f) => (
             <div key={f.label}>
-              <span className="text-muted-foreground text-[10px] block mb-0.5">
+              <span className="text-muted-foreground text-sm block mb-0.5">
                 {f.label}
               </span>
               <input
@@ -889,7 +889,7 @@ export default function UpgradedPrescriptionEMR(
             </div>
           ))}
           <div>
-            <span className="text-muted-foreground text-[10px] block mb-0.5">
+            <span className="text-muted-foreground text-sm block mb-0.5">
               Blood Group
             </span>
             <select
@@ -920,14 +920,14 @@ export default function UpgradedPrescriptionEMR(
           <div className="p-2 space-y-2">
             {/* Header + Load button */}
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-xs font-bold text-teal-700 uppercase tracking-wide">
+              <h3 className="text-sm font-bold text-teal-700 uppercase tracking-wide">
                 Clinical Summary
               </h3>
               {visitExtendedData && (
                 <button
                   type="button"
                   onClick={() => applyVisitData(visitExtendedData)}
-                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-teal-100 text-teal-700 border border-teal-300 rounded hover:bg-teal-200 transition-colors"
+                  className="flex items-center gap-1 text-sm px-2 py-0.5 bg-teal-100 text-teal-700 border border-teal-300 rounded hover:bg-teal-200 transition-colors"
                   data-ocid="rx.load_from_visit.button"
                 >
                   <RefreshCw className="w-3 h-3" />
@@ -938,14 +938,14 @@ export default function UpgradedPrescriptionEMR(
 
             {/* C/C */}
             <div className="rounded-lg border-l-4 border-l-blue-400 border border-blue-200 bg-blue-50 p-2">
-              <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-blue-700 uppercase tracking-wide block mb-1">
                 C/C — Chief Complaints
               </span>
               <Textarea
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
                 rows={4}
-                className="text-xs resize-y bg-white border-blue-200 focus:ring-blue-300"
+                className="text-sm resize-y bg-white border-blue-200 focus:ring-blue-300"
                 placeholder="1. Cough — dry, 5 days&#10;2. Fever — high grade"
                 data-ocid="rx.cc.textarea"
               />
@@ -953,14 +953,14 @@ export default function UpgradedPrescriptionEMR(
 
             {/* P/M/H */}
             <div className="rounded-lg border-l-4 border-l-green-500 border border-green-200 bg-green-50 p-2">
-              <span className="text-[10px] font-bold text-green-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-green-700 uppercase tracking-wide block mb-1">
                 P/M/H — Past Medical &amp; Surgical History
               </span>
               <Textarea
                 value={pmh}
                 onChange={(e) => setPmh(e.target.value)}
                 rows={3}
-                className="text-xs resize-y bg-white border-green-200"
+                className="text-sm resize-y bg-white border-green-200"
                 placeholder="DM+, HTN-&#10;Surgical: Appendectomy 2020"
                 data-ocid="rx.pmh.textarea"
               />
@@ -968,11 +968,11 @@ export default function UpgradedPrescriptionEMR(
 
             {/* History */}
             <div className="rounded-lg border-l-4 border-l-purple-500 border border-purple-200 bg-purple-50 p-2">
-              <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-purple-700 uppercase tracking-wide block mb-1">
                 History
               </span>
               <Tabs defaultValue="personal" className="w-full">
-                <TabsList className="w-full h-7 text-[10px] bg-purple-100">
+                <TabsList className="w-full h-7 text-sm bg-purple-100">
                   {[
                     ["personal", "Personal"],
                     ["family", "Family"],
@@ -983,7 +983,7 @@ export default function UpgradedPrescriptionEMR(
                     <TabsTrigger
                       key={val}
                       value={val}
-                      className="text-[9px] px-1 flex-1"
+                      className="text-sm px-1 flex-1"
                     >
                       {lbl}
                     </TabsTrigger>
@@ -994,7 +994,7 @@ export default function UpgradedPrescriptionEMR(
                     value={historyPersonal}
                     onChange={(e) => setHistoryPersonal(e.target.value)}
                     rows={3}
-                    className="text-xs bg-white border-purple-200"
+                    className="text-sm bg-white border-purple-200"
                     data-ocid="rx.history_personal.textarea"
                   />
                 </TabsContent>
@@ -1003,7 +1003,7 @@ export default function UpgradedPrescriptionEMR(
                     value={historyFamily}
                     onChange={(e) => setHistoryFamily(e.target.value)}
                     rows={3}
-                    className="text-xs bg-white border-purple-200"
+                    className="text-sm bg-white border-purple-200"
                     data-ocid="rx.history_family.textarea"
                   />
                 </TabsContent>
@@ -1012,7 +1012,7 @@ export default function UpgradedPrescriptionEMR(
                     value={historyImmunization}
                     onChange={(e) => setHistoryImmunization(e.target.value)}
                     rows={3}
-                    className="text-xs bg-white border-purple-200"
+                    className="text-sm bg-white border-purple-200"
                     data-ocid="rx.history_immunization.textarea"
                   />
                 </TabsContent>
@@ -1021,7 +1021,7 @@ export default function UpgradedPrescriptionEMR(
                     value={historyAllergy}
                     onChange={(e) => setHistoryAllergy(e.target.value)}
                     rows={3}
-                    className="text-xs bg-white border-purple-200"
+                    className="text-sm bg-white border-purple-200"
                     data-ocid="rx.history_allergy.textarea"
                   />
                 </TabsContent>
@@ -1030,7 +1030,7 @@ export default function UpgradedPrescriptionEMR(
                     value={historyOthers}
                     onChange={(e) => setHistoryOthers(e.target.value)}
                     rows={3}
-                    className="text-xs bg-white border-purple-200"
+                    className="text-sm bg-white border-purple-200"
                     data-ocid="rx.history_others.textarea"
                   />
                 </TabsContent>
@@ -1039,14 +1039,14 @@ export default function UpgradedPrescriptionEMR(
 
             {/* D/H */}
             <div className="rounded-lg border-l-4 border-l-amber-500 border border-amber-200 bg-amber-50 p-2">
-              <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-amber-700 uppercase tracking-wide block mb-1">
                 D/H — Drug History
               </span>
               <Textarea
                 value={dh}
                 onChange={(e) => setDh(e.target.value)}
                 rows={3}
-                className="text-xs resize-y bg-white border-amber-200"
+                className="text-sm resize-y bg-white border-amber-200"
                 placeholder="Tab. Napa 500mg 1+1+1, Tab. Fexo 120mg once daily"
                 data-ocid="rx.dh.textarea"
               />
@@ -1054,14 +1054,14 @@ export default function UpgradedPrescriptionEMR(
 
             {/* O/E */}
             <div className="rounded-lg border-l-4 border-l-rose-500 border border-rose-200 bg-rose-50 p-2">
-              <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-rose-700 uppercase tracking-wide block mb-1">
                 O/E — On Examination
               </span>
               <Textarea
                 value={oe}
                 onChange={(e) => setOe(e.target.value)}
                 rows={4}
-                className="text-xs resize-y bg-white border-rose-200"
+                className="text-sm resize-y bg-white border-rose-200"
                 placeholder="BP: 120/80, Pulse: 82/min&#10;Heart: S1+S2+0, Lung: Clear"
                 data-ocid="rx.oe.textarea"
               />
@@ -1069,14 +1069,14 @@ export default function UpgradedPrescriptionEMR(
 
             {/* Investigation */}
             <div className="rounded-lg border-l-4 border-l-teal-500 border border-teal-200 bg-teal-50 p-2">
-              <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-teal-700 uppercase tracking-wide block mb-1">
                 Investigation Report
               </span>
               <Textarea
                 value={investigation}
                 onChange={(e) => setInvestigation(e.target.value)}
                 rows={4}
-                className="text-xs resize-y bg-white border-teal-200"
+                className="text-sm resize-y bg-white border-teal-200"
                 placeholder="13/03/2026: Hb% - 12.3g/dl, S.Creatinine - 1.12&#10;12/03/2026: Blood Glucose - 6.5mmol/L"
                 data-ocid="rx.investigation.textarea"
               />
@@ -1084,14 +1084,14 @@ export default function UpgradedPrescriptionEMR(
 
             {/* Advice/New Investigation */}
             <div className="rounded-lg border-l-4 border-l-orange-500 border border-orange-200 bg-orange-50 p-2">
-              <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide block mb-1">
+              <span className="text-sm font-bold text-orange-700 uppercase tracking-wide block mb-1">
                 Advice / New Investigation
               </span>
               <Textarea
                 value={adviceNewInv}
                 onChange={(e) => setAdviceNewInv(e.target.value)}
                 rows={3}
-                className="text-xs resize-y bg-white border-orange-200"
+                className="text-sm resize-y bg-white border-orange-200"
                 placeholder="CBC, RBS, ECG..."
                 data-ocid="rx.advice_new_inv.textarea"
               />
@@ -1108,12 +1108,12 @@ export default function UpgradedPrescriptionEMR(
                 dark ? "bg-gray-900" : "bg-white"
               } shadow-sm`}
             >
-              <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide block mb-2">
+              <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide block mb-2">
                 Diagnosis
               </span>
               <div className="relative">
                 <input
-                  className={`w-full border rounded px-2 py-1.5 text-xs pr-7 ${
+                  className={`w-full border rounded px-2 py-1.5 text-sm pr-7 ${
                     dark
                       ? "bg-gray-800 border-gray-600 text-white"
                       : "bg-white border-gray-300"
@@ -1125,7 +1125,7 @@ export default function UpgradedPrescriptionEMR(
                 />
                 <div className="absolute right-0 top-0 flex">
                   <input
-                    className={`border rounded-l px-2 py-1 text-xs border-r-0 w-32 ${
+                    className={`border rounded-l px-2 py-1 text-sm border-r-0 w-32 ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1154,14 +1154,14 @@ export default function UpgradedPrescriptionEMR(
                       key={`suggestion-${s.label}-${i}`}
                       type="button"
                       onClick={() => applyDiagnosisSuggestion(s)}
-                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-teal-50 flex items-center gap-2 ${
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-teal-50 flex items-center gap-2 ${
                         dark ? "hover:bg-teal-900" : ""
                       }`}
                       data-ocid={`rx.diagnosis_suggestion.item.${i + 1}`}
                     >
                       <Badge
                         variant="outline"
-                        className={`text-[9px] ${
+                        className={`text-sm ${
                           s.type === "DIMS"
                             ? "border-blue-400 text-blue-600"
                             : "border-teal-400 text-teal-600"
@@ -1176,7 +1176,7 @@ export default function UpgradedPrescriptionEMR(
               )}
               {dimsActive && (
                 <div className="flex items-center gap-2 mt-2">
-                  <Badge className="bg-blue-100 text-blue-700 text-[10px]">
+                  <Badge className="bg-blue-100 text-blue-700 text-sm">
                     <Sparkles className="w-3 h-3 mr-1" />
                     DIMS Active
                   </Badge>
@@ -1186,7 +1186,7 @@ export default function UpgradedPrescriptionEMR(
                       setRxDrugs([]);
                       setDimsActive(false);
                     }}
-                    className="text-[10px] text-red-500 underline"
+                    className="text-sm text-red-500 underline"
                     data-ocid="rx.dims_reset.button"
                   >
                     Reset
@@ -1202,23 +1202,23 @@ export default function UpgradedPrescriptionEMR(
               } shadow-sm`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">
+                <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide">
                   ℝ Prescription
                 </span>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {rxDrugs.length} drug(s)
                 </span>
               </div>
               {rxDrugs.length === 0 ? (
                 <p
-                  className="text-xs text-muted-foreground italic py-3 text-center"
+                  className="text-sm text-muted-foreground italic py-3 text-center"
                   data-ocid="rx.drugs.empty_state"
                 >
                   No drugs added yet. Use the form below.
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs" data-ocid="rx.drugs.table">
+                  <table className="w-full text-sm" data-ocid="rx.drugs.table">
                     <thead>
                       <tr
                         className={`border-b ${
@@ -1271,13 +1271,24 @@ export default function UpgradedPrescriptionEMR(
               )}
             </div>
 
+            {/* CLINICAL INTELLIGENCE */}
+            {rxDrugs.length > 0 && (
+              <ClinicalIntelligencePanel
+                rxDrugs={rxDrugs}
+                allergies={[]}
+                pmh={pmh}
+                diagnosis={diagnosis}
+                dark={dark}
+              />
+            )}
+
             {/* MEDICATION INPUT FORM */}
             <div
               className={`rounded-lg p-3 ${
                 dark ? "bg-gray-900" : "bg-white"
               } shadow-sm`}
             >
-              <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide block mb-2">
+              <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide block mb-2">
                 Add Medication
               </span>
 
@@ -1288,7 +1299,7 @@ export default function UpgradedPrescriptionEMR(
                     key={f}
                     type="button"
                     onClick={() => setDrugForm(f)}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                    className={`px-2 py-0.5 rounded-full text-sm font-medium border transition-colors ${
                       drugForm === f
                         ? "bg-teal-600 text-white border-teal-600"
                         : dark
@@ -1305,12 +1316,12 @@ export default function UpgradedPrescriptionEMR(
               {/* Drug name row */}
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <div>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     Generic Name
                   </span>
                   <div className="flex gap-1">
                     <input
-                      className={`flex-1 border rounded px-2 py-1 text-xs ${
+                      className={`flex-1 border rounded px-2 py-1 text-sm ${
                         dark
                           ? "bg-gray-800 border-gray-600 text-white"
                           : "bg-white border-gray-300"
@@ -1325,7 +1336,7 @@ export default function UpgradedPrescriptionEMR(
                       onClick={() =>
                         window.open("https://medex.com.bd/", "_blank")
                       }
-                      className="px-1.5 py-1 rounded border border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100 text-[10px] flex items-center gap-0.5"
+                      className="px-1.5 py-1 rounded border border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100 text-sm flex items-center gap-0.5"
                       title="Search on Medex"
                       data-ocid="rx.medex_search.button"
                     >
@@ -1334,11 +1345,11 @@ export default function UpgradedPrescriptionEMR(
                   </div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground font-semibold">
+                  <span className="text-sm text-muted-foreground font-semibold">
                     Brand Name
                   </span>
                   <input
-                    className={`w-full border rounded px-2 py-1 text-xs font-semibold ${
+                    className={`w-full border rounded px-2 py-1 text-sm font-semibold ${
                       dark
                         ? "bg-gray-800 border-amber-600 text-white"
                         : "bg-amber-50 border-amber-300"
@@ -1353,11 +1364,9 @@ export default function UpgradedPrescriptionEMR(
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
                 <div>
-                  <span className="text-[10px] text-muted-foreground">
-                    Dose
-                  </span>
+                  <span className="text-sm text-muted-foreground">Dose</span>
                   <input
-                    className={`w-full border rounded px-2 py-1 text-xs ${
+                    className={`w-full border rounded px-2 py-1 text-sm ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1369,19 +1378,19 @@ export default function UpgradedPrescriptionEMR(
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     Route (Bangla)
                   </span>
                   <Select value={drugRoute} onValueChange={setDrugRoute}>
                     <SelectTrigger
-                      className="h-7 text-xs"
+                      className="h-7 text-sm"
                       data-ocid="rx.drug_route.select"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {ROUTES_BN.map((r) => (
-                        <SelectItem key={r.en} value={r.en} className="text-xs">
+                        <SelectItem key={r.en} value={r.en} className="text-sm">
                           {r.bn} ({r.en})
                         </SelectItem>
                       ))}
@@ -1389,11 +1398,11 @@ export default function UpgradedPrescriptionEMR(
                   </Select>
                 </div>
                 <div className="col-span-2">
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     Frequency (Bangla primary)
                   </span>
                   <input
-                    className={`w-full border rounded px-2 py-1 text-xs ${
+                    className={`w-full border rounded px-2 py-1 text-sm ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1415,7 +1424,7 @@ export default function UpgradedPrescriptionEMR(
                           setDrugFrequencyBn(p.bn);
                           setDrugFrequency(p.en);
                         }}
-                        className="text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                        className="text-sm px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
                       >
                         {p.bn}
                       </button>
@@ -1426,11 +1435,11 @@ export default function UpgradedPrescriptionEMR(
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
                 <div>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     Duration (Bangla)
                   </span>
                   <input
-                    className={`w-full border rounded px-2 py-1 text-xs ${
+                    className={`w-full border rounded px-2 py-1 text-sm ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1452,7 +1461,7 @@ export default function UpgradedPrescriptionEMR(
                           setDrugDurationBn(p.bn);
                           setDrugDuration(p.en);
                         }}
-                        className="text-[9px] px-1 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"
+                        className="text-sm px-1 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"
                       >
                         {p.bn}
                       </button>
@@ -1460,11 +1469,11 @@ export default function UpgradedPrescriptionEMR(
                   </div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     Instructions (Bangla)
                   </span>
                   <input
-                    className={`w-full border rounded px-2 py-1 text-xs ${
+                    className={`w-full border rounded px-2 py-1 text-sm ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1486,7 +1495,7 @@ export default function UpgradedPrescriptionEMR(
                           setDrugInstructionBn(p.bn);
                           setDrugInstructions(p.en);
                         }}
-                        className="text-[9px] px-1 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+                        className="text-sm px-1 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
                       >
                         {p.bn}
                       </button>
@@ -1494,11 +1503,11 @@ export default function UpgradedPrescriptionEMR(
                   </div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     Special Instruction (Bangla)
                   </span>
                   <input
-                    className={`w-full border rounded px-2 py-1 text-xs ${
+                    className={`w-full border rounded px-2 py-1 text-sm ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1533,7 +1542,7 @@ export default function UpgradedPrescriptionEMR(
               <button
                 type="button"
                 onClick={() => setShowTreatmentSection((s) => !s)}
-                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 ${
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50 ${
                   dark ? "hover:bg-teal-900" : ""
                 } transition-colors`}
                 data-ocid="rx.treatment_template.toggle"
@@ -1548,7 +1557,7 @@ export default function UpgradedPrescriptionEMR(
               {showTreatmentSection && (
                 <div className="px-3 pb-3 space-y-2">
                   <input
-                    className={`w-full border rounded px-2 py-1.5 text-xs ${
+                    className={`w-full border rounded px-2 py-1.5 text-sm ${
                       dark
                         ? "bg-gray-800 border-gray-600 text-white"
                         : "bg-white border-gray-300"
@@ -1569,15 +1578,15 @@ export default function UpgradedPrescriptionEMR(
                       data-ocid={`rx.treatment_template.item.${i + 1}`}
                     >
                       <div>
-                        <p className="text-xs font-medium">{tpl.name}</p>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-sm font-medium">{tpl.name}</p>
+                        <p className="text-sm text-muted-foreground">
                           {tpl.diagnosis} · {tpl.drugs.length} drugs
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => applyTreatmentTemplate(tpl)}
-                        className="text-[10px] px-2 py-1 bg-teal-600 text-white rounded hover:bg-teal-700"
+                        className="text-sm px-2 py-1 bg-teal-600 text-white rounded hover:bg-teal-700"
                         data-ocid={`rx.load_template.button.${i + 1}`}
                       >
                         Load
@@ -1586,7 +1595,7 @@ export default function UpgradedPrescriptionEMR(
                   ))}
                   {treatmentQuery.length >= 2 &&
                     treatmentResults.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         No templates found.
                       </p>
                     )}
@@ -1600,7 +1609,7 @@ export default function UpgradedPrescriptionEMR(
                 dark ? "bg-gray-900" : "bg-white"
               } shadow-sm`}
             >
-              <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide block mb-2">
+              <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide block mb-2">
                 পরামর্শ / Advice (Bengali)
               </span>
               <div className="flex flex-wrap gap-1 mb-2">
@@ -1609,7 +1618,7 @@ export default function UpgradedPrescriptionEMR(
                     key={cat}
                     type="button"
                     onClick={() => setAdviceCategory(cat)}
-                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                    className={`text-sm px-2 py-0.5 rounded-full border transition-colors ${
                       adviceCategory === cat
                         ? "bg-teal-600 text-white border-teal-600"
                         : dark
@@ -1624,7 +1633,7 @@ export default function UpgradedPrescriptionEMR(
               </div>
               <div className="relative mb-2">
                 <input
-                  className={`w-full border rounded px-2 py-1.5 text-xs pr-7 ${
+                  className={`w-full border rounded px-2 py-1.5 text-sm pr-7 ${
                     dark
                       ? "bg-gray-800 border-gray-600 text-white"
                       : "bg-white border-gray-300"
@@ -1642,7 +1651,7 @@ export default function UpgradedPrescriptionEMR(
                     <button
                       type="button"
                       onClick={() => appendAdvice(t.text)}
-                      className={`text-[10px] px-2 py-0.5 rounded border transition-colors text-left ${
+                      className={`text-sm px-2 py-0.5 rounded border transition-colors text-left ${
                         dark
                           ? "bg-gray-800 border-gray-600 text-gray-200 hover:bg-teal-900"
                           : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-teal-50"
@@ -1677,7 +1686,7 @@ export default function UpgradedPrescriptionEMR(
               <button
                 type="button"
                 onClick={() => setShowCustomForm((s) => !s)}
-                className="text-[10px] text-teal-600 hover:underline flex items-center gap-1"
+                className="text-sm text-teal-600 hover:underline flex items-center gap-1"
                 data-ocid="rx.add_custom_template.button"
               >
                 <Plus className="w-3 h-3" /> Add Custom Template
@@ -1695,14 +1704,14 @@ export default function UpgradedPrescriptionEMR(
                     onChange={(e) => setCustomText(e.target.value)}
                     rows={2}
                     placeholder="Custom advice text..."
-                    className={`text-xs mb-1 ${
+                    className={`text-sm mb-1 ${
                       dark ? "bg-gray-700 border-gray-600" : ""
                     }`}
                     data-ocid="rx.custom_template.textarea"
                   />
                   <div className="flex gap-1">
                     <input
-                      className={`flex-1 border rounded px-2 py-1 text-xs ${
+                      className={`flex-1 border rounded px-2 py-1 text-sm ${
                         dark
                           ? "bg-gray-700 border-gray-600 text-white"
                           : "bg-white border-gray-300"
@@ -1715,7 +1724,7 @@ export default function UpgradedPrescriptionEMR(
                     <button
                       type="button"
                       onClick={addCustomTemplate}
-                      className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700"
+                      className="px-3 py-1 bg-teal-600 text-white text-sm rounded hover:bg-teal-700"
                       data-ocid="rx.save_custom_template.button"
                     >
                       <Check className="w-3 h-3" />
@@ -1723,7 +1732,7 @@ export default function UpgradedPrescriptionEMR(
                     <button
                       type="button"
                       onClick={() => setShowCustomForm(false)}
-                      className="px-2 py-1 text-xs rounded border"
+                      className="px-2 py-1 text-sm rounded border"
                       data-ocid="rx.cancel_custom.button"
                     >
                       <X className="w-3 h-3" />
@@ -1738,7 +1747,7 @@ export default function UpgradedPrescriptionEMR(
               <button
                 type="button"
                 onClick={() => setShowPreview((s) => !s)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-t border text-xs font-semibold text-teal-700 ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-t border text-sm font-semibold text-teal-700 ${
                   dark
                     ? "bg-gray-900 border-gray-700"
                     : "bg-white border-gray-200"
@@ -1778,6 +1787,214 @@ export default function UpgradedPrescriptionEMR(
           </div>
         </ScrollArea>
       </div>
+    </div>
+  );
+}
+
+// ─── Clinical Intelligence ────────────────────────────────────────────────────
+const DRUG_INTERACTION_PAIRS: Array<{ drugs: string[]; message: string }> = [
+  {
+    drugs: ["warfarin", "aspirin"],
+    message:
+      "Warfarin + Aspirin: Increased bleeding risk. Monitor INR closely.",
+  },
+  {
+    drugs: ["metformin", "contrast", "iodine"],
+    message:
+      "Metformin + Contrast/Iodine: Risk of contrast-induced nephropathy and lactic acidosis. Hold Metformin.",
+  },
+  {
+    drugs: [
+      "ace",
+      "ramipril",
+      "lisinopril",
+      "enalapril",
+      "spironolactone",
+      "eplerenone",
+    ],
+    message:
+      "ACE Inhibitor + K+ sparing diuretic: Risk of hyperkalemia. Monitor potassium levels.",
+  },
+  {
+    drugs: ["ciprofloxacin", "antacid", "aluminium", "magnesium"],
+    message:
+      "Ciprofloxacin + Antacids: Antacids reduce ciprofloxacin absorption. Give 2 hours apart.",
+  },
+  {
+    drugs: ["ssri", "fluoxetine", "sertraline", "tramadol"],
+    message:
+      "SSRI + Tramadol: Risk of serotonin syndrome. Monitor for agitation, tremor, tachycardia.",
+  },
+  {
+    drugs: [
+      "nsaid",
+      "ibuprofen",
+      "naproxen",
+      "diclofenac",
+      "warfarin",
+      "heparin",
+      "anticoagulant",
+    ],
+    message: "NSAID + Anticoagulant: Significantly increased bleeding risk.",
+  },
+];
+
+const CKD_DOSE_DRUGS = [
+  "metformin",
+  "nsaid",
+  "ibuprofen",
+  "naproxen",
+  "aminoglycoside",
+  "gentamicin",
+  "amikacin",
+  "contrast",
+];
+const LIVER_DOSE_DRUGS = [
+  "paracetamol",
+  "methotrexate",
+  "statins",
+  "azathioprine",
+  "nsaid",
+  "ibuprofen",
+];
+
+interface ClinicalAlert {
+  type: "interaction" | "allergy" | "dose";
+  message: string;
+  drugs: string[];
+}
+
+function ClinicalIntelligencePanel({
+  rxDrugs,
+  allergies,
+  pmh,
+  diagnosis,
+  dark,
+}: {
+  rxDrugs: RxDrug[];
+  allergies: string[];
+  pmh: string;
+  diagnosis: string;
+  dark: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+
+  const drugNames = rxDrugs.map((d) =>
+    `${d.drugName} ${d.brandName}`.toLowerCase(),
+  );
+  const allDrugText = drugNames.join(" ");
+  const pmhLower = `${pmh} ${diagnosis}`.toLowerCase();
+
+  const alerts: ClinicalAlert[] = [];
+
+  // Drug interaction checks
+  for (const pair of DRUG_INTERACTION_PAIRS) {
+    const matched = pair.drugs.filter((d) => allDrugText.includes(d));
+    if (matched.length >= 2) {
+      alerts.push({
+        type: "interaction",
+        message: pair.message,
+        drugs: matched,
+      });
+    }
+  }
+
+  // Allergy checks
+  for (const drug of rxDrugs) {
+    for (const allergen of allergies) {
+      if (!allergen) continue;
+      const a = allergen.toLowerCase();
+      const dname = `${drug.drugName} ${drug.brandName}`.toLowerCase();
+      if (dname.includes(a) || a.includes(dname.split(" ")[0])) {
+        alerts.push({
+          type: "allergy",
+          message: `⚠️ Patient has documented allergy to "${allergen}". Drug "${drug.drugForm} ${drug.drugName}" may be contraindicated.`,
+          drugs: [drug.drugName],
+        });
+      }
+    }
+  }
+
+  // Dose adjustment (CKD/Liver)
+  const hasCKD = /ckd|chronic kidney|renal failure|renal insufficiency/i.test(
+    pmhLower,
+  );
+  const hasLiver = /liver disease|hepatic|hepatitis|cirrhosis/i.test(pmhLower);
+  if (hasCKD) {
+    for (const drug of rxDrugs) {
+      const dname = `${drug.drugName}`.toLowerCase();
+      if (CKD_DOSE_DRUGS.some((d) => dname.includes(d))) {
+        alerts.push({
+          type: "dose",
+          message: `📉 CKD detected: Dose adjustment required for "${drug.drugForm} ${drug.drugName}". Consider renal dose or alternative.`,
+          drugs: [drug.drugName],
+        });
+      }
+    }
+  }
+  if (hasLiver) {
+    for (const drug of rxDrugs) {
+      const dname = `${drug.drugName}`.toLowerCase();
+      if (LIVER_DOSE_DRUGS.some((d) => dname.includes(d))) {
+        alerts.push({
+          type: "dose",
+          message: `📉 Liver disease detected: Caution with "${drug.drugForm} ${drug.drugName}". Dose adjustment or monitoring may be needed.`,
+          drugs: [drug.drugName],
+        });
+      }
+    }
+  }
+
+  if (alerts.length === 0) return null;
+
+  return (
+    <div
+      className={`rounded-lg shadow-sm overflow-hidden ${dark ? "bg-gray-900" : "bg-white"}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-red-50 border-b border-red-200 hover:bg-red-100 transition-colors"
+        data-ocid="rx.clinical_intelligence.toggle"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-red-700">
+          🧠 Clinical Intelligence
+          <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+            {alerts.length}
+          </span>
+        </span>
+        {open ? (
+          <ChevronUp className="w-4 h-4 text-red-600" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-red-600" />
+        )}
+      </button>
+      {open && (
+        <div className="p-3 space-y-2">
+          {alerts.map((alert, i) => (
+            <div
+              key={`ci-${alert.type}-${alert.message.slice(0, 20)}`}
+              className={`flex items-start gap-2 p-2.5 rounded-lg border text-sm ${
+                alert.type === "interaction"
+                  ? "bg-red-50 border-red-200 text-red-800"
+                  : alert.type === "allergy"
+                    ? "bg-amber-50 border-amber-200 text-amber-800"
+                    : "bg-blue-50 border-blue-200 text-blue-800"
+              }`}
+              data-ocid={`rx.clinical_alert.item.${i + 1}`}
+            >
+              <span className="text-base flex-shrink-0">
+                {alert.type === "interaction"
+                  ? "🔴"
+                  : alert.type === "allergy"
+                    ? "⚠️"
+                    : "📉"}
+              </span>
+              <span>{alert.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1895,7 +2112,7 @@ function DrugRow({
     <tr data-ocid={`rx.drug.row.${index + 1}`}>
       <td className={cellCls}>{index + 1}</td>
       <td className={cellCls}>
-        <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 rounded px-1">
+        <span className="text-sm font-medium text-indigo-700 bg-indigo-50 rounded px-1">
           {drug.drugForm}
         </span>
       </td>
@@ -1904,7 +2121,7 @@ function DrugRow({
           <div>
             <strong className="text-amber-700">{drug.brandName}</strong>
             <br />
-            <span className="text-gray-500 text-[10px]">{drug.drugName}</span>
+            <span className="text-gray-500 text-sm">{drug.drugName}</span>
           </div>
         ) : drug.nameType === "brand" ? (
           <strong>{drug.drugName}</strong>
@@ -2015,7 +2232,7 @@ function PrescriptionPreview({
         <button
           type="button"
           onClick={handlePrint}
-          className="flex items-center gap-1 text-xs px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700"
+          className="flex items-center gap-1 text-sm px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700"
           data-ocid="rx.print.button"
         >
           <Printer className="w-3.5 h-3.5" /> Print
@@ -2032,15 +2249,15 @@ function PrescriptionPreview({
                 <h2 className="font-bold text-base">
                   {doctorInfo?.name ?? "Dr. Arman Kabir (ZOSID)"}
                 </h2>
-                <p className="text-xs text-gray-600">
+                <p className="text-sm text-gray-600">
                   {doctorInfo?.degrees ??
                     "MBBS (D.U.) | Emergency Medical Officer"}
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-sm text-gray-600">
                   {doctorInfo?.chamber ?? "সেন্চুরি আর্কেড মার্কেট, মগবাজার, ঢাকা"}
                 </p>
               </div>
-              <div className="text-right text-xs text-gray-600">
+              <div className="text-right text-sm text-gray-600">
                 <p>Reg. no. A-105224</p>
                 <p>Mob: 01751959262</p>
               </div>
@@ -2048,7 +2265,7 @@ function PrescriptionPreview({
           </div>
         )}
         {/* Patient info */}
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs border-b pb-2 mb-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm border-b pb-2 mb-3">
           {name && (
             <span>
               <strong>Name:</strong> {name}
@@ -2082,10 +2299,10 @@ function PrescriptionPreview({
         {/* Two-column layout: clinical summary left, Rx right */}
         <div className="grid grid-cols-5 gap-3">
           {/* Left column: clinical summary */}
-          <div className="col-span-2 space-y-2 text-xs border-r pr-2">
+          <div className="col-span-2 space-y-2 text-sm border-r pr-2">
             {cc && (
               <div>
-                <div className="font-bold text-[10px] uppercase text-gray-500">
+                <div className="font-bold text-sm uppercase text-gray-500">
                   C/C
                 </div>
                 <div className="whitespace-pre-wrap">{cc}</div>
@@ -2093,7 +2310,7 @@ function PrescriptionPreview({
             )}
             {pmh && (
               <div>
-                <div className="font-bold text-[10px] uppercase text-gray-500">
+                <div className="font-bold text-sm uppercase text-gray-500">
                   P/M/H
                 </div>
                 <div className="whitespace-pre-wrap">{pmh}</div>
@@ -2101,7 +2318,7 @@ function PrescriptionPreview({
             )}
             {dh && (
               <div>
-                <div className="font-bold text-[10px] uppercase text-gray-500">
+                <div className="font-bold text-sm uppercase text-gray-500">
                   D/H
                 </div>
                 <div className="whitespace-pre-wrap">{dh}</div>
@@ -2109,7 +2326,7 @@ function PrescriptionPreview({
             )}
             {oe && (
               <div>
-                <div className="font-bold text-[10px] uppercase text-gray-500">
+                <div className="font-bold text-sm uppercase text-gray-500">
                   O/E
                 </div>
                 <div className="whitespace-pre-wrap">{oe}</div>
@@ -2121,17 +2338,17 @@ function PrescriptionPreview({
           <div className="col-span-3">
             {diagnosis && (
               <div className="mb-2">
-                <span className="font-bold text-xs">Dx: </span>
-                <span className="text-xs">{diagnosis}</span>
+                <span className="font-bold text-sm">Dx: </span>
+                <span className="text-sm">{diagnosis}</span>
               </div>
             )}
             <div className="text-2xl font-bold mb-1">ℝ</div>
             {drugs.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">
+              <p className="text-sm text-gray-400 italic">
                 No medications added.
               </p>
             ) : (
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
                     {[
@@ -2145,7 +2362,7 @@ function PrescriptionPreview({
                     ].map((h) => (
                       <th
                         key={h}
-                        className="text-left py-0.5 px-1 text-[10px] text-gray-500"
+                        className="text-left py-0.5 px-1 text-sm text-gray-500"
                       >
                         {h}
                       </th>
@@ -2157,7 +2374,7 @@ function PrescriptionPreview({
                     <tr key={d.id} className="border-b border-gray-100">
                       <td className="px-1 py-0.5">{i + 1}</td>
                       <td className="px-1 py-0.5">
-                        <span className="text-[10px] text-indigo-600 mr-1">
+                        <span className="text-sm text-indigo-600 mr-1">
                           {d.drugForm}
                         </span>
                         {d.brandName ? (
@@ -2168,7 +2385,7 @@ function PrescriptionPreview({
                           d.drugName
                         )}
                         {d.brandName && d.drugName && (
-                          <span className="text-gray-400 text-[10px] ml-1">
+                          <span className="text-gray-400 text-sm ml-1">
                             ({d.drugName})
                           </span>
                         )}
@@ -2184,7 +2401,7 @@ function PrescriptionPreview({
                       <td className="px-1 py-0.5">
                         {d.instructionBn || d.instructions}
                         {(d.specialInstructionBn || d.specialInstruction) && (
-                          <span className="text-[9px] text-orange-600 block">
+                          <span className="text-sm text-orange-600 block">
                             {d.specialInstructionBn || d.specialInstruction}
                           </span>
                         )}
@@ -2196,10 +2413,10 @@ function PrescriptionPreview({
             )}
             {adviceText && (
               <div className="mt-3 pt-2 border-t">
-                <div className="font-bold text-[10px] uppercase text-gray-500 mb-1">
+                <div className="font-bold text-sm uppercase text-gray-500 mb-1">
                   পরামর্শ
                 </div>
-                <div className="text-xs whitespace-pre-wrap">{adviceText}</div>
+                <div className="text-sm whitespace-pre-wrap">{adviceText}</div>
               </div>
             )}
           </div>

@@ -6,18 +6,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
 import {
+  Activity,
   AlertCircle,
   ArrowLeft,
+  Bell,
+  Calendar,
+  ChevronRight,
   Clock,
   Droplets,
   Edit,
   FileText,
   Heart,
+  Home,
+  LayoutDashboard,
   Mail,
   MapPin,
   Pencil,
@@ -26,8 +33,13 @@ import {
   PlusCircle,
   Printer,
   Scissors,
+  Search,
+  Settings,
   Stethoscope,
+  Thermometer,
   User,
+  Users,
+  Wind,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
@@ -49,7 +61,6 @@ import {
   useUpdatePatient,
 } from "../hooks/useQueries";
 
-const VISIT_SKELETON_KEYS = ["vsk1", "vsk2", "vsk3"];
 const RX_SKELETON_KEYS = ["rsk1", "rsk2", "rsk3"];
 
 function getAge(dateOfBirth?: bigint): number | null {
@@ -64,77 +75,6 @@ function formatTime(time: bigint): string {
 
 function formatDateTime(time: bigint): string {
   return format(new Date(Number(time / 1000000n)), "MMM d, yyyy 'at' h:mm a");
-}
-
-function VisitCard({
-  visit,
-  index,
-  onClick,
-  onAddNewVisit,
-}: {
-  visit: Visit;
-  index: number;
-  onClick: () => void;
-  onAddNewVisit?: (visit: Visit) => void;
-}) {
-  return (
-    <div className="bg-card border border-border rounded-xl hover:shadow-card hover:border-primary/30 transition-all duration-200">
-      <button
-        type="button"
-        onClick={onClick}
-        className="w-full text-left p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
-        data-ocid={`patient_profile.visits.item.${index + 1}`}
-      >
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Stethoscope className="w-4 h-4 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-foreground truncate">
-                {visit.chiefComplaint}
-              </p>
-              <Badge
-                variant={
-                  visit.visitType === "admitted" ? "default" : "secondary"
-                }
-                className="text-xs flex-shrink-0 capitalize"
-              >
-                {visit.visitType}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {formatDateTime(visit.visitDate)}
-              </span>
-              {visit.diagnosis && (
-                <span className="truncate text-primary/80">
-                  Dx: {visit.diagnosis}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </button>
-      {onAddNewVisit && (
-        <div className="px-4 pb-3 pt-0 flex justify-end">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddNewVisit(visit);
-            }}
-            className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 font-medium"
-            data-ocid={`patient_profile.visits.add_new.button.${index + 1}`}
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            Add New Visit / Investigation Update
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function PrescriptionCard({
@@ -198,13 +138,14 @@ export default function PatientProfile() {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
   const [editRx, setEditRx] = useState<Prescription | null>(null);
+  const [invSearch, setInvSearch] = useState("");
   const [showPadPreview, setShowPadPreview] = useState(false);
   const [padPrescription, setPadPrescription] = useState<Prescription | null>(
     null,
   );
 
   const { data: patient, isLoading: loadingPatient } = useGetPatient(patientId);
-  const { data: visits = [], isLoading: loadingVisits } =
+  const { data: visits = [], isLoading: _loadingVisits } =
     useGetVisitsByPatient(patientId);
   const { data: prescriptions = [], isLoading: loadingRx } =
     useGetPrescriptionsByPatient(patientId);
@@ -295,250 +236,744 @@ export default function PatientProfile() {
 
   const age = getAge(patient.dateOfBirth);
 
-  return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-      <button
-        type="button"
-        onClick={() => navigate({ to: "/Patients" })}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5"
-        data-ocid="patient_profile.link"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Patients
-      </button>
+  // Get doctor info from localStorage for sidebar
+  function getDoctorSidebarInfo() {
+    try {
+      const data = localStorage.getItem("medicare_doctors_data");
+      if (data) {
+        const parsed = JSON.parse(data);
+        const doc = parsed.drArman || Object.values(parsed)[0] || null;
+        if (doc)
+          return doc as {
+            name?: string;
+            specialty?: string;
+            degree?: string;
+            photo?: string;
+          };
+      }
+    } catch {
+      /* ignore */
+    }
+    const loggedIn = localStorage.getItem("medicare_logged_in_doctor");
+    if (loggedIn) {
+      try {
+        return JSON.parse(loggedIn) as {
+          name?: string;
+          specialty?: string;
+          degree?: string;
+          photo?: string;
+        };
+      } catch {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+  const doctorInfo = getDoctorSidebarInfo();
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-5 sm:p-6 mb-6 shadow-card"
-      >
-        <div className="flex items-start gap-4">
-          <div
-            className="w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center text-2xl font-bold text-white shadow-sm"
-            style={{
-              background:
-                "linear-gradient(135deg, oklch(0.62 0.14 195), oklch(0.52 0.14 215))",
-            }}
-          >
-            {patient.fullName.charAt(0).toUpperCase()}
+  // Get latest visit vitals
+  const latestVisit =
+    visits.length > 0
+      ? [...visits].sort((a, b) => Number(b.visitDate - a.visitDate))[0]
+      : null;
+
+  function getLatestVitals() {
+    if (!latestVisit) return null;
+    try {
+      const doctorEmail = getDoctorEmail();
+      const key = `visit_form_data_${latestVisit.id}_${doctorEmail}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed.vitalSigns as {
+          bloodPressure?: string;
+          pulse?: string;
+          temperature?: string;
+          oxygenSaturation?: string;
+          weight?: string;
+        } | null;
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+  const vitals = getLatestVitals();
+
+  // Get investigation rows
+  function getInvestigationRows(): Array<{
+    date: string;
+    name: string;
+    result: string;
+    unit?: string;
+    interpretation?: string;
+  }> {
+    if (!latestVisit) return [];
+    try {
+      const doctorEmail = getDoctorEmail();
+      const key = `visit_form_data_${latestVisit.id}_${doctorEmail}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return (
+          (parsed.previous_investigation_rows as Array<{
+            date: string;
+            name: string;
+            result: string;
+            unit?: string;
+            interpretation?: string;
+          }>) || []
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+    return [];
+  }
+
+  const DEFAULT_INVESTIGATIONS = [
+    "Haemoglobin",
+    "WBC Count",
+    "Serum Creatinine",
+    "Blood Glucose",
+  ];
+  const allInvRows = getInvestigationRows();
+  const displayedRows = invSearch
+    ? allInvRows.filter((r) =>
+        r.name.toLowerCase().includes(invSearch.toLowerCase()),
+      )
+    : allInvRows.length > 0
+      ? allInvRows
+      : DEFAULT_INVESTIGATIONS.map((n) => ({
+          date: "",
+          name: n,
+          result: "—",
+          unit: "",
+          interpretation: "",
+        }));
+
+  function vitalStatus(key: string, value: string): "normal" | "high" | "low" {
+    if (!value || value === "—") return "normal";
+    const num = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+    if (Number.isNaN(num)) return "normal";
+    if (key === "bloodPressure") {
+      const systolic = Number.parseInt(value.split("/")[0] || "0");
+      if (systolic > 140) return "high";
+      if (systolic < 90) return "low";
+    }
+    if (key === "pulse") {
+      if (num > 100) return "high";
+      if (num < 60) return "low";
+    }
+    if (key === "temperature") {
+      if (num > 37.5) return "high";
+      if (num < 36) return "low";
+    }
+    if (key === "oxygenSaturation") {
+      if (num < 95) return "low";
+    }
+    return "normal";
+  }
+
+  const navItems = [
+    { label: "Dashboard", icon: LayoutDashboard, path: "/Dashboard" },
+    { label: "Patients", icon: Users, path: "/Patients" },
+    { label: "Visits", icon: Stethoscope, path: "/Visits" },
+    { label: "Prescriptions", icon: FileText, path: "/Prescriptions" },
+    { label: "Appointments", icon: Calendar, path: "/Appointments" },
+    { label: "Settings", icon: Settings, path: "/Settings" },
+  ];
+
+  return (
+    <div
+      className="flex min-h-screen bg-gray-50"
+      data-ocid="patient_profile.page"
+    >
+      {/* LEFT SIDEBAR */}
+      <aside className="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 sticky top-0 h-screen shadow-sm flex-shrink-0">
+        {/* Doctor Profile */}
+        <div className="p-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+              {doctorInfo?.name ? doctorInfo.name.charAt(0).toUpperCase() : "D"}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm text-gray-900 truncate">
+                {doctorInfo?.name || "Dr. Arman Kabir"}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {doctorInfo?.specialty || "General Medicine"}
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h1 className="font-display text-xl font-bold text-foreground">
-                  {patient.fullName}
-                </h1>
-                {patient.nameBn && (
-                  <p className="text-sm text-muted-foreground">
-                    {patient.nameBn}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  {age !== null && (
-                    <Badge variant="secondary">{age} years old</Badge>
-                  )}
-                  <Badge variant="secondary" className="capitalize">
-                    {patient.gender}
-                  </Badge>
-                  {patient.bloodGroup && patient.bloodGroup !== "unknown" && (
-                    <Badge
-                      variant="outline"
-                      className="border-red-200 text-red-600"
-                    >
-                      <Droplets className="w-3 h-3 mr-1" />
-                      {patient.bloodGroup}
-                    </Badge>
-                  )}
-                  <Badge
-                    variant={
-                      patient.patientType === "admitted" ? "default" : "outline"
-                    }
-                    className="capitalize"
-                  >
-                    {patient.patientType}
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 flex-shrink-0"
-                onClick={() => setShowEditForm(true)}
-                data-ocid="patient_profile.edit_button"
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          {navItems.map((item) => (
+            <button
+              key={item.path}
+              type="button"
+              onClick={() => navigate({ to: item.path as "/" })}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                item.path === "/Patients"
+                  ? "bg-teal-50 text-teal-700"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+              data-ocid="patient_profile.nav.link"
+            >
+              <item.icon className="w-4 h-4 flex-shrink-0" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+        {/* TOP HEADER */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3">
+            {/* Breadcrumb */}
+            <nav
+              className="flex items-center gap-1.5 text-sm"
+              data-ocid="patient_profile.panel"
+            >
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/Patients" })}
+                className="text-gray-500 hover:text-teal-600 transition-colors font-medium"
+                data-ocid="patient_profile.link"
               >
-                <Edit className="w-4 h-4" />
+                Patient
+              </button>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/Patients" })}
+                className="text-gray-500 hover:text-teal-600 transition-colors"
+              >
+                Patient Details
+              </button>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-900 font-semibold truncate max-w-[200px]">
+                {patient.fullName}
+              </span>
+            </nav>
+            {/* Header icons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                data-ocid="patient_profile.secondary_button"
+              >
+                <Bell className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                data-ocid="patient_profile.search_input"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* PAGE BODY */}
+        <main className="flex-1 p-4 sm:p-6 space-y-5 overflow-y-auto">
+          {/* PATIENT PROFILE CARD */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"
+            data-ocid="patient_profile.card"
+          >
+            <div className="flex items-start gap-5">
+              {/* Avatar */}
+              <div
+                className="w-18 h-18 rounded-2xl flex-shrink-0 flex items-center justify-center text-2xl font-bold text-white shadow"
+                style={{
+                  width: 72,
+                  height: 72,
+                  background: "linear-gradient(135deg, #0d9488, #0891b2)",
+                }}
+              >
+                {patient.fullName.charAt(0).toUpperCase()}
+              </div>
+
+              {/* Name + email + button */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h1 className="text-xl font-bold text-gray-900">
+                      {patient.fullName}
+                    </h1>
+                    {patient.nameBn && (
+                      <p className="text-sm text-gray-500">{patient.nameBn}</p>
+                    )}
+                    {patient.email && (
+                      <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
+                        <Mail className="w-3.5 h-3.5" /> {patient.email}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowEditForm(true)}
+                    className="flex-shrink-0 gap-1.5 text-sm"
+                    data-ocid="patient_profile.edit_button"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit Profile
+                  </Button>
+                </div>
+
+                {/* Info grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
+                  {[
+                    {
+                      label: "Sex",
+                      value: patient.gender || "—",
+                      color: "bg-blue-50 text-blue-700",
+                    },
+                    {
+                      label: "Age",
+                      value: age !== null ? `${age} yrs` : "—",
+                      color: "bg-emerald-50 text-emerald-700",
+                    },
+                    {
+                      label: "Blood Group",
+                      value:
+                        patient.bloodGroup && patient.bloodGroup !== "unknown"
+                          ? patient.bloodGroup
+                          : "—",
+                      color: "bg-red-50 text-red-700",
+                    },
+                    {
+                      label: "Status",
+                      value: patient.patientType || "OPD",
+                      color: "bg-purple-50 text-purple-700",
+                    },
+                    {
+                      label: "Department",
+                      value: "General",
+                      color: "bg-amber-50 text-amber-700",
+                    },
+                    {
+                      label: "Registered",
+                      value: patient.createdAt
+                        ? format(
+                            new Date(Number(patient.createdAt / 1000000n)),
+                            "d MMM yyyy",
+                          )
+                        : "—",
+                      color: "bg-gray-50 text-gray-600",
+                    },
+                    {
+                      label: "Appointments",
+                      value: String(visits.length),
+                      color: "bg-teal-50 text-teal-700",
+                    },
+                    {
+                      label: "Reg No",
+                      value:
+                        (patient as unknown as { registerNumber?: string })
+                          .registerNumber || "—",
+                      color: "bg-indigo-50 text-indigo-700",
+                    },
+                  ].map(({ label, value, color }) => (
+                    <div
+                      key={label}
+                      className={`rounded-lg px-3 py-2 ${color}`}
+                    >
+                      <p className="text-xs font-medium opacity-70">{label}</p>
+                      <p className="text-sm font-semibold mt-0.5 capitalize">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Alerts row */}
+                {(patient.allergies.length > 0 ||
+                  patient.chronicConditions.length > 0) && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {patient.allergies.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                        <span className="text-xs text-red-700 font-medium">
+                          Allergies: {patient.allergies.join(", ")}
+                        </span>
+                      </div>
+                    )}
+                    {patient.chronicConditions.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1">
+                        <Heart className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                        <span className="text-xs text-amber-700 font-medium">
+                          {patient.chronicConditions.join(", ")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* CURRENT VITALS */}
+          <div>
+            <h2 className="text-base font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-600" />
+              Current Vitals
+              {latestVisit && (
+                <span className="text-xs font-normal text-gray-400">
+                  (from latest visit)
+                </span>
+              )}
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {[
+                {
+                  key: "bloodPressure",
+                  label: "Blood Pressure",
+                  value: vitals?.bloodPressure || "—",
+                  unit: "mmHg",
+                  icon: Heart,
+                  color: "border-red-200",
+                },
+                {
+                  key: "temperature",
+                  label: "Temperature",
+                  value: vitals?.temperature || "—",
+                  unit: "°F",
+                  icon: Thermometer,
+                  color: "border-orange-200",
+                },
+                {
+                  key: "pulse",
+                  label: "Pulse Rate",
+                  value: vitals?.pulse || "—",
+                  unit: "/min",
+                  icon: Activity,
+                  color: "border-pink-200",
+                },
+                {
+                  key: "oxygenSaturation",
+                  label: "SpO₂",
+                  value: vitals?.oxygenSaturation || "—",
+                  unit: "%",
+                  icon: Wind,
+                  color: "border-blue-200",
+                },
+                {
+                  key: "weight",
+                  label: "Weight",
+                  value:
+                    vitals?.weight ||
+                    (patient.weight ? String(patient.weight) : "—"),
+                  unit: "kg",
+                  icon: User,
+                  color: "border-green-200",
+                },
+              ].map(({ key, label, value, unit, icon: Icon, color }) => {
+                const status = vitalStatus(key, value);
+                return (
+                  <div
+                    key={key}
+                    className={`bg-white rounded-xl border-2 ${color} p-3 shadow-sm`}
+                    data-ocid="patient_profile.card"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Icon className="w-4 h-4 text-gray-400" />
+                      <Badge
+                        className={`text-xs ${
+                          status === "normal"
+                            ? "bg-green-100 text-green-700 border-0"
+                            : "bg-red-100 text-red-700 border-0"
+                        }`}
+                      >
+                        {status === "normal"
+                          ? "Normal"
+                          : status === "high"
+                            ? "High"
+                            : "Low"}
+                      </Badge>
+                    </div>
+                    <p className="text-xl font-bold text-gray-800">{value}</p>
+                    <p className="text-xs text-gray-400">
+                      {label} {value !== "—" ? unit : ""}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CURRENT INVESTIGATION PROFILE */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-teal-600" />
+                Current Investigation Profile
+              </h2>
+              <div className="relative w-52">
+                <Search className="absolute left-2.5 top-2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search investigation..."
+                  value={invSearch}
+                  onChange={(e) => setInvSearch(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                  data-ocid="patient_profile.search_input"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table
+                className="w-full text-sm"
+                data-ocid="patient_profile.table"
+              >
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Investigation
+                    </th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Result
+                    </th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Unit
+                    </th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Date
+                    </th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Interpretation
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="py-6 text-center text-sm text-gray-400"
+                        data-ocid="patient_profile.empty_state"
+                      >
+                        No investigation reports found
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedRows.map((row, i) => (
+                      <tr
+                        key={`inv-${row.name}-${i}`}
+                        className="border-b border-gray-50 hover:bg-gray-50"
+                        data-ocid={`patient_profile.investigations.row.${i + 1}`}
+                      >
+                        <td className="py-2.5 px-3 font-medium text-gray-800">
+                          {row.name}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-700">
+                          {row.result}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-500">
+                          {row.unit || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-500">
+                          {row.date || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-500 max-w-[200px] truncate">
+                          {row.interpretation || "—"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* PATIENT HISTORY TABLE */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-teal-600" />
+                Patient History
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => setShowVisitForm(true)}
+                className="bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-sm"
+                data-ocid="patient_profile.visits.open_modal_button"
+              >
+                <Plus className="w-3.5 h-3.5" /> New Visit
               </Button>
             </div>
-
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-muted-foreground">
-              {patient.phone && (
-                <span className="flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5" />
-                  {patient.phone}
-                </span>
-              )}
-              {patient.email && (
-                <span className="flex items-center gap-1">
-                  <Mail className="w-3.5 h-3.5" />
-                  {patient.email}
-                </span>
-              )}
-              {patient.address && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {patient.address}
-                </span>
-              )}
-            </div>
-
-            {(patient.allergies.length > 0 ||
-              patient.chronicConditions.length > 0 ||
-              patient.pastSurgicalHistory) && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {patient.allergies.length > 0 && (
-                  <div className="flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                    <span className="text-xs text-red-700 font-medium">
-                      Allergies: {patient.allergies.join(", ")}
-                    </span>
-                  </div>
-                )}
-                {patient.chronicConditions.length > 0 && (
-                  <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1">
-                    <Heart className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                    <span className="text-xs text-amber-700 font-medium">
-                      {patient.chronicConditions.join(", ")}
-                    </span>
-                  </div>
-                )}
-                {patient.pastSurgicalHistory && (
-                  <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-1">
-                    <Scissors className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-                    <span className="text-xs text-purple-700 font-medium">
-                      {patient.pastSurgicalHistory}
-                    </span>
-                  </div>
-                )}
+            {visits.length === 0 ? (
+              <div
+                className="text-center py-8"
+                data-ocid="patient_profile.visits.empty_state"
+              >
+                <Stethoscope className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">No visit history yet</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm"
+                  data-ocid="patient_profile.visits.table"
+                >
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {[
+                        "Date",
+                        "Diagnosis",
+                        "Chief Complaint",
+                        "Severity",
+                        "Status",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visits
+                      .slice()
+                      .sort((a, b) => Number(b.visitDate - a.visitDate))
+                      .map((visit, idx) => {
+                        const isRecent = idx === 0;
+                        return (
+                          <tr
+                            key={visit.id.toString()}
+                            className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => setSelectedVisit(visit)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && setSelectedVisit(visit)
+                            }
+                            tabIndex={0}
+                            data-ocid={`patient_profile.visits.item.${idx + 1}`}
+                          >
+                            <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
+                              {formatTime(visit.visitDate)}
+                            </td>
+                            <td className="py-2.5 px-3 font-medium text-gray-800 max-w-[150px] truncate">
+                              {visit.diagnosis || "—"}
+                            </td>
+                            <td className="py-2.5 px-3 text-gray-600 max-w-[150px] truncate">
+                              {visit.chiefComplaint || "—"}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <Badge
+                                className={`text-xs border-0 ${isRecent ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                              >
+                                {isRecent ? "High" : "Low"}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <Badge
+                                className={`text-xs border-0 ${isRecent ? "bg-amber-100 text-amber-700" : "bg-teal-100 text-teal-700"}`}
+                              >
+                                {isRecent ? "Under Treatment" : "Cured"}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedVisit(visit);
+                                  }}
+                                  className="p-1 rounded text-teal-600 hover:bg-teal-50 transition-colors"
+                                  data-ocid={`patient_profile.visits.edit_button.${idx + 1}`}
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openRxForm(
+                                      visit.diagnosis || undefined,
+                                      visit.id,
+                                    );
+                                  }}
+                                  className="p-1 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                                  data-ocid="patient_profile.prescriptions.open_modal_button"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
-        </div>
-      </motion.div>
 
-      <Tabs defaultValue="visits">
-        <TabsList className="mb-4">
-          <TabsTrigger value="visits" data-ocid="patient_profile.tab">
-            <Stethoscope className="w-3.5 h-3.5 mr-1.5" />
-            Visits ({visits.length})
-          </TabsTrigger>
-          <TabsTrigger value="prescriptions" data-ocid="patient_profile.tab">
-            <FileText className="w-3.5 h-3.5 mr-1.5" />
-            Prescriptions ({prescriptions.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="visits" className="space-y-3 mt-0">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => setShowVisitForm(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-              data-ocid="patient_profile.visits.open_modal_button"
-            >
-              <Plus className="w-4 h-4" />
-              New Visit
-            </Button>
-          </div>
-          {loadingVisits ? (
-            <div
-              className="space-y-3"
-              data-ocid="patient_profile.visits.loading_state"
-            >
-              {VISIT_SKELETON_KEYS.map((k) => (
-                <Skeleton key={k} className="h-20 rounded-xl" />
-              ))}
+          {/* PRESCRIPTIONS SECTION */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-teal-600" />
+                Prescriptions ({prescriptions.length})
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => openRxForm(undefined)}
+                className="bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-sm"
+                data-ocid="patient_profile.prescriptions.open_modal_button"
+              >
+                <Plus className="w-3.5 h-3.5" /> New Prescription
+              </Button>
             </div>
-          ) : visits.length === 0 ? (
-            <div
-              className="text-center py-12"
-              data-ocid="patient_profile.visits.empty_state"
-            >
-              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
-                <Stethoscope className="w-6 h-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                No visits recorded yet
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {visits
-                .slice()
-                .sort((a, b) => Number(b.visitDate - a.visitDate))
-                .map((visit, idx) => (
-                  <VisitCard
-                    key={visit.id.toString()}
-                    visit={visit}
-                    index={idx}
-                    onClick={() => setSelectedVisit(visit)}
-                    onAddNewVisit={(v) => {
-                      setNewVisitTemplate(v);
-                      setShowVisitForm(true);
-                    }}
-                  />
+            {loadingRx ? (
+              <div
+                className="space-y-3"
+                data-ocid="patient_profile.prescriptions.loading_state"
+              >
+                {RX_SKELETON_KEYS.map((k) => (
+                  <Skeleton key={k} className="h-16 rounded-xl" />
                 ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="prescriptions" className="space-y-3 mt-0">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => openRxForm(undefined)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-              data-ocid="patient_profile.prescriptions.open_modal_button"
-            >
-              <Plus className="w-4 h-4" />
-              New Prescription
-            </Button>
-          </div>
-          {loadingRx ? (
-            <div
-              className="space-y-3"
-              data-ocid="patient_profile.prescriptions.loading_state"
-            >
-              {RX_SKELETON_KEYS.map((k) => (
-                <Skeleton key={k} className="h-20 rounded-xl" />
-              ))}
-            </div>
-          ) : prescriptions.length === 0 ? (
-            <div
-              className="text-center py-12"
-              data-ocid="patient_profile.prescriptions.empty_state"
-            >
-              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
-                <FileText className="w-6 h-6 text-muted-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground">
-                No prescriptions yet
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {prescriptions
-                .slice()
-                .sort((a, b) => Number(b.prescriptionDate - a.prescriptionDate))
-                .map((rx, idx) => (
-                  <PrescriptionCard
-                    key={rx.id.toString()}
-                    rx={rx}
-                    index={idx}
-                    onClick={() => setSelectedRx(rx)}
-                  />
-                ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            ) : prescriptions.length === 0 ? (
+              <div
+                className="text-center py-8"
+                data-ocid="patient_profile.prescriptions.empty_state"
+              >
+                <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">No prescriptions yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {prescriptions
+                  .slice()
+                  .sort((a, b) =>
+                    Number(b.prescriptionDate - a.prescriptionDate),
+                  )
+                  .map((rx, idx) => (
+                    <PrescriptionCard
+                      key={rx.id.toString()}
+                      rx={rx}
+                      index={idx}
+                      onClick={() => setSelectedRx(rx)}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
 
       {/* Edit Patient Dialog */}
       <Dialog open={showEditForm} onOpenChange={setShowEditForm}>

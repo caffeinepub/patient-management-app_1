@@ -30,29 +30,33 @@ import {
   Loader2,
   ShieldCheck,
   Stethoscope,
+  User,
   UserCheck,
-  UserX,
   XCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "./Layout";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import {
   EmailAuthProvider,
+  appendAuditLog,
+  loadPatientRegistry,
   loadRegistry,
+  savePatientRegistry,
   saveRegistry,
   useEmailAuth,
 } from "./hooks/useEmailAuth";
-import type { DoctorAccount } from "./hooks/useEmailAuth";
+import type { DoctorAccount, PatientAccount } from "./hooks/useEmailAuth";
 import Appointments from "./pages/Appointments";
+import AuditLog from "./pages/AuditLog";
 import LandingPage from "./pages/LandingPage";
-import PatientProfile from "./pages/PatientProfile";
+import PatientDashboard from "./pages/PatientDashboard";
 import Patients from "./pages/Patients";
 import SerialDisplay from "./pages/SerialDisplay";
 import Settings from "./pages/Settings";
 
-// ── Route tree ──────────────────────────────────────────────────────────────────
+// ── Route tree ────────────────────────────────────────────────────────────────────────────────
 
 function RootLayoutComponent() {
   const state = useRouterState();
@@ -62,7 +66,9 @@ function RootLayoutComponent() {
       ? "Patients"
       : pathname === "/Appointments"
         ? "Appointments"
-        : pathname.replace(/^\//, "");
+        : pathname === "/AuditLog"
+          ? "AuditLog"
+          : pathname.replace(/^\//, "");
   return (
     <Layout currentPageName={currentPageName}>
       <Outlet />
@@ -84,7 +90,7 @@ const patientsRoute = createRoute({
 const patientProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/PatientProfile",
-  component: PatientProfile,
+  component: PatientProfileWrapper,
 });
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -96,6 +102,11 @@ const appointmentsRoute = createRoute({
   path: "/Appointments",
   component: Appointments,
 });
+const auditLogRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/AuditLog",
+  component: AuditLog,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -103,6 +114,7 @@ const routeTree = rootRoute.addChildren([
   patientProfileRoute,
   settingsRoute,
   appointmentsRoute,
+  auditLogRoute,
 ]);
 const router = createRouter({ routeTree });
 
@@ -112,17 +124,24 @@ declare module "@tanstack/react-router" {
   }
 }
 
-// ── Auth Form Content ──────────────────────────────────────────────────────
+// PatientProfile wrapper that decides the role
+function PatientProfileWrapper() {
+  const { currentDoctor } = useEmailAuth();
+  const role = currentDoctor?.role === "staff" ? "staff" : "doctor";
+  return <PatientDashboard currentRole={role} />;
+}
+
+// ── Auth Form Content ──────────────────────────────────────────────────────────────────
 
 const DESIGNATIONS = ["Dr.", "Prof.", "Assoc. Prof.", "Mr.", "Ms.", "Mrs."];
 
-function AuthScreenContent() {
+function StaffAuthContent() {
   const { signIn, signUp, isLoggingIn, authError } = useEmailAuth();
 
   const [siEmail, setSiEmail] = useState("");
   const [siPassword, setSiPassword] = useState("");
   const [siError, setSiError] = useState("");
-  const [siSuccess, setSiSuccess] = useState("");
+  const [siSuccess] = useState("");
 
   const [suName, setSuName] = useState("");
   const [suEmail, setSuEmail] = useState("");
@@ -140,7 +159,6 @@ function AuthScreenContent() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setSiError("");
-    setSiSuccess("");
     if (!siEmail || !siPassword) {
       setSiError("Please enter email and password.");
       return;
@@ -185,280 +203,496 @@ function AuthScreenContent() {
         msg.includes("approval") ||
         msg.includes("pending") ||
         msg.includes("re-submitted")
-      ) {
+      )
         setSuSuccess(msg);
-      } else {
-        setSuErrors({ general: msg });
-      }
+      else setSuErrors({ general: msg });
     }
   };
 
   return (
-    <div>
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-3">
-          <Stethoscope className="w-7 h-7 text-primary" />
-        </div>
-        <h2 className="font-display text-xl font-bold text-foreground mb-1">
-          Staff Login
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Dr. Arman Kabir&apos;s Care \u2013 Patient Management System
-        </p>
-      </div>
-
-      <Tabs defaultValue="signin">
-        <TabsList className="w-full mb-5">
-          <TabsTrigger
-            value="signin"
-            className="flex-1"
-            data-ocid="auth.signin.tab"
-          >
-            Sign In
-          </TabsTrigger>
-          <TabsTrigger
-            value="signup"
-            className="flex-1"
-            data-ocid="auth.signup.tab"
-          >
-            Sign Up
-          </TabsTrigger>
-        </TabsList>
-
-        {/* \u2500\u2500 Sign In \u2500\u2500 */}
-        <TabsContent value="signin">
-          <form onSubmit={handleSignIn} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="si-email">Email</Label>
-              <Input
-                id="si-email"
-                type="email"
-                placeholder="doctor@hospital.com"
-                value={siEmail}
-                onChange={(e) => setSiEmail(e.target.value)}
-                autoComplete="email"
-                data-ocid="auth.signin.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="si-password">Password</Label>
-              <Input
-                id="si-password"
-                type="password"
-                placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"
-                value={siPassword}
-                onChange={(e) => setSiPassword(e.target.value)}
-                autoComplete="current-password"
-                data-ocid="auth.signin.input"
-              />
-            </div>
-            {(siError || authError) && (
-              <p
-                className="text-sm text-destructive"
-                data-ocid="auth.signin.error_state"
-              >
-                {siError || authError}
-              </p>
-            )}
-            {siSuccess && (
-              <p className="text-sm text-emerald-600">{siSuccess}</p>
-            )}
-            <Button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full h-11 font-semibold"
-              data-ocid="auth.signin.submit_button"
+    <Tabs defaultValue="signin">
+      <TabsList className="w-full mb-5">
+        <TabsTrigger
+          value="signin"
+          className="flex-1"
+          data-ocid="auth.signin.tab"
+        >
+          Sign In
+        </TabsTrigger>
+        <TabsTrigger
+          value="signup"
+          className="flex-1"
+          data-ocid="auth.signup.tab"
+        >
+          Sign Up
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="signin">
+        <form onSubmit={handleSignIn} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="si-email">Email</Label>
+            <Input
+              id="si-email"
+              type="email"
+              placeholder="doctor@hospital.com"
+              value={siEmail}
+              onChange={(e) => setSiEmail(e.target.value)}
+              autoComplete="email"
+              data-ocid="auth.signin.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="si-password">Password</Label>
+            <Input
+              id="si-password"
+              type="password"
+              placeholder="••••••"
+              value={siPassword}
+              onChange={(e) => setSiPassword(e.target.value)}
+              autoComplete="current-password"
+              data-ocid="auth.signin.input"
+            />
+          </div>
+          {(siError || authError) && (
+            <p
+              className="text-sm text-destructive"
+              data-ocid="auth.signin.error_state"
             >
-              {isLoggingIn ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              {isLoggingIn ? "Signing in..." : "Sign In"}
-            </Button>
-          </form>
-        </TabsContent>
-
-        {/* \u2500\u2500 Sign Up \u2500\u2500 */}
-        <TabsContent value="signup">
-          <form onSubmit={handleSignUp} className="space-y-3">
-            {suErrors.general && (
-              <p
-                className="text-sm text-destructive"
-                data-ocid="auth.signup.error_state"
-              >
-                {suErrors.general}
+              {siError || authError}
+            </p>
+          )}
+          {siSuccess && <p className="text-sm text-emerald-600">{siSuccess}</p>}
+          <Button
+            type="submit"
+            disabled={isLoggingIn}
+            className="w-full h-11 font-semibold"
+            data-ocid="auth.signin.submit_button"
+          >
+            {isLoggingIn ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
+            {isLoggingIn ? "Signing in..." : "Sign In"}
+          </Button>
+        </form>
+      </TabsContent>
+      <TabsContent value="signup">
+        <form onSubmit={handleSignUp} className="space-y-3">
+          {suErrors.general && (
+            <p
+              className="text-sm text-destructive"
+              data-ocid="auth.signup.error_state"
+            >
+              {suErrors.general}
+            </p>
+          )}
+          {suSuccess && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+              <p className="text-sm text-emerald-700 font-medium">
+                {suSuccess}
               </p>
-            )}
-            {suSuccess && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
-                <p className="text-sm text-emerald-700 font-medium">
-                  {suSuccess}
-                </p>
-              </div>
-            )}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1.5">
-                <Label>Designation</Label>
-                <Select value={suDesignation} onValueChange={setSuDesignation}>
-                  <SelectTrigger data-ocid="auth.signup.select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DESIGNATIONS.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="su-name">Full Name *</Label>
-                <Input
-                  id="su-name"
-                  placeholder="Arman Kabir"
-                  value={suName}
-                  onChange={(e) => setSuName(e.target.value)}
-                  data-ocid="auth.signup.input"
-                />
-                {suErrors.name && (
-                  <p className="text-xs text-destructive">{suErrors.name}</p>
-                )}
-              </div>
             </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1.5">
-              <Label>Role *</Label>
-              <Select
-                value={suRole}
-                onValueChange={(v) => setSuRole(v as "doctor" | "staff")}
-              >
+              <Label>Designation</Label>
+              <Select value={suDesignation} onValueChange={setSuDesignation}>
                 <SelectTrigger data-ocid="auth.signup.select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="doctor">Doctor</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
+                  {DESIGNATIONS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="su-email">Email *</Label>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="su-name">Full Name *</Label>
               <Input
-                id="su-email"
-                type="email"
-                placeholder="doctor@hospital.com"
-                value={suEmail}
-                onChange={(e) => setSuEmail(e.target.value)}
-                autoComplete="email"
+                id="su-name"
+                placeholder="Arman Kabir"
+                value={suName}
+                onChange={(e) => setSuName(e.target.value)}
                 data-ocid="auth.signup.input"
               />
-              {suErrors.email && (
-                <p className="text-xs text-destructive">{suErrors.email}</p>
+              {suErrors.name && (
+                <p className="text-xs text-destructive">{suErrors.name}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="su-password">Password *</Label>
-                <Input
-                  id="su-password"
-                  type="password"
-                  placeholder="Min. 6 chars"
-                  value={suPassword}
-                  onChange={(e) => setSuPassword(e.target.value)}
-                  autoComplete="new-password"
-                  data-ocid="auth.signup.input"
-                />
-                {suErrors.password && (
-                  <p className="text-xs text-destructive">
-                    {suErrors.password}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="su-confirm">Confirm *</Label>
-                <Input
-                  id="su-confirm"
-                  type="password"
-                  placeholder="Repeat"
-                  value={suConfirm}
-                  onChange={(e) => setSuConfirm(e.target.value)}
-                  autoComplete="new-password"
-                  data-ocid="auth.signup.input"
-                />
-                {suErrors.confirm && (
-                  <p className="text-xs text-destructive">{suErrors.confirm}</p>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="su-degree">Degree / Qualifications</Label>
-              <Input
-                id="su-degree"
-                placeholder="MBBS, MD, FCPS"
-                value={suDegree}
-                onChange={(e) => setSuDegree(e.target.value)}
-                data-ocid="auth.signup.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="su-spec">Specialization</Label>
-              <Input
-                id="su-spec"
-                placeholder="e.g. Pulmonology, Cardiology"
-                value={suSpecialization}
-                onChange={(e) => setSuSpecialization(e.target.value)}
-                data-ocid="auth.signup.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="su-hospital">Hospital / Clinic</Label>
-              <Input
-                id="su-hospital"
-                placeholder="Dhaka Medical College Hospital"
-                value={suHospital}
-                onChange={(e) => setSuHospital(e.target.value)}
-                data-ocid="auth.signup.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="su-phone">Phone Number</Label>
-              <Input
-                id="su-phone"
-                type="tel"
-                placeholder="+880 1XXXXXXXXX"
-                value={suPhone}
-                onChange={(e) => setSuPhone(e.target.value)}
-                data-ocid="auth.signup.input"
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full h-11 font-semibold mt-1"
-              data-ocid="auth.signup.submit_button"
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role *</Label>
+            <Select
+              value={suRole}
+              onValueChange={(v) => setSuRole(v as "doctor" | "staff")}
             >
-              {isLoggingIn ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              {isLoggingIn ? "Creating account..." : "Create Account"}
-            </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              New accounts require admin approval before login.
-            </p>
-          </form>
-        </TabsContent>
-      </Tabs>
-    </div>
+              <SelectTrigger data-ocid="auth.signup.select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doctor">Doctor</SelectItem>
+                <SelectItem value="staff">Staff</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="su-email">Email *</Label>
+            <Input
+              id="su-email"
+              type="email"
+              value={suEmail}
+              onChange={(e) => setSuEmail(e.target.value)}
+              autoComplete="email"
+              data-ocid="auth.signup.input"
+            />
+            {suErrors.email && (
+              <p className="text-xs text-destructive">{suErrors.email}</p>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="su-password">Password *</Label>
+              <Input
+                id="su-password"
+                type="password"
+                placeholder="Min. 6 chars"
+                value={suPassword}
+                onChange={(e) => setSuPassword(e.target.value)}
+                data-ocid="auth.signup.input"
+              />
+              {suErrors.password && (
+                <p className="text-xs text-destructive">{suErrors.password}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="su-confirm">Confirm *</Label>
+              <Input
+                id="su-confirm"
+                type="password"
+                placeholder="Repeat"
+                value={suConfirm}
+                onChange={(e) => setSuConfirm(e.target.value)}
+                data-ocid="auth.signup.input"
+              />
+              {suErrors.confirm && (
+                <p className="text-xs text-destructive">{suErrors.confirm}</p>
+              )}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="su-degree">Degree / Qualifications</Label>
+            <Input
+              id="su-degree"
+              placeholder="MBBS, MD, FCPS"
+              value={suDegree}
+              onChange={(e) => setSuDegree(e.target.value)}
+              data-ocid="auth.signup.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="su-spec">Specialization</Label>
+            <Input
+              id="su-spec"
+              value={suSpecialization}
+              onChange={(e) => setSuSpecialization(e.target.value)}
+              data-ocid="auth.signup.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="su-hospital">Hospital / Clinic</Label>
+            <Input
+              id="su-hospital"
+              value={suHospital}
+              onChange={(e) => setSuHospital(e.target.value)}
+              data-ocid="auth.signup.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="su-phone">Phone Number</Label>
+            <Input
+              id="su-phone"
+              type="tel"
+              value={suPhone}
+              onChange={(e) => setSuPhone(e.target.value)}
+              data-ocid="auth.signup.input"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isLoggingIn}
+            className="w-full h-11 font-semibold mt-1"
+            data-ocid="auth.signup.submit_button"
+          >
+            {isLoggingIn ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
+            {isLoggingIn ? "Creating account..." : "Create Account"}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            New accounts require admin approval before login.
+          </p>
+        </form>
+      </TabsContent>
+    </Tabs>
   );
 }
 
-// ── Admin Pending Approvals ────────────────────────────────────────────────────
+// ── Patient Auth Content ──────────────────────────────────────────────────────────────────
+
+function PatientAuthContent() {
+  const { patientSignIn, patientSignUp, isLoggingIn, authError } =
+    useEmailAuth();
+
+  const [tab, setTab] = useState("signin");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const [suName, setSuName] = useState("");
+  const [suPhone, setSuPhone] = useState("");
+  const [suPassword, setSuPassword] = useState("");
+  const [suConfirm, setSuConfirm] = useState("");
+  const [suAge, setSuAge] = useState("");
+  const [suGender, setSuGender] = useState("");
+  const [suRegNo, setSuRegNo] = useState("");
+  const [suError, setSuError] = useState("");
+  const [suSuccess, setSuSuccess] = useState("");
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!phone || !password) {
+      setError("Please enter phone and password.");
+      return;
+    }
+    try {
+      await patientSignIn(phone, password);
+    } catch (err: any) {
+      setError(err.message ?? "Sign in failed.");
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSuError("");
+    setSuSuccess("");
+    if (!suName.trim()) {
+      setSuError("Full name is required.");
+      return;
+    }
+    if (!suPhone.trim()) {
+      setSuError("Phone number is required.");
+      return;
+    }
+    if (!suPassword || suPassword.length < 6) {
+      setSuError("Password must be at least 6 characters.");
+      return;
+    }
+    if (suPassword !== suConfirm) {
+      setSuError("Passwords do not match.");
+      return;
+    }
+    try {
+      await patientSignUp({
+        name: suName.trim(),
+        phone: suPhone.trim(),
+        password: suPassword,
+        age: suAge,
+        gender: suGender,
+        registerNumber: suRegNo,
+      });
+    } catch (err: any) {
+      const msg = err.message ?? "Sign up failed.";
+      if (msg.includes("approval") || msg.includes("pending"))
+        setSuSuccess(msg);
+      else setSuError(msg);
+    }
+  };
+
+  return (
+    <Tabs value={tab} onValueChange={setTab}>
+      <TabsList className="w-full mb-5">
+        <TabsTrigger
+          value="signin"
+          className="flex-1"
+          data-ocid="patient_auth.signin.tab"
+        >
+          Sign In
+        </TabsTrigger>
+        <TabsTrigger
+          value="signup"
+          className="flex-1"
+          data-ocid="patient_auth.signup.tab"
+        >
+          Sign Up
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="signin">
+        <form onSubmit={handleSignIn} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Phone Number</Label>
+            <Input
+              type="tel"
+              placeholder="01XXXXXXXXX"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              data-ocid="patient_auth.signin.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Password</Label>
+            <Input
+              type="password"
+              placeholder="••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              data-ocid="patient_auth.signin.input"
+            />
+          </div>
+          {(error || authError) && (
+            <p
+              className="text-sm text-destructive"
+              data-ocid="patient_auth.signin.error_state"
+            >
+              {error || authError}
+            </p>
+          )}
+          <Button
+            type="submit"
+            disabled={isLoggingIn}
+            className="w-full h-11 font-semibold bg-teal-600 hover:bg-teal-700"
+            data-ocid="patient_auth.signin.submit_button"
+          >
+            {isLoggingIn ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
+            {isLoggingIn ? "Signing in..." : "Sign In"}
+          </Button>
+        </form>
+      </TabsContent>
+      <TabsContent value="signup">
+        <form onSubmit={handleSignUp} className="space-y-3">
+          {suError && (
+            <p
+              className="text-sm text-destructive"
+              data-ocid="patient_auth.signup.error_state"
+            >
+              {suError}
+            </p>
+          )}
+          {suSuccess && (
+            <div className="bg-teal-50 border border-teal-200 rounded-lg px-4 py-3">
+              <p className="text-sm text-teal-700 font-medium">{suSuccess}</p>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Full Name *</Label>
+            <Input
+              placeholder="Your name"
+              value={suName}
+              onChange={(e) => setSuName(e.target.value)}
+              data-ocid="patient_auth.signup.input"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Phone Number *</Label>
+            <Input
+              type="tel"
+              placeholder="01XXXXXXXXX"
+              value={suPhone}
+              onChange={(e) => setSuPhone(e.target.value)}
+              data-ocid="patient_auth.signup.input"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label>Password *</Label>
+              <Input
+                type="password"
+                placeholder="Min. 6 chars"
+                value={suPassword}
+                onChange={(e) => setSuPassword(e.target.value)}
+                data-ocid="patient_auth.signup.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Confirm *</Label>
+              <Input
+                type="password"
+                placeholder="Repeat"
+                value={suConfirm}
+                onChange={(e) => setSuConfirm(e.target.value)}
+                data-ocid="patient_auth.signup.input"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label>Age</Label>
+              <Input
+                type="number"
+                placeholder="25"
+                value={suAge}
+                onChange={(e) => setSuAge(e.target.value)}
+                data-ocid="patient_auth.signup.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Gender</Label>
+              <Select value={suGender} onValueChange={setSuGender}>
+                <SelectTrigger data-ocid="patient_auth.signup.select">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Register Number (if returning patient)</Label>
+            <Input
+              placeholder="REG-0001/26"
+              value={suRegNo}
+              onChange={(e) => setSuRegNo(e.target.value)}
+              data-ocid="patient_auth.signup.input"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isLoggingIn}
+            className="w-full h-11 font-semibold mt-1 bg-teal-600 hover:bg-teal-700"
+            data-ocid="patient_auth.signup.submit_button"
+          >
+            {isLoggingIn ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
+            {isLoggingIn ? "Creating account..." : "Create Patient Account"}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Accounts require doctor approval before login.
+          </p>
+        </form>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+// ── Pending Approvals Panel ─────────────────────────────────────────────────────────────────
 
 function PendingApprovalsPanel() {
-  const [accounts, setAccounts] = useState<DoctorAccount[]>([]);
+  const [staffAccounts, setStaffAccounts] = useState<DoctorAccount[]>([]);
+  const [patientAccounts, setPatientAccounts] = useState<PatientAccount[]>([]);
 
   const refresh = useCallback(() => {
-    const pending = loadRegistry().filter((d) => d.status === "pending");
-    setAccounts(pending);
+    setStaffAccounts(loadRegistry().filter((d) => d.status === "pending"));
+    setPatientAccounts(
+      loadPatientRegistry().filter((p) => p.status === "pending"),
+    );
   }, []);
 
   useEffect(() => {
@@ -467,90 +701,179 @@ function PendingApprovalsPanel() {
     return () => clearInterval(iv);
   }, [refresh]);
 
-  const approve = (id: string) => {
-    const registry = loadRegistry();
-    const idx = registry.findIndex((d) => d.id === id);
+  const approveStaff = (id: string) => {
+    const reg = loadRegistry();
+    const idx = reg.findIndex((d) => d.id === id);
     if (idx >= 0) {
-      registry[idx] = { ...registry[idx], status: "approved" };
-      saveRegistry(registry);
+      reg[idx] = { ...reg[idx], status: "approved" };
+      saveRegistry(reg);
       refresh();
       import("sonner").then(({ toast }) => toast.success("Account approved"));
     }
   };
-
-  const reject = (id: string) => {
-    const registry = loadRegistry();
-    const idx = registry.findIndex((d) => d.id === id);
+  const rejectStaff = (id: string) => {
+    const reg = loadRegistry();
+    const idx = reg.findIndex((d) => d.id === id);
     if (idx >= 0) {
-      registry[idx] = { ...registry[idx], status: "rejected" };
-      saveRegistry(registry);
+      reg[idx] = { ...reg[idx], status: "rejected" };
+      saveRegistry(reg);
       refresh();
       import("sonner").then(({ toast }) => toast.success("Account rejected"));
     }
   };
+  const approvePatient = (id: string) => {
+    const reg = loadPatientRegistry();
+    const idx = reg.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      reg[idx] = { ...reg[idx], status: "approved" };
+      savePatientRegistry(reg);
+      refresh();
+      import("sonner").then(({ toast }) =>
+        toast.success("Patient account approved"),
+      );
+    }
+  };
+  const rejectPatient = (id: string) => {
+    const reg = loadPatientRegistry();
+    const idx = reg.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      reg[idx] = { ...reg[idx], status: "rejected" };
+      savePatientRegistry(reg);
+      refresh();
+      import("sonner").then(({ toast }) =>
+        toast.success("Patient account rejected"),
+      );
+    }
+  };
 
-  if (accounts.length === 0) {
+  const hasAny = staffAccounts.length > 0 || patientAccounts.length > 0;
+
+  if (!hasAny)
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center text-sm text-amber-700">
-        No pending staff approvals.
+        No pending approvals.
       </div>
     );
-  }
 
   return (
-    <div className="space-y-3">
-      {accounts.map((acc) => (
-        <div
-          key={acc.id}
-          className="bg-white border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-3"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900">{acc.name}</p>
-            <p className="text-sm text-gray-500">{acc.email}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge
-                variant="outline"
-                className="text-xs border-blue-200 text-blue-700"
+    <div className="space-y-4">
+      {staffAccounts.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Staff / Doctor ({staffAccounts.length})
+          </p>
+          <div className="space-y-3">
+            {staffAccounts.map((acc) => (
+              <div
+                key={acc.id}
+                className="bg-white border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-3"
               >
-                {acc.role}
-              </Badge>
-              <span className="text-xs text-gray-400">
-                {new Date(acc.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1.5"
-              onClick={() => approve(acc.id)}
-              data-ocid="admin.approve.button"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Approve
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-red-700 border-red-300 hover:bg-red-50 gap-1.5"
-              onClick={() => reject(acc.id)}
-              data-ocid="admin.reject.button"
-            >
-              <XCircle className="w-3.5 h-3.5" />
-              Reject
-            </Button>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900">{acc.name}</p>
+                  <p className="text-sm text-gray-500">{acc.email}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge
+                      variant="outline"
+                      className="text-xs border-blue-200 text-blue-700"
+                    >
+                      {acc.role}
+                    </Badge>
+                    <span className="text-xs text-gray-400">
+                      {new Date(acc.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1.5"
+                    onClick={() => approveStaff(acc.id)}
+                    data-ocid="admin.approve.button"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-700 border-red-300 hover:bg-red-50 gap-1.5"
+                    onClick={() => rejectStaff(acc.id)}
+                    data-ocid="admin.reject.button"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      ))}
+      )}
+      {patientAccounts.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Patient Accounts ({patientAccounts.length})
+          </p>
+          <div className="space-y-3">
+            {patientAccounts.map((acc) => (
+              <div
+                key={acc.id}
+                className="bg-white border border-teal-200 rounded-xl p-4 flex items-center justify-between gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900">{acc.name}</p>
+                  <p className="text-sm text-gray-500">{acc.phone}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge
+                      variant="outline"
+                      className="text-xs border-teal-200 text-teal-700"
+                    >
+                      patient
+                    </Badge>
+                    {acc.registerNumber && (
+                      <span className="text-xs font-mono text-gray-400">
+                        {acc.registerNumber}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1.5"
+                    onClick={() => approvePatient(acc.id)}
+                    data-ocid="admin.approve.button"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-700 border-red-300 hover:bg-red-50 gap-1.5"
+                    onClick={() => rejectPatient(acc.id)}
+                    data-ocid="admin.reject.button"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── App root ──────────────────────────────────────────────────────────────────
+// ── App root ────────────────────────────────────────────────────────────────────────────────
 
 function AppInner() {
-  const { currentDoctor, isInitializing } = useEmailAuth();
+  const { currentDoctor, currentPatient, patientSignOut, isInitializing } =
+    useEmailAuth();
   const {
     adminLogin,
     isAdmin: isAdminState,
@@ -563,25 +886,28 @@ function AppInner() {
   const [adminPass, setAdminPass] = useState("");
   const [adminError, setAdminError] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
+  const [authTab, setAuthTab] = useState("staff");
 
-  // Count pending accounts
+  // Count combined pending
   useEffect(() => {
-    const count = () =>
-      setPendingCount(
-        loadRegistry().filter((d) => d.status === "pending").length,
-      );
+    const count = () => {
+      const staffPending = loadRegistry().filter(
+        (d) => d.status === "pending",
+      ).length;
+      const patientPending = loadPatientRegistry().filter(
+        (p) => p.status === "pending",
+      ).length;
+      setPendingCount(staffPending + patientPending);
+    };
     count();
     const iv = setInterval(count, 5000);
     return () => clearInterval(iv);
   }, []);
 
-  // Check if this is the serial display route
   const isSerialDisplay =
     typeof window !== "undefined" &&
     window.location.pathname === "/serial-display";
-  if (isSerialDisplay) {
-    return <SerialDisplay />;
-  }
+  if (isSerialDisplay) return <SerialDisplay />;
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -591,6 +917,13 @@ function AppInner() {
       setShowAdminModal(false);
       setAdminUser("");
       setAdminPass("");
+      appendAuditLog({
+        timestamp: new Date().toISOString(),
+        userRole: "admin",
+        userName: adminUser,
+        action: "Logged in",
+        target: "System",
+      });
       import("sonner").then(({ toast }) => toast.success("Logged in as admin"));
     } else {
       setAdminError("Invalid admin credentials");
@@ -610,6 +943,42 @@ function AppInner() {
     );
   }
 
+  // Patient logged in — show their own profile
+  if (currentPatient && !currentDoctor) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Patient nav bar */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                <User className="w-4 h-4 text-teal-700" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-gray-900">
+                  {currentPatient.name}
+                </p>
+                <p className="text-xs text-teal-600">Patient Portal</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={patientSignOut}
+              className="gap-2 text-xs"
+              data-ocid="patient.logout.button"
+            >
+              Sign Out
+            </Button>
+          </div>
+        </header>
+        {/* Try to find their patient record by register number */}
+        <PatientPortalView currentPatient={currentPatient} />
+        <Toaster position="top-right" richColors />
+      </div>
+    );
+  }
+
   if (!currentDoctor) {
     return (
       <>
@@ -619,21 +988,57 @@ function AppInner() {
           isAdmin={isAdminState}
           adminLogout={adminLogoutFn}
         />
-        {/* Staff Login Dialog */}
+
+        {/* Staff/Patient Login Dialog */}
         <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
           <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader className="sr-only">
-              <DialogTitle>Staff Login</DialogTitle>
+              <DialogTitle>Login</DialogTitle>
             </DialogHeader>
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <AuthScreenContent />
+              <div className="text-center mb-5">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-3">
+                  <Stethoscope className="w-7 h-7 text-primary" />
+                </div>
+                <h2 className="font-display text-xl font-bold text-foreground mb-1">
+                  Dr. Arman Kabir&apos;s Care
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  Patient Management System
+                </p>
+              </div>
+              <Tabs value={authTab} onValueChange={setAuthTab}>
+                <TabsList className="w-full mb-5">
+                  <TabsTrigger
+                    value="staff"
+                    className="flex-1"
+                    data-ocid="login.staff.tab"
+                  >
+                    Staff / Doctor
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="patient"
+                    className="flex-1"
+                    data-ocid="login.patient.tab"
+                  >
+                    Patient
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="staff">
+                  <StaffAuthContent />
+                </TabsContent>
+                <TabsContent value="patient">
+                  <PatientAuthContent />
+                </TabsContent>
+              </Tabs>
             </motion.div>
           </DialogContent>
         </Dialog>
+
         {/* Admin Login Dialog */}
         <Dialog
           open={showAdminModal}
@@ -675,7 +1080,7 @@ function AppInner() {
                   type="password"
                   value={adminPass}
                   onChange={(e) => setAdminPass(e.target.value)}
-                  placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"
+                  placeholder="••••••"
                   autoComplete="current-password"
                   data-ocid="admin.login.input"
                 />
@@ -719,7 +1124,7 @@ function AppInner() {
             <DialogHeader>
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-amber-600" />
-                <DialogTitle>Pending Staff Approvals</DialogTitle>
+                <DialogTitle>Pending Approvals</DialogTitle>
               </div>
             </DialogHeader>
             <PendingApprovalsPanel />
@@ -736,6 +1141,63 @@ function AppInner() {
       <RouterProvider router={router} />
       <Toaster position="top-right" richColors />
     </>
+  );
+}
+
+// Patient portal — looks up their patient record by register number
+function PatientPortalView({
+  currentPatient,
+}: { currentPatient: PatientAccount }) {
+  const patientId = useMemo(() => {
+    if (currentPatient.registerNumber) {
+      // Try to find by register number in all patients
+      try {
+        const keys = Object.keys(localStorage).filter((k) =>
+          k.startsWith("medicare_patients_"),
+        );
+        for (const key of keys) {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const arr = JSON.parse(raw) as any[];
+          const found = arr.find(
+            (p: any) => p.registerNumber === currentPatient.registerNumber,
+          );
+          if (found) return BigInt(found.id);
+        }
+      } catch {}
+    }
+    return null;
+  }, [currentPatient.registerNumber]);
+
+  if (!patientId && !currentPatient.registerNumber) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 mt-8 text-center">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <User className="w-12 h-12 text-teal-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            Welcome, {currentPatient.name}!
+          </h2>
+          <p className="text-gray-500 text-sm">
+            Your account is active. Please contact your doctor and provide your
+            register number to link your health records.
+          </p>
+          {currentPatient.phone && (
+            <p className="text-xs text-gray-400 mt-2">
+              Phone: {currentPatient.phone}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <PatientDashboard
+      patientId={patientId}
+      currentRole="patient"
+      currentPatient={currentPatient}
+      onBack={() => {}}
+    />
   );
 }
 

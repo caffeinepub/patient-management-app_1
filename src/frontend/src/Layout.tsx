@@ -4,6 +4,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   CalendarDays,
   Menu,
+  ShieldAlert,
   Stethoscope,
   UserCircle,
   Users,
@@ -11,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useAdminAuth } from "./hooks/useAdminAuth";
 import { useEmailAuth } from "./hooks/useEmailAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
@@ -19,18 +21,29 @@ interface LayoutProps {
   currentPageName: string;
 }
 
-const navigation = [
+const baseNavigation = [
   { name: "Patients", href: "/Patients", icon: Users },
   { name: "Appointments", href: "/Appointments", icon: CalendarDays },
   { name: "Settings", href: "/Settings", icon: UserCircle },
 ];
+
+const adminNavItem = {
+  name: "AuditLog",
+  href: "/AuditLog",
+  icon: ShieldAlert,
+  label: "Audit Log",
+};
 
 export default function Layout({ children, currentPageName }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const state = useRouterState();
   const pathname = state.location.pathname;
   const { currentDoctor } = useEmailAuth();
+  const { isAdmin } = useAdminAuth();
   const isOnline = useOnlineStatus();
+
+  // Build nav items — add Audit Log for admin or doctor roles
+  const navigation = [...baseNavigation, ...(isAdmin ? [adminNavItem] : [])];
 
   const displayName = currentDoctor
     ? `${currentDoctor.designation} ${currentDoctor.name}`.trim()
@@ -42,6 +55,7 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
       return (
         currentPageName === "Patients" ||
         currentPageName === "PatientProfile" ||
+        currentPageName === "PatientDashboard" ||
         pathname === "/" ||
         pathname === "/Patients"
       );
@@ -85,30 +99,32 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
             </Link>
 
             <nav className="hidden md:flex items-center gap-1">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href as any}
-                  data-ocid={`nav.${item.name.toLowerCase()}_link`}
-                >
-                  <Button
-                    variant="ghost"
-                    className={cn(
-                      "h-9 px-4 text-sm font-medium gap-2",
-                      isActive(item.name)
-                        ? "bg-primary/10 text-primary hover:bg-primary/15"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
+              {navigation.map((item) => {
+                const label = (item as any).label || item.name;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href as any}
+                    data-ocid={`nav.${item.name.toLowerCase()}_link`}
                   >
-                    <item.icon className="w-4 h-4" />
-                    {item.name}
-                  </Button>
-                </Link>
-              ))}
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "h-9 px-4 text-sm font-medium gap-2",
+                        isActive(item.name)
+                          ? "bg-primary/10 text-primary hover:bg-primary/15"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {label}
+                    </Button>
+                  </Link>
+                );
+              })}
             </nav>
 
             <div className="flex items-center gap-2">
-              {/* Online/Offline indicator dot */}
               <div
                 className={cn(
                   "w-2 h-2 rounded-full",
@@ -136,27 +152,30 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border bg-card">
             <nav className="p-3 space-y-1">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href as any}
-                  onClick={() => setMobileMenuOpen(false)}
-                  data-ocid={`nav.${item.name.toLowerCase()}_link`}
-                >
-                  <Button
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start h-10 gap-3",
-                      isActive(item.name)
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground",
-                    )}
+              {navigation.map((item) => {
+                const label = (item as any).label || item.name;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href as any}
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-ocid={`nav.${item.name.toLowerCase()}_link`}
                   >
-                    <item.icon className="w-4 h-4" />
-                    {item.name}
-                  </Button>
-                </Link>
-              ))}
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start h-10 gap-3",
+                        isActive(item.name)
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {label}
+                    </Button>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         )}
@@ -185,20 +204,25 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex items-stretch h-14">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href as any}
-              className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors",
-                isActive(item.name) ? "text-primary" : "text-muted-foreground",
-              )}
-              data-ocid={`nav.${item.name.toLowerCase()}_link`}
-            >
-              <item.icon className="w-5 h-5" />
-              {item.name}
-            </Link>
-          ))}
+          {navigation.slice(0, 4).map((item) => {
+            const label = (item as any).label || item.name;
+            return (
+              <Link
+                key={item.name}
+                to={item.href as any}
+                className={cn(
+                  "flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors",
+                  isActive(item.name)
+                    ? "text-primary"
+                    : "text-muted-foreground",
+                )}
+                data-ocid={`nav.${item.name.toLowerCase()}_link`}
+              >
+                <item.icon className="w-5 h-5" />
+                {label}
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </div>
