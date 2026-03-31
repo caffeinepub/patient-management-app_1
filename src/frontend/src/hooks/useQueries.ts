@@ -93,7 +93,7 @@ function generateRegisterNumber(): string {
     1;
   localStorage.setItem("medicare_register_counter", String(counter));
   const year = new Date().getFullYear().toString().slice(-2);
-  return `REG-${String(counter).padStart(4, "0")}/${year}`;
+  return `${String(counter).padStart(4, "0")}/${year}`;
 }
 
 // ─── Direct patient creation (used by appointment confirmation) ───────────────

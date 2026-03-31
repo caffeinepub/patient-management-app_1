@@ -26,6 +26,7 @@ interface PrescriptionPadProps {
   };
   nextVisitDate?: string;
   linkedVisitId?: string;
+  patientId?: bigint | null;
 }
 
 type PadSize = "A4" | "A5";
@@ -203,6 +204,7 @@ export default function PrescriptionPad({
   generalExam,
   nextVisitDate,
   linkedVisitId,
+  patientId,
 }: PrescriptionPadProps) {
   const [size, setSize] = useState<PadSize>("A4");
   const [editMode, setEditMode] = useState(false);
@@ -273,10 +275,34 @@ export default function PrescriptionPad({
     setEditedFields((prev) => ({ ...prev, [key]: val }));
   };
 
+  const savePadMetadata = () => {
+    if (!patientId) return;
+    const key = `savedPrescriptionPads_${patientId}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      const meta = {
+        id: `pad_${Date.now()}`,
+        patientId: String(patientId),
+        prescriptionId: rxId,
+        date: new Date().toLocaleDateString("en-GB"),
+        timestamp: new Date().toISOString(),
+        editedFields: { ...editedFields },
+        medications: prescription?.medications ?? [],
+        diagnosis: prescription?.diagnosis ?? "",
+        patientName: patientName ?? "",
+      };
+      existing.push(meta);
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch {
+      // ignore
+    }
+  };
+
   const handleSave = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(editedFields));
-      toast.success("Prescription updated");
+      savePadMetadata();
+      toast.success("Prescription saved");
     } catch {
       toast.error("Failed to save changes");
     }
@@ -306,6 +332,7 @@ export default function PrescriptionPad({
 </body>
 </html>`;
 
+    savePadMetadata();
     const win = window.open("", "_blank", "width=900,height=1100");
     if (win) {
       win.document.write(printHtml);

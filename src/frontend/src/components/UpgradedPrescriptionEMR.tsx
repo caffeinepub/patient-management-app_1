@@ -1,5 +1,18 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -12,9 +25,11 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Calculator,
   Check,
   ChevronDown,
   ChevronUp,
+  Download,
   ExternalLink,
   Moon,
   Pencil,
@@ -38,6 +53,7 @@ import {
 } from "./AdviceTemplates";
 import { getDimsByDiagnosis, searchDims } from "./DimsData";
 import {
+  TREATMENT_TEMPLATES,
   type TreatmentDrug,
   type TreatmentTemplate,
   searchTreatmentTemplates,
@@ -50,6 +66,7 @@ interface UpgradedPrescriptionEMRProps {
   patientAge?: number | null;
   patientGender?: string;
   patientWeight?: string;
+  patientHeight?: number | null;
   patientAddress?: string;
   patientBloodGroup?: string;
   registerNumber?: string;
@@ -363,6 +380,7 @@ export default function UpgradedPrescriptionEMR(
     patientAge,
     patientGender,
     patientWeight,
+    patientHeight,
     patientAddress,
     patientBloodGroup,
     registerNumber,
@@ -408,6 +426,9 @@ export default function UpgradedPrescriptionEMR(
   const [adviceNewInv, setAdviceNewInv] = useState("");
 
   // Center panel
+  const [diagnoses, setDiagnoses] = useState<string[]>(
+    initialDiagnosis ? [initialDiagnosis] : [],
+  );
   const [diagnosis, setDiagnosis] = useState(initialDiagnosis ?? "");
   const [diagnosisQuery, setDiagnosisQuery] = useState("");
   const [diagnosisSuggestions, setDiagnosisSuggestions] = useState<
@@ -451,6 +472,39 @@ export default function UpgradedPrescriptionEMR(
   const [customText, setCustomText] = useState("");
   const [customCategory, setCustomCategory] = useState("Custom");
 
+  // Calculator state
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [calcTab, setCalcTab] = useState("dose-weight");
+  // Dose by weight
+  const [calcDosePerKg, setCalcDosePerKg] = useState("");
+  const [calcWeightKg, setCalcWeightKg] = useState(patientWeight ?? "");
+  // Dose by age (Young's rule)
+  const [calcAdultDose, setCalcAdultDose] = useState("");
+  const [calcAgeYears, setCalcAgeYears] = useState(
+    patientAge != null ? String(patientAge) : "",
+  );
+  // CrCl
+  const [calcCrClAge, setCalcCrClAge] = useState(
+    patientAge != null ? String(patientAge) : "",
+  );
+  const [calcCrClWeight, setCalcCrClWeight] = useState(patientWeight ?? "");
+  const [calcCrClSex, setCalcCrClSex] = useState("M");
+  const [calcCrClCreat, setCalcCrClCreat] = useState("");
+  // BMI
+  const [calcBmiWeight, setCalcBmiWeight] = useState(patientWeight ?? "");
+  const [calcBmiHeight, setCalcBmiHeight] = useState(
+    patientHeight ? String(patientHeight) : "",
+  );
+  // BSA
+  const [calcBsaWeight, setCalcBsaWeight] = useState(patientWeight ?? "");
+  const [calcBsaHeight, setCalcBsaHeight] = useState("");
+  // Pediatric fluid
+  const [calcFluidWeight, setCalcFluidWeight] = useState(patientWeight ?? "");
+  // MAP
+  const [calcMapSbp, setCalcMapSbp] = useState("");
+  const [calcMapDbp, setCalcMapDbp] = useState("");
+  const [lastCalculatorResult, setLastCalculatorResult] = useState<string>("");
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function applyVisitData(vd: Record<string, unknown>) {
@@ -482,6 +536,8 @@ export default function UpgradedPrescriptionEMR(
         if (d.investigation) setInvestigation(d.investigation);
         if (d.adviceNewInv) setAdviceNewInv(d.adviceNewInv);
         if (d.adviceText) setAdviceText(d.adviceText);
+        if (d.diagnoses) setDiagnoses(d.diagnoses);
+        else if (d.diagnosis) setDiagnoses([d.diagnosis]);
         if (d.diagnosis) setDiagnosis(d.diagnosis);
         if (d.rxDrugs) setRxDrugs(d.rxDrugs);
       } else if (visitExtendedData) {
@@ -507,6 +563,7 @@ export default function UpgradedPrescriptionEMR(
           investigation,
           adviceNewInv,
           adviceText,
+          diagnoses,
           diagnosis,
           rxDrugs,
         }),
@@ -521,6 +578,7 @@ export default function UpgradedPrescriptionEMR(
     investigation,
     adviceNewInv,
     adviceText,
+    diagnoses,
     diagnosis,
     rxDrugs,
   ]);
@@ -559,14 +617,24 @@ export default function UpgradedPrescriptionEMR(
     setTreatmentResults(searchTreatmentTemplates(treatmentQuery));
   }, [treatmentQuery]);
 
+  function addDiagnosis(label: string) {
+    if (!label.trim()) return;
+    setDiagnoses((prev) => (prev.includes(label) ? prev : [...prev, label]));
+    setDiagnosis(label);
+    setDiagnosisQuery("");
+    setShowDiagnosisDrop(false);
+  }
+
+  function removeDiagnosis(label: string) {
+    setDiagnoses((prev) => prev.filter((d) => d !== label));
+  }
+
   function applyDiagnosisSuggestion(s: {
     label: string;
     type: "DIMS" | "Template";
     item: unknown;
   }) {
-    setDiagnosis(s.label);
-    setDiagnosisQuery("");
-    setShowDiagnosisDrop(false);
+    addDiagnosis(s.label);
     if (s.type === "DIMS") {
       const entry = getDimsByDiagnosis(s.label);
       if (entry) {
@@ -588,29 +656,96 @@ export default function UpgradedPrescriptionEMR(
           specialInstruction: "",
           specialInstructionBn: "",
         }));
-        setRxDrugs(drugs);
+        setRxDrugs((prev) => [...prev, ...drugs]);
         setDimsActive(true);
       }
     } else {
       const tpl = s.item as TreatmentTemplate;
-      setDiagnosis(tpl.diagnosis);
-      setRxDrugs(tpl.drugs.map(drugFromTreatmentDrug));
-      if (tpl.advice) setAdviceText(tpl.advice.join("\n"));
+      addDiagnosis(tpl.diagnosis);
+      setRxDrugs((prev) => [...prev, ...tpl.drugs.map(drugFromTreatmentDrug)]);
+      if (tpl.advice)
+        setAdviceText((prev) =>
+          prev ? `${prev}\n${tpl.advice!.join("\n")}` : tpl.advice!.join("\n"),
+        );
       setDimsActive(false);
     }
   }
 
   function applyTreatmentTemplate(tpl: TreatmentTemplate) {
-    setDiagnosis(tpl.diagnosis);
-    setRxDrugs(tpl.drugs.map(drugFromTreatmentDrug));
-    if (tpl.advice) setAdviceText(tpl.advice.join("\n"));
+    addDiagnosis(tpl.diagnosis);
+    setRxDrugs((prev) => [...prev, ...tpl.drugs.map(drugFromTreatmentDrug)]);
+    if (tpl.advice)
+      setAdviceText((prev) =>
+        prev ? `${prev}\n${tpl.advice!.join("\n")}` : tpl.advice!.join("\n"),
+      );
     setTreatmentQuery("");
     setTreatmentResults([]);
     setDimsActive(false);
   }
 
+  function loadDrugForEditing(drug: RxDrug) {
+    setDrugForm(drug.drugForm || "Tab.");
+    setDrugRoute(drug.route || "PO");
+    setDrugName(drug.drugName);
+    setDrugBrandName(drug.brandName || "");
+    setDrugDose(drug.dose || "");
+    setDrugDuration(drug.duration || "");
+    setDrugDurationBn(drug.durationBn || "");
+    setDrugInstructions(drug.instructions || "");
+    setDrugInstructionBn(drug.instructionBn || "");
+    setDrugFrequency(drug.frequency || "");
+    setDrugFrequencyBn(drug.frequencyBn || "");
+    setDrugSpecialInstruction(drug.specialInstruction || "");
+    setDrugSpecialInstructionBn(drug.specialInstructionBn || "");
+    setEditingDrugId(drug.id);
+    // Scroll to medication form
+    setTimeout(() => {
+      const el = document.getElementById("rx-med-form");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }
+
   function addDrug() {
     if (!drugName.trim()) return;
+    // If editing existing drug, update it instead of adding new
+    if (editingDrugId) {
+      setRxDrugs((prev) =>
+        prev.map((d) =>
+          d.id === editingDrugId
+            ? {
+                ...d,
+                drugForm,
+                route: drugRoute,
+                routeBn: ROUTES_BN.find((r) => r.en === drugRoute)?.bn || "মুখে",
+                drugName: drugName.trim(),
+                brandName: drugBrandName.trim(),
+                dose: drugDose,
+                duration: drugDuration,
+                durationBn: drugDurationBn,
+                instructions: drugInstructions,
+                instructionBn: drugInstructionBn,
+                frequency: drugFrequency,
+                frequencyBn: drugFrequencyBn,
+                specialInstruction: drugSpecialInstruction,
+                specialInstructionBn: drugSpecialInstructionBn,
+              }
+            : d,
+        ),
+      );
+      setEditingDrugId(null);
+      setDrugName("");
+      setDrugBrandName("");
+      setDrugDose("");
+      setDrugDuration("");
+      setDrugDurationBn("");
+      setDrugInstructions("");
+      setDrugInstructionBn("");
+      setDrugFrequency("");
+      setDrugFrequencyBn("");
+      setDrugSpecialInstruction("");
+      setDrugSpecialInstructionBn("");
+      return;
+    }
     const newDrug: RxDrug = {
       id: Math.random().toString(36).slice(2),
       drugForm,
@@ -706,7 +841,8 @@ export default function UpgradedPrescriptionEMR(
       patientId,
       visitId: visitId ?? null,
       prescriptionDate: BigInt(Date.now()) * BigInt(1_000_000),
-      diagnosis: diagnosis || null,
+      diagnosis:
+        diagnoses.length > 0 ? diagnoses.join(" + ") : diagnosis || null,
       medications,
       notes: adviceText || null,
     });
@@ -1111,36 +1247,70 @@ export default function UpgradedPrescriptionEMR(
               <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide block mb-2">
                 Diagnosis
               </span>
-              <div className="relative">
+              {/* Multi-diagnosis chips */}
+              {diagnoses.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {diagnoses.map((d) => (
+                    <span
+                      key={d}
+                      className="inline-flex items-center gap-1 bg-teal-100 text-teal-800 text-xs font-medium px-2 py-0.5 rounded-full border border-teal-300"
+                    >
+                      {d}
+                      <button
+                        type="button"
+                        onClick={() => removeDiagnosis(d)}
+                        className="ml-0.5 hover:text-red-600 text-teal-500 font-bold"
+                        aria-label={`Remove ${d}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-1">
                 <input
-                  className={`w-full border rounded px-2 py-1.5 text-sm pr-7 ${
+                  className={`flex-1 border rounded px-2 py-1.5 text-sm ${
                     dark
                       ? "bg-gray-800 border-gray-600 text-white"
                       : "bg-white border-gray-300"
                   }`}
                   value={diagnosis}
                   onChange={(e) => setDiagnosis(e.target.value)}
-                  placeholder="Type or search diagnosis..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && diagnosis.trim()) {
+                      addDiagnosis(diagnosis.trim());
+                    }
+                  }}
+                  placeholder="Type diagnosis (Enter to add)..."
                   data-ocid="rx.diagnosis.input"
                 />
-                <div className="absolute right-0 top-0 flex">
-                  <input
-                    className={`border rounded-l px-2 py-1 text-sm border-r-0 w-32 ${
-                      dark
-                        ? "bg-gray-800 border-gray-600 text-white"
-                        : "bg-white border-gray-300"
-                    }`}
-                    value={diagnosisQuery}
-                    onChange={(e) => setDiagnosisQuery(e.target.value)}
-                    onFocus={() =>
-                      diagnosisQuery.length >= 2 && setShowDiagnosisDrop(true)
-                    }
-                    placeholder="Search..."
-                    data-ocid="rx.diagnosis_search.input"
-                  />
-                  <Search className="absolute right-2 top-2 w-3.5 h-3.5 text-gray-400" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (diagnosis.trim()) addDiagnosis(diagnosis.trim());
+                  }}
+                  className="px-2 py-1.5 bg-teal-500 text-white rounded text-sm font-bold hover:bg-teal-600"
+                  title="Add diagnosis"
+                  data-ocid="rx.diagnosis.primary_button"
+                >
+                  +
+                </button>
               </div>
+              <input
+                className={`mt-1.5 w-full border rounded px-2 py-1 text-sm ${
+                  dark
+                    ? "bg-gray-800 border-gray-600 text-white"
+                    : "bg-white border-gray-300"
+                }`}
+                value={diagnosisQuery}
+                onChange={(e) => setDiagnosisQuery(e.target.value)}
+                onFocus={() =>
+                  diagnosisQuery.length >= 2 && setShowDiagnosisDrop(true)
+                }
+                placeholder="🔍 Search DIMS/templates..."
+                data-ocid="rx.diagnosis_search.input"
+              />
               {showDiagnosisDrop && diagnosisSuggestions.length > 0 && (
                 <div
                   className={`mt-1 border rounded shadow-lg max-h-40 overflow-y-auto z-20 ${
@@ -1254,11 +1424,13 @@ export default function UpgradedPrescriptionEMR(
                           index={idx}
                           dark={dark}
                           isEditing={editingDrugId === drug.id}
-                          onEdit={() =>
-                            setEditingDrugId(
-                              editingDrugId === drug.id ? null : drug.id,
-                            )
-                          }
+                          onEdit={() => {
+                            if (editingDrugId === drug.id) {
+                              setEditingDrugId(null);
+                            } else {
+                              loadDrugForEditing(drug);
+                            }
+                          }}
                           onDelete={() => deleteDrug(drug.id)}
                           onUpdate={(field, val) =>
                             updateDrug(drug.id, field, val)
@@ -1284,13 +1456,21 @@ export default function UpgradedPrescriptionEMR(
 
             {/* MEDICATION INPUT FORM */}
             <div
+              id="rx-med-form"
               className={`rounded-lg p-3 ${
                 dark ? "bg-gray-900" : "bg-white"
               } shadow-sm`}
             >
-              <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide block mb-2">
-                Add Medication
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-teal-700 uppercase tracking-wide">
+                  {editingDrugId ? "✏️ Edit Medication" : "Add Medication"}
+                </span>
+                {editingDrugId && (
+                  <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full border border-amber-300">
+                    Editing row — save to update
+                  </span>
+                )}
+              </div>
 
               {/* Form selector pills */}
               <div className="flex flex-wrap gap-1 mb-3">
@@ -1523,14 +1703,85 @@ export default function UpgradedPrescriptionEMR(
                 </div>
               </div>
 
-              <Button
-                size="sm"
-                onClick={addDrug}
-                className="bg-teal-700 hover:bg-teal-800 text-white"
-                data-ocid="rx.add_drug.button"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add to Prescription
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={addDrug}
+                  className="bg-teal-700 hover:bg-teal-800 text-white"
+                  data-ocid="rx.add_drug.button"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  {editingDrugId ? "Update Drug" : "Add to Prescription"}
+                </Button>
+                {editingDrugId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingDrugId(null);
+                      setDrugName("");
+                      setDrugBrandName("");
+                      setDrugDose("");
+                      setDrugDuration("");
+                      setDrugDurationBn("");
+                      setDrugInstructions("");
+                      setDrugInstructionBn("");
+                      setDrugFrequency("");
+                      setDrugFrequencyBn("");
+                      setDrugSpecialInstruction("");
+                      setDrugSpecialInstructionBn("");
+                    }}
+                    className="text-gray-600"
+                    data-ocid="rx.cancel_edit.button"
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`gap-1 ${dark ? "border-gray-600 text-gray-300" : "border-teal-300 text-teal-700"}`}
+                      data-ocid="rx.drug_template.open_modal_button"
+                    >
+                      ⚡ Templates
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-72 p-2"
+                    align="start"
+                    data-ocid="rx.drug_template.popover"
+                  >
+                    <p className="text-xs font-semibold text-gray-500 px-2 py-1 mb-1">
+                      Quick Drug Templates
+                    </p>
+                    <div className="max-h-52 overflow-y-auto space-y-1">
+                      {TREATMENT_TEMPLATES.flatMap((tpl) =>
+                        tpl.drugs.map((drug, di) => (
+                          <button
+                            key={`${tpl.id}-${di}`}
+                            type="button"
+                            onClick={() => {
+                              const d = drugFromTreatmentDrug(drug);
+                              setRxDrugs((prev) => [...prev, d]);
+                            }}
+                            className="w-full text-left px-2 py-1.5 rounded hover:bg-teal-50 text-sm transition-colors flex items-center justify-between gap-2"
+                            data-ocid={`rx.drug_template.item.${di + 1}`}
+                          >
+                            <span className="font-medium truncate">
+                              {drug.name}
+                            </span>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              {drug.dose}
+                            </span>
+                          </button>
+                        )),
+                      ).slice(0, 30)}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             {/* TREATMENT TEMPLATE */}
@@ -1774,19 +2025,609 @@ export default function UpgradedPrescriptionEMR(
                   weight={weight}
                   rxDate={rxDate}
                   regNo={regNo}
-                  diagnosis={diagnosis}
+                  diagnosis={
+                    diagnoses.length > 0 ? diagnoses.join(" + ") : diagnosis
+                  }
                   drugs={rxDrugs}
                   adviceText={adviceText}
                   cc={cc}
                   pmh={pmh}
                   oe={oe}
                   dh={dh}
+                  historyPersonal={historyPersonal}
+                  historyFamily={historyFamily}
+                  historyImmunization={historyImmunization}
+                  historyAllergy={historyAllergy}
+                  historyOthers={historyOthers}
+                  investigation={investigation}
+                  adviceNewInv={adviceNewInv}
                 />
               )}
             </div>
           </div>
         </ScrollArea>
       </div>
+
+      {/* ── FLOATING CALCULATOR BUTTON ── */}
+      <button
+        type="button"
+        className="fixed bottom-6 right-6 z-50 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-3 shadow-xl flex items-center gap-2"
+        onClick={() => setShowCalculator(true)}
+        data-ocid="rx.calculator.open_modal_button"
+      >
+        <Calculator className="w-5 h-5" />
+        <span className="text-sm font-medium pr-1">Calculator</span>
+      </button>
+
+      {/* ── MEDICAL CALCULATOR DIALOG ── */}
+      <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-indigo-700">
+              <Calculator className="w-5 h-5" /> Medical Calculator
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-1 mb-4">
+            {[
+              { id: "dose-weight", label: "Dose/Weight" },
+              { id: "dose-age", label: "Dose/Age" },
+              { id: "crcl", label: "CrCl/GFR" },
+              { id: "bmi", label: "BMI" },
+              { id: "bsa", label: "BSA" },
+              { id: "fluid", label: "Pediatric Fluid" },
+              { id: "map", label: "MAP" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCalcTab(tab.id)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${calcTab === tab.id ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Dose by Weight */}
+          {calcTab === "dose-weight" &&
+            (() => {
+              const total =
+                calcDosePerKg && calcWeightKg
+                  ? (
+                      Number.parseFloat(calcDosePerKg) *
+                      Number.parseFloat(calcWeightKg)
+                    ).toFixed(2)
+                  : null;
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Formula: (mg/kg) × weight = total dose
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Dose per kg (mg/kg)</Label>
+                      <Input
+                        value={calcDosePerKg}
+                        onChange={(e) => setCalcDosePerKg(e.target.value)}
+                        placeholder="e.g. 10"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Patient Weight (kg)</Label>
+                      <Input
+                        value={calcWeightKg}
+                        onChange={(e) => setCalcWeightKg(e.target.value)}
+                        placeholder="kg"
+                      />
+                    </div>
+                  </div>
+                  {total && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                      <p className="text-3xl font-bold text-green-700">
+                        {total} <span className="text-lg">mg</span>
+                      </p>
+                      <p className="text-sm text-green-600 mt-1">Total Dose</p>
+                      <button
+                        type="button"
+                        className="mt-2 text-xs px-3 py-1 bg-indigo-600 text-white rounded-full"
+                        onClick={() => {
+                          setDrugDose(total);
+                          setLastCalculatorResult(total);
+                          setShowCalculator(false);
+                        }}
+                      >
+                        Copy to Dose Field
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* Dose by Age (Young's Rule) */}
+          {calcTab === "dose-age" &&
+            (() => {
+              const age = Number.parseFloat(calcAgeYears);
+              const adult = Number.parseFloat(calcAdultDose);
+              const result =
+                !Number.isNaN(age) && !Number.isNaN(adult)
+                  ? ((adult * age) / (age + 12)).toFixed(2)
+                  : null;
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Young's Rule: adult dose × age / (age + 12)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Adult Dose (mg)</Label>
+                      <Input
+                        value={calcAdultDose}
+                        onChange={(e) => setCalcAdultDose(e.target.value)}
+                        placeholder="mg"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Patient Age (years)</Label>
+                      <Input
+                        value={calcAgeYears}
+                        onChange={(e) => setCalcAgeYears(e.target.value)}
+                        placeholder="years"
+                      />
+                    </div>
+                  </div>
+                  {result && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                      <p className="text-3xl font-bold text-green-700">
+                        {result} <span className="text-lg">mg</span>
+                      </p>
+                      <p className="text-sm text-green-600 mt-1">
+                        Pediatric Dose
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-2 text-xs px-3 py-1 bg-indigo-600 text-white rounded-full"
+                        onClick={() => {
+                          setDrugDose(result);
+                          setLastCalculatorResult(result);
+                          setShowCalculator(false);
+                        }}
+                      >
+                        Copy to Dose Field
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* CrCl / GFR */}
+          {calcTab === "crcl" &&
+            (() => {
+              const age = Number.parseFloat(calcCrClAge);
+              const wt = Number.parseFloat(calcCrClWeight);
+              const cr = Number.parseFloat(calcCrClCreat);
+              let result: number | null = null;
+              if (
+                !Number.isNaN(age) &&
+                !Number.isNaN(wt) &&
+                !Number.isNaN(cr) &&
+                cr > 0
+              ) {
+                result = Math.round(
+                  ((140 - age) * wt * (calcCrClSex === "F" ? 0.85 : 1)) /
+                    (72 * cr),
+                );
+              }
+              const interp =
+                result === null
+                  ? ""
+                  : result >= 90
+                    ? "Normal (≥90)"
+                    : result >= 60
+                      ? "Mild CKD (60-89)"
+                      : result >= 30
+                        ? "Moderate CKD (30-59)"
+                        : result >= 15
+                          ? "Severe CKD (15-29)"
+                          : "Kidney Failure (<15)";
+              const color =
+                result === null
+                  ? ""
+                  : result >= 90
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : result >= 60
+                      ? "bg-yellow-50 border-yellow-200 text-yellow-700"
+                      : "bg-red-50 border-red-200 text-red-700";
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Cockcroft-Gault: ((140-age) × weight × [0.85 if F]) / (72 ×
+                    SCr)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Age (years)</Label>
+                      <Input
+                        value={calcCrClAge}
+                        onChange={(e) => setCalcCrClAge(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Weight (kg)</Label>
+                      <Input
+                        value={calcCrClWeight}
+                        onChange={(e) => setCalcCrClWeight(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Sex</Label>
+                      <select
+                        value={calcCrClSex}
+                        onChange={(e) => setCalcCrClSex(e.target.value)}
+                        className="w-full border rounded-md px-2 py-1.5 text-sm"
+                      >
+                        <option value="M">Male</option>
+                        <option value="F">Female</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">
+                        Serum Creatinine (mg/dL)
+                      </Label>
+                      <Input
+                        value={calcCrClCreat}
+                        onChange={(e) => setCalcCrClCreat(e.target.value)}
+                        placeholder="mg/dL"
+                      />
+                    </div>
+                  </div>
+                  {result !== null && (
+                    <div
+                      className={`border rounded-xl p-4 text-center ${color}`}
+                    >
+                      <p className="text-3xl font-bold">
+                        {result} <span className="text-lg">mL/min</span>
+                      </p>
+                      <p className="text-sm mt-1 font-semibold">{interp}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* BMI */}
+          {calcTab === "bmi" &&
+            (() => {
+              const wt = Number.parseFloat(calcBmiWeight);
+              const ht = Number.parseFloat(calcBmiHeight) / 100;
+              const bmi =
+                !Number.isNaN(wt) && !Number.isNaN(ht) && ht > 0
+                  ? (wt / (ht * ht)).toFixed(1)
+                  : null;
+              const bmiNum = bmi ? Number.parseFloat(bmi) : null;
+              const getBmiCat = (b: number) =>
+                b < 18.5
+                  ? {
+                      label: "Underweight",
+                      color: "bg-blue-50 border-blue-200 text-blue-700",
+                      row: "bg-blue-50",
+                    }
+                  : b < 25
+                    ? {
+                        label: "Normal weight ✓",
+                        color: "bg-green-50 border-green-200 text-green-700",
+                        row: "bg-green-50",
+                      }
+                    : b < 30
+                      ? {
+                          label: "Overweight",
+                          color: "bg-amber-50 border-amber-200 text-amber-700",
+                          row: "bg-amber-50",
+                        }
+                      : b < 35
+                        ? {
+                            label: "Obese Class I",
+                            color:
+                              "bg-orange-50 border-orange-200 text-orange-700",
+                            row: "bg-orange-50",
+                          }
+                        : b < 40
+                          ? {
+                              label: "Obese Class II",
+                              color: "bg-red-50 border-red-200 text-red-700",
+                              row: "bg-red-50",
+                            }
+                          : {
+                              label: "Obese Class III",
+                              color: "bg-red-100 border-red-300 text-red-900",
+                              row: "bg-red-100",
+                            };
+              const catInfo = bmiNum !== null ? getBmiCat(bmiNum) : null;
+              const bmiTable = [
+                {
+                  range: "< 18.5",
+                  label: "Underweight",
+                  check: (b: number) => b < 18.5,
+                },
+                {
+                  range: "18.5 – 24.9",
+                  label: "Normal weight ✓",
+                  check: (b: number) => b >= 18.5 && b < 25,
+                },
+                {
+                  range: "25 – 29.9",
+                  label: "Overweight",
+                  check: (b: number) => b >= 25 && b < 30,
+                },
+                {
+                  range: "30 – 34.9",
+                  label: "Obese Class I",
+                  check: (b: number) => b >= 30 && b < 35,
+                },
+                {
+                  range: "35 – 39.9",
+                  label: "Obese Class II",
+                  check: (b: number) => b >= 35 && b < 40,
+                },
+                {
+                  range: "≥ 40",
+                  label: "Obese Class III",
+                  check: (b: number) => b >= 40,
+                },
+              ];
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    BMI = weight (kg) / height (m)²
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Weight (kg)</Label>
+                      <Input
+                        value={calcBmiWeight}
+                        onChange={(e) => setCalcBmiWeight(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Height (cm)</Label>
+                      <Input
+                        value={calcBmiHeight}
+                        onChange={(e) => setCalcBmiHeight(e.target.value)}
+                        placeholder="cm"
+                      />
+                    </div>
+                  </div>
+                  {bmi && catInfo && (
+                    <div
+                      className={`border rounded-xl p-4 text-center ${catInfo.color}`}
+                    >
+                      <p className="text-3xl font-bold">
+                        {bmi} <span className="text-lg">kg/m²</span>
+                      </p>
+                      <p className="text-sm mt-1 font-bold">{catInfo.label}</p>
+                      <button
+                        type="button"
+                        className="mt-2 text-xs px-3 py-1 bg-indigo-600 text-white rounded-full"
+                        onClick={() => {
+                          setLastCalculatorResult(bmi);
+                          setShowCalculator(false);
+                        }}
+                      >
+                        Copy Result
+                      </button>
+                    </div>
+                  )}
+                  {/* Interpretation Table */}
+                  <div className="border rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-2 border-b">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        BMI Classification
+                      </p>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-gray-50">
+                          <th className="text-left px-3 py-2 font-semibold text-gray-500">
+                            BMI Range
+                          </th>
+                          <th className="text-left px-3 py-2 font-semibold text-gray-500">
+                            Category
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bmiTable.map((row) => {
+                          const isActive = bmiNum !== null && row.check(bmiNum);
+                          return (
+                            <tr
+                              key={row.range}
+                              className={`border-b ${isActive ? (catInfo ? `${catInfo.row} font-bold` : "") : ""}`}
+                            >
+                              <td className="px-3 py-2">{row.range}</td>
+                              <td className="px-3 py-2 flex items-center gap-1">
+                                {row.label}
+                                {isActive && (
+                                  <span className="ml-1 text-indigo-600">
+                                    ← Current
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
+          {/* BSA */}
+          {calcTab === "bsa" &&
+            (() => {
+              const wt = Number.parseFloat(calcBsaWeight);
+              const ht = Number.parseFloat(calcBsaHeight);
+              const bsa =
+                !Number.isNaN(wt) && !Number.isNaN(ht)
+                  ? Math.sqrt((ht * wt) / 3600).toFixed(3)
+                  : null;
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Mosteller: √(height cm × weight kg / 3600)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Weight (kg)</Label>
+                      <Input
+                        value={calcBsaWeight}
+                        onChange={(e) => setCalcBsaWeight(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Height (cm)</Label>
+                      <Input
+                        value={calcBsaHeight}
+                        onChange={(e) => setCalcBsaHeight(e.target.value)}
+                        placeholder="cm"
+                      />
+                    </div>
+                  </div>
+                  {bsa && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                      <p className="text-3xl font-bold text-green-700">
+                        {bsa} <span className="text-lg">m²</span>
+                      </p>
+                      <p className="text-sm text-green-600 mt-1">
+                        Body Surface Area
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-2 text-xs px-3 py-1 bg-indigo-600 text-white rounded-full"
+                        onClick={() => {
+                          setLastCalculatorResult(bsa);
+                          setShowCalculator(false);
+                        }}
+                      >
+                        Copy Result
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* Pediatric Fluid */}
+          {calcTab === "fluid" &&
+            (() => {
+              const wt = Number.parseFloat(calcFluidWeight);
+              let daily = 0;
+              if (!Number.isNaN(wt) && wt > 0) {
+                if (wt <= 10) daily = wt * 100;
+                else if (wt <= 20) daily = 1000 + (wt - 10) * 50;
+                else daily = 1500 + (wt - 20) * 20;
+              }
+              const hourly = daily > 0 ? (daily / 24).toFixed(1) : null;
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Holliday-Segar: 100 mL/kg (≤10kg) + 50 mL/kg (10-20kg) + 20
+                    mL/kg (&gt;20kg)
+                  </p>
+                  <div>
+                    <Label className="text-xs">Weight (kg)</Label>
+                    <Input
+                      value={calcFluidWeight}
+                      onChange={(e) => setCalcFluidWeight(e.target.value)}
+                    />
+                  </div>
+                  {hourly && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                      <p className="text-3xl font-bold text-blue-700">
+                        {daily} <span className="text-lg">mL/day</span>
+                      </p>
+                      <p className="text-xl font-semibold text-blue-600 mt-1">
+                        {hourly} mL/hour
+                      </p>
+                      <p className="text-sm text-blue-500 mt-1">
+                        Daily Fluid Requirement
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* MAP */}
+          {calcTab === "map" &&
+            (() => {
+              const sbp = Number.parseFloat(calcMapSbp);
+              const dbp = Number.parseFloat(calcMapDbp);
+              const mapVal =
+                !Number.isNaN(sbp) && !Number.isNaN(dbp)
+                  ? Math.round(dbp + (sbp - dbp) / 3)
+                  : null;
+              const interp =
+                mapVal === null
+                  ? ""
+                  : mapVal < 70
+                    ? "Low MAP (<70) — Hypoperfusion Risk"
+                    : mapVal <= 100
+                      ? "Normal MAP (70-100)"
+                      : "High MAP (>100) — Hypertension";
+              const color =
+                mapVal === null
+                  ? ""
+                  : mapVal < 70
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : mapVal <= 100
+                      ? "bg-green-50 border-green-200 text-green-700"
+                      : "bg-amber-50 border-amber-200 text-amber-700";
+              return (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    MAP = DBP + ⅓(SBP − DBP)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Systolic BP (mmHg)</Label>
+                      <Input
+                        value={calcMapSbp}
+                        onChange={(e) => setCalcMapSbp(e.target.value)}
+                        placeholder="mmHg"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Diastolic BP (mmHg)</Label>
+                      <Input
+                        value={calcMapDbp}
+                        onChange={(e) => setCalcMapDbp(e.target.value)}
+                        placeholder="mmHg"
+                      />
+                    </div>
+                  </div>
+                  {mapVal !== null && (
+                    <div
+                      className={`border rounded-xl p-4 text-center ${color}`}
+                    >
+                      <p className="text-3xl font-bold">
+                        {mapVal} <span className="text-lg">mmHg</span>
+                      </p>
+                      <p className="text-sm mt-1 font-semibold">{interp}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {lastCalculatorResult && (
+            <p className="text-xs text-gray-500 mt-3">
+              Last result copied: <strong>{lastCalculatorResult}</strong>
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2177,6 +3018,13 @@ function PrescriptionPreview({
   pmh,
   oe,
   dh,
+  historyPersonal,
+  historyFamily,
+  historyImmunization,
+  historyAllergy,
+  historyOthers,
+  investigation,
+  adviceNewInv,
 }: {
   withHeader: boolean;
   doctorInfo: Record<string, string> | null;
@@ -2193,8 +3041,22 @@ function PrescriptionPreview({
   pmh: string;
   oe: string;
   dh: string;
+  historyPersonal: string;
+  historyFamily: string;
+  historyImmunization: string;
+  historyAllergy: string;
+  historyOthers: string;
+  investigation: string;
+  adviceNewInv: string;
 }) {
   const printId = "rx-preview-print";
+
+  const hasHistory =
+    historyPersonal ||
+    historyFamily ||
+    historyImmunization ||
+    historyAllergy ||
+    historyOthers;
 
   function handlePrint() {
     const el = document.getElementById(printId);
@@ -2207,12 +3069,13 @@ function PrescriptionPreview({
         body { font-family: serif; font-size: 11pt; margin: 20mm; }
         .header { border-bottom: 1px solid #333; padding-bottom: 6pt; margin-bottom: 8pt; display: flex; justify-content: space-between; }
         .patient-row { display: flex; gap: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4pt; margin-bottom: 8pt; font-size: 9pt; }
-        .cols { display: grid; grid-template-columns: 1fr 2fr; gap: 12pt; }
-        .left-col { font-size: 9pt; }
+        .cols { display: grid; grid-template-columns: 2fr 3fr; gap: 12pt; }
+        .left-col { font-size: 9pt; border-right: 1px solid #ccc; padding-right: 8pt; }
         .section { margin-bottom: 6pt; }
-        .section-label { font-weight: bold; font-size: 8pt; text-transform: uppercase; }
-        table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-        th, td { border-bottom: 1px solid #eee; padding: 2pt 4pt; text-align: left; }
+        .section-label { font-weight: bold; font-size: 8pt; text-transform: uppercase; color: #666; }
+        .drug-list { list-style: none; padding: 0; margin: 0; }
+        .drug-item-line1 { font-size: 10pt; font-weight: 500; }
+        .drug-item-line2 { font-size: 8.5pt; color: #555; padding-left: 1em; }
         .advice { margin-top: 8pt; font-size: 9pt; }
         @media print { body { margin: 10mm; } }
       </style></head><body>
@@ -2228,7 +3091,7 @@ function PrescriptionPreview({
       className="border border-t-0 border-gray-200 bg-white p-4 text-sm"
       data-ocid="rx.preview.panel"
     >
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-end gap-2 mb-2">
         <button
           type="button"
           onClick={handlePrint}
@@ -2236,6 +3099,14 @@ function PrescriptionPreview({
           data-ocid="rx.print.button"
         >
           <Printer className="w-3.5 h-3.5" /> Print
+        </button>
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="flex items-center gap-1 text-sm px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          data-ocid="rx.download.button"
+        >
+          <Download className="w-3.5 h-3.5" /> Save PDF
         </button>
       </div>
       <div
@@ -2298,38 +3169,97 @@ function PrescriptionPreview({
 
         {/* Two-column layout: clinical summary left, Rx right */}
         <div className="grid grid-cols-5 gap-3">
-          {/* Left column: clinical summary */}
+          {/* Left column: full clinical summary */}
           <div className="col-span-2 space-y-2 text-sm border-r pr-2">
             {cc && (
               <div>
-                <div className="font-bold text-sm uppercase text-gray-500">
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
                   C/C
                 </div>
-                <div className="whitespace-pre-wrap">{cc}</div>
+                <div className="whitespace-pre-wrap text-xs">{cc}</div>
               </div>
             )}
             {pmh && (
               <div>
-                <div className="font-bold text-sm uppercase text-gray-500">
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
                   P/M/H
                 </div>
-                <div className="whitespace-pre-wrap">{pmh}</div>
+                <div className="whitespace-pre-wrap text-xs">{pmh}</div>
+              </div>
+            )}
+            {hasHistory && (
+              <div>
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
+                  History
+                </div>
+                <div className="text-xs space-y-0.5">
+                  {historyPersonal && (
+                    <div>
+                      <span className="font-semibold">Personal: </span>
+                      {historyPersonal}
+                    </div>
+                  )}
+                  {historyFamily && (
+                    <div>
+                      <span className="font-semibold">Family: </span>
+                      {historyFamily}
+                    </div>
+                  )}
+                  {historyImmunization && (
+                    <div>
+                      <span className="font-semibold">Immunization: </span>
+                      {historyImmunization}
+                    </div>
+                  )}
+                  {historyAllergy && (
+                    <div>
+                      <span className="font-semibold">Allergy: </span>
+                      {historyAllergy}
+                    </div>
+                  )}
+                  {historyOthers && (
+                    <div>
+                      <span className="font-semibold">Others: </span>
+                      {historyOthers}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {dh && (
               <div>
-                <div className="font-bold text-sm uppercase text-gray-500">
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
                   D/H
                 </div>
-                <div className="whitespace-pre-wrap">{dh}</div>
+                <div className="whitespace-pre-wrap text-xs">{dh}</div>
               </div>
             )}
             {oe && (
               <div>
-                <div className="font-bold text-sm uppercase text-gray-500">
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
                   O/E
                 </div>
-                <div className="whitespace-pre-wrap">{oe}</div>
+                <div className="whitespace-pre-wrap text-xs">{oe}</div>
+              </div>
+            )}
+            {investigation && (
+              <div>
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
+                  Investigation
+                </div>
+                <div className="whitespace-pre-wrap text-xs">
+                  {investigation}
+                </div>
+              </div>
+            )}
+            {adviceNewInv && (
+              <div>
+                <div className="font-bold text-xs uppercase text-gray-500 mb-0.5">
+                  Advice / New Inv.
+                </div>
+                <div className="whitespace-pre-wrap text-xs">
+                  {adviceNewInv}
+                </div>
               </div>
             )}
           </div>
@@ -2342,81 +3272,63 @@ function PrescriptionPreview({
                 <span className="text-sm">{diagnosis}</span>
               </div>
             )}
-            <div className="text-2xl font-bold mb-1">ℝ</div>
+            <div className="text-2xl font-bold mb-2">ℝ</div>
             {drugs.length === 0 ? (
               <p className="text-sm text-gray-400 italic">
                 No medications added.
               </p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    {[
-                      "#",
-                      "Drug",
-                      "Dose",
-                      "Route",
-                      "Freq.",
-                      "Duration",
-                      "Instructions",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="text-left py-0.5 px-1 text-sm text-gray-500"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {drugs.map((d, i) => (
-                    <tr key={d.id} className="border-b border-gray-100">
-                      <td className="px-1 py-0.5">{i + 1}</td>
-                      <td className="px-1 py-0.5">
-                        <span className="text-sm text-indigo-600 mr-1">
-                          {d.drugForm}
-                        </span>
-                        {d.brandName ? (
+              <div className="space-y-2">
+                {drugs.map((d, i) => (
+                  <div key={d.id} className="leading-snug">
+                    {/* Line 1: number, form, drug name, dose */}
+                    <div className="text-sm font-medium">
+                      {i + 1}.{" "}
+                      <span className="text-indigo-600">{d.drugForm}</span>{" "}
+                      {d.brandName ? (
+                        <>
                           <strong>{d.brandName}</strong>
-                        ) : d.nameType === "brand" ? (
-                          <strong>{d.drugName}</strong>
-                        ) : (
-                          d.drugName
-                        )}
-                        {d.brandName && d.drugName && (
-                          <span className="text-gray-400 text-sm ml-1">
-                            ({d.drugName})
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-1 py-0.5">{d.dose}</td>
-                      <td className="px-1 py-0.5">{d.routeBn || d.route}</td>
-                      <td className="px-1 py-0.5">
-                        {d.frequencyBn || d.frequency}
-                      </td>
-                      <td className="px-1 py-0.5">
-                        {d.durationBn || d.duration}
-                      </td>
-                      <td className="px-1 py-0.5">
-                        {d.instructionBn || d.instructions}
-                        {(d.specialInstructionBn || d.specialInstruction) && (
-                          <span className="text-sm text-orange-600 block">
-                            {d.specialInstructionBn || d.specialInstruction}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          {d.drugName && (
+                            <span className="text-gray-400 text-xs ml-1">
+                              ({d.drugName})
+                            </span>
+                          )}
+                        </>
+                      ) : d.nameType === "brand" ? (
+                        <strong>{d.drugName}</strong>
+                      ) : (
+                        d.drugName
+                      )}{" "}
+                      <span>{d.dose}</span>
+                    </div>
+                    {/* Line 2: route, frequency, duration, instructions */}
+                    <div className="text-xs text-gray-500 pl-4">
+                      {[
+                        d.routeBn || d.route,
+                        d.frequencyBn || d.frequency,
+                        d.durationBn || d.duration
+                          ? `–${d.durationBn || d.duration}`
+                          : "",
+                        d.instructionBn || d.instructions,
+                      ]
+                        .filter(Boolean)
+                        .join("  ")}
+                      {(d.specialInstructionBn || d.specialInstruction) && (
+                        <span className="text-orange-600 ml-1">
+                          · {d.specialInstructionBn || d.specialInstruction}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {adviceText && (
               <div className="mt-3 pt-2 border-t">
-                <div className="font-bold text-sm uppercase text-gray-500 mb-1">
+                <div className="font-bold text-xs uppercase text-gray-500 mb-1">
                   পরামর্শ
                 </div>
-                <div className="text-sm whitespace-pre-wrap">{adviceText}</div>
+                <div className="text-xs whitespace-pre-wrap">{adviceText}</div>
               </div>
             )}
           </div>

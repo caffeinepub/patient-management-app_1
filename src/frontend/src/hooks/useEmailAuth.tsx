@@ -12,6 +12,7 @@ const SESSION_KEY = "medicare_current_doctor";
 const PATIENT_REGISTRY_KEY = "medicare_patients_auth_registry";
 const PATIENT_SESSION_KEY = "medicare_patient_session";
 const AUDIT_LOG_KEY = "medicare_audit_log";
+const PATIENT_SIGNUP_MAP_KEY = "medicare_patient_signup_map";
 
 export interface DoctorAccount {
   id: string;
@@ -105,6 +106,35 @@ export function getAuditLog(): AuditLogEntry[] {
   return [];
 }
 
+// ── Sign-up map helpers ───────────────────────────────────────────────────────
+
+export function loadSignUpMap(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(PATIENT_SIGNUP_MAP_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, boolean>;
+  } catch {}
+  return {};
+}
+
+export function saveSignUpMap(map: Record<string, boolean>) {
+  localStorage.setItem(PATIENT_SIGNUP_MAP_KEY, JSON.stringify(map));
+}
+
+export function setSignUpEnabled(registerNumber: string, enabled: boolean) {
+  const map = loadSignUpMap();
+  if (enabled) {
+    map[registerNumber] = true;
+  } else {
+    delete map[registerNumber];
+  }
+  saveSignUpMap(map);
+}
+
+export function isSignUpEnabled(registerNumber: string): boolean {
+  const map = loadSignUpMap();
+  return map[registerNumber] === true;
+}
+
 interface EmailAuthContextValue {
   currentDoctor: DoctorAccount | null;
   currentPatient: PatientAccount | null;
@@ -127,18 +157,20 @@ interface EmailAuthContextValue {
   rejectAccount: (id: string) => void;
   // Patient auth
   patientSignUp: (data: {
-    name: string;
+    registerNumber: string;
     phone: string;
     password: string;
-    age?: string;
-    gender?: string;
-    registerNumber?: string;
   }) => Promise<void>;
   patientSignIn: (phone: string, password: string) => Promise<void>;
   patientSignOut: () => void;
   getPendingPatients: () => PatientAccount[];
   approvePatient: (id: string) => void;
   rejectPatient: (id: string) => void;
+  updatePatientCredentials: (
+    registerNumber: string,
+    newPhone?: string,
+    newPassword?: string,
+  ) => void;
 }
 
 const EmailAuthContext = createContext<EmailAuthContextValue | null>(null);
@@ -316,28 +348,87 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
 
   const patientSignUp = useCallback(
     async (data: {
-      name: string;
+      registerNumber: string;
       phone: string;
       password: string;
-      age?: string;
-      gender?: string;
-      registerNumber?: string;
     }) => {
       setIsLoggingIn(true);
       setAuthError(null);
       try {
+        const { registerNumber, phone, password } = data;
+
+        if (!registerNumber || !registerNumber.trim()) {
+          throw new Error(
+            "Register number is required. Please contact the clinic to get your register number.",
+          );
+        }
+
+        // Find all patient records in localStorage
+        const allPatients: any[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("medicare_patients_")) {
+            try {
+              const arr = JSON.parse(localStorage.getItem(key) || "[]");
+              if (Array.isArray(arr)) allPatients.push(...arr);
+            } catch {}
+          }
+        }
+
+        // Verify register number exists in patient records
+        const matchedPatient = allPatients.find(
+          (p: any) =>
+            p.registerNumber &&
+            p.registerNumber.trim().toLowerCase() ===
+              registerNumber.trim().toLowerCase(),
+        );
+        if (!matchedPatient) {
+          throw new Error(
+            "Register number not found. Please contact the clinic to get registered first.",
+          );
+        }
+
+        // Check if sign-up is enabled for this register number
+        if (!isSignUpEnabled(registerNumber.trim())) {
+          throw new Error(
+            "Your account sign-up has not been activated yet. Please contact the clinic to enable it.",
+          );
+        }
+
+        // Auto-fill patient details from the record
+        const patientName =
+          matchedPatient.fullName || matchedPatient.name || "Patient";
+        const patientAge = matchedPatient.dateOfBirth
+          ? String(
+              Math.floor(
+                (Date.now() -
+                  new Date(
+                    Number(
+                      typeof matchedPatient.dateOfBirth === "bigint"
+                        ? matchedPatient.dateOfBirth / 1000000n
+                        : matchedPatient.dateOfBirth,
+                    ),
+                  ).getTime()) /
+                  (365.25 * 24 * 3600 * 1000),
+              ),
+            )
+          : (matchedPatient.age ?? "");
+        const patientGender = matchedPatient.gender ?? "";
+
         const registry = loadPatientRegistry();
-        const existing = registry.find((p) => p.phone === data.phone);
-        if (existing) {
-          if (existing.status === "rejected") {
-            const idx = registry.findIndex((p) => p.id === existing.id);
+
+        // Check for duplicate by phone
+        const existingByPhone = registry.find((p) => p.phone === phone);
+        if (existingByPhone) {
+          if (existingByPhone.status === "rejected") {
+            const idx = registry.findIndex((p) => p.id === existingByPhone.id);
             registry[idx] = {
-              ...existing,
-              name: data.name,
-              age: data.age,
-              gender: data.gender,
-              registerNumber: data.registerNumber,
-              passwordHash: hashPassword(data.phone, data.password),
+              ...existingByPhone,
+              name: patientName,
+              age: patientAge,
+              gender: patientGender,
+              registerNumber: registerNumber.trim(),
+              passwordHash: hashPassword(phone, password),
               createdAt: new Date().toISOString(),
               status: "pending",
             };
@@ -348,14 +439,44 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
           }
           throw new Error("An account with this phone number already exists.");
         }
+
+        // Check for duplicate by register number
+        const existingByRegNo = registry.find(
+          (p) =>
+            p.registerNumber?.toLowerCase() ===
+            registerNumber.trim().toLowerCase(),
+        );
+        if (existingByRegNo) {
+          if (existingByRegNo.status === "rejected") {
+            const idx = registry.findIndex((p) => p.id === existingByRegNo.id);
+            registry[idx] = {
+              ...existingByRegNo,
+              phone,
+              name: patientName,
+              age: patientAge,
+              gender: patientGender,
+              passwordHash: hashPassword(phone, password),
+              createdAt: new Date().toISOString(),
+              status: "pending",
+            };
+            savePatientRegistry(registry);
+            throw new Error(
+              "Your account has been re-submitted for approval. Please wait for doctor approval.",
+            );
+          }
+          throw new Error(
+            "An account for this register number already exists. Please log in instead.",
+          );
+        }
+
         const newPatient: PatientAccount = {
           id: Date.now().toString(36) + Math.random().toString(36).slice(2),
-          phone: data.phone,
-          passwordHash: hashPassword(data.phone, data.password),
-          name: data.name,
-          age: data.age,
-          gender: data.gender,
-          registerNumber: data.registerNumber,
+          phone,
+          passwordHash: hashPassword(phone, password),
+          name: patientName,
+          age: patientAge,
+          gender: patientGender,
+          registerNumber: registerNumber.trim(),
           status: "pending",
           createdAt: new Date().toISOString(),
         };
@@ -445,6 +566,35 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const updatePatientCredentials = useCallback(
+    (registerNumber: string, newPhone?: string, newPassword?: string) => {
+      const registry = loadPatientRegistry();
+      const idx = registry.findIndex(
+        (p) => p.registerNumber?.toLowerCase() === registerNumber.toLowerCase(),
+      );
+      if (idx < 0) return;
+      const patient = registry[idx];
+      const updatedPhone = newPhone?.trim() || patient.phone;
+      const updatedHash = newPassword?.trim()
+        ? hashPassword(updatedPhone, newPassword.trim())
+        : patient.passwordHash;
+      registry[idx] = {
+        ...patient,
+        phone: updatedPhone,
+        passwordHash: updatedHash,
+      };
+      savePatientRegistry(registry);
+      // Update current patient state if it's the same account
+      setCurrentPatient((prev) => {
+        if (prev && prev.registerNumber === registerNumber) {
+          return { ...prev, phone: updatedPhone, passwordHash: updatedHash };
+        }
+        return prev;
+      });
+    },
+    [],
+  );
+
   return (
     <EmailAuthContext.Provider
       value={{
@@ -466,6 +616,7 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         getPendingPatients,
         approvePatient,
         rejectPatient,
+        updatePatientCredentials,
       }}
     >
       {children}

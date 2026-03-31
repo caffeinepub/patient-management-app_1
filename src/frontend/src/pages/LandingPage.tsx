@@ -3459,7 +3459,7 @@ export default function LandingPage({
                         </Label>
                         <Input
                           id="booking-regnum"
-                          placeholder="e.g. REG-0001/26"
+                          placeholder="e.g. 0001/26"
                           value={bookingForm.registerNumber}
                           onChange={(e) =>
                             handleBookingRegLookup(e.target.value)

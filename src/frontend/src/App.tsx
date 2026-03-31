@@ -450,12 +450,9 @@ function PatientAuthContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const [suName, setSuName] = useState("");
   const [suPhone, setSuPhone] = useState("");
   const [suPassword, setSuPassword] = useState("");
   const [suConfirm, setSuConfirm] = useState("");
-  const [suAge, setSuAge] = useState("");
-  const [suGender, setSuGender] = useState("");
   const [suRegNo, setSuRegNo] = useState("");
   const [suError, setSuError] = useState("");
   const [suSuccess, setSuSuccess] = useState("");
@@ -478,8 +475,10 @@ function PatientAuthContent() {
     e.preventDefault();
     setSuError("");
     setSuSuccess("");
-    if (!suName.trim()) {
-      setSuError("Full name is required.");
+    if (!suRegNo.trim()) {
+      setSuError(
+        "Register number is required. Please contact the clinic to get your register number.",
+      );
       return;
     }
     if (!suPhone.trim()) {
@@ -496,12 +495,9 @@ function PatientAuthContent() {
     }
     try {
       await patientSignUp({
-        name: suName.trim(),
+        registerNumber: suRegNo.trim(),
         phone: suPhone.trim(),
         password: suPassword,
-        age: suAge,
-        gender: suGender,
-        registerNumber: suRegNo,
       });
     } catch (err: any) {
       const msg = err.message ?? "Sign up failed.";
@@ -519,14 +515,14 @@ function PatientAuthContent() {
           className="flex-1"
           data-ocid="patient_auth.signin.tab"
         >
-          Sign In
+          Patient Login
         </TabsTrigger>
         <TabsTrigger
           value="signup"
           className="flex-1"
           data-ocid="patient_auth.signup.tab"
         >
-          Sign Up
+          New Account
         </TabsTrigger>
       </TabsList>
       <TabsContent value="signin">
@@ -562,14 +558,25 @@ function PatientAuthContent() {
           <Button
             type="submit"
             disabled={isLoggingIn}
-            className="w-full h-11 font-semibold bg-teal-600 hover:bg-teal-700"
+            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 shadow-md"
             data-ocid="patient_auth.signin.submit_button"
           >
             {isLoggingIn ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : null}
-            {isLoggingIn ? "Signing in..." : "Sign In"}
+            {isLoggingIn ? "Signing in..." : "Login"}
           </Button>
+          <p className="text-center text-sm text-muted-foreground pt-1">
+            Don&apos;t have an account?{" "}
+            <button
+              type="button"
+              className="text-teal-600 underline font-medium"
+              onClick={() => setTab("signup")}
+              data-ocid="patient_auth.signup_link.button"
+            >
+              New Account →
+            </button>
+          </p>
         </form>
       </TabsContent>
       <TabsContent value="signup">
@@ -587,17 +594,29 @@ function PatientAuthContent() {
               <p className="text-sm text-teal-700 font-medium">{suSuccess}</p>
             </div>
           )}
+          {/* Register Number first — the key identifier */}
+          <div
+            className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-800"
+            data-ocid="patient_auth.download_hint"
+          >
+            <p className="font-semibold mb-0.5">📋 Register Number Required</p>
+            <p className="text-xs leading-relaxed">
+              Your register number was given when you first visited the clinic.
+              Format: <strong>0001/26</strong>. The clinic must activate your
+              sign-up before you can create an account.
+            </p>
+          </div>
           <div className="space-y-1.5">
-            <Label>Full Name *</Label>
+            <Label>Register Number *</Label>
             <Input
-              placeholder="Your name"
-              value={suName}
-              onChange={(e) => setSuName(e.target.value)}
+              placeholder="0001/26"
+              value={suRegNo}
+              onChange={(e) => setSuRegNo(e.target.value)}
               data-ocid="patient_auth.signup.input"
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Phone Number *</Label>
+            <Label>Mobile Number *</Label>
             <Input
               type="tel"
               placeholder="01XXXXXXXXX"
@@ -628,40 +647,6 @@ function PatientAuthContent() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label>Age</Label>
-              <Input
-                type="number"
-                placeholder="25"
-                value={suAge}
-                onChange={(e) => setSuAge(e.target.value)}
-                data-ocid="patient_auth.signup.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Gender</Label>
-              <Select value={suGender} onValueChange={setSuGender}>
-                <SelectTrigger data-ocid="patient_auth.signup.select">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Register Number (if returning patient)</Label>
-            <Input
-              placeholder="REG-0001/26"
-              value={suRegNo}
-              onChange={(e) => setSuRegNo(e.target.value)}
-              data-ocid="patient_auth.signup.input"
-            />
-          </div>
           <Button
             type="submit"
             disabled={isLoggingIn}
@@ -674,7 +659,8 @@ function PatientAuthContent() {
             {isLoggingIn ? "Creating account..." : "Create Patient Account"}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Accounts require doctor approval before login.
+            Your name will be auto-filled from your clinic record. Accounts
+            require doctor approval before login.
           </p>
         </form>
       </TabsContent>
