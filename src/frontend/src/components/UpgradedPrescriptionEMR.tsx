@@ -846,6 +846,45 @@ export default function UpgradedPrescriptionEMR(
       medications,
       notes: adviceText || null,
     });
+    // Save full snapshot for exact preview reconstruction
+    const snapshotKey = "medicare_rx_snapshots";
+    const existing = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(snapshotKey) || "{}");
+      } catch {
+        return {};
+      }
+    })();
+    const snapId = `${patientId}-${Date.now()}`;
+    existing[snapId] = {
+      id: snapId,
+      patientId: patientId.toString(),
+      savedAt: new Date().toISOString(),
+      withHeader,
+      name,
+      age,
+      sex,
+      weight,
+      rxDate,
+      regNo,
+      address,
+      bloodGroup,
+      diagnoses: [...diagnoses],
+      drugs: rxDrugs,
+      adviceText,
+      cc,
+      pmh,
+      oe,
+      dh,
+      historyPersonal,
+      historyFamily,
+      historyImmunization,
+      historyAllergy,
+      historyOthers,
+      investigation,
+      adviceNewInv,
+    };
+    localStorage.setItem(snapshotKey, JSON.stringify(existing));
     localStorage.removeItem(DRAFT_KEY);
   }
 
@@ -3058,7 +3097,7 @@ function PrescriptionPreview({
     historyAllergy ||
     historyOthers;
 
-  function handlePrint() {
+  function handlePrint(saveAsPdf = false) {
     const el = document.getElementById(printId);
     if (!el) return;
     const win = window.open("", "_blank");
@@ -3066,23 +3105,81 @@ function PrescriptionPreview({
     win.document.write(`
       <html><head><title>Prescription</title>
       <style>
-        body { font-family: serif; font-size: 11pt; margin: 20mm; }
-        .header { border-bottom: 1px solid #333; padding-bottom: 6pt; margin-bottom: 8pt; display: flex; justify-content: space-between; }
-        .patient-row { display: flex; gap: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4pt; margin-bottom: 8pt; font-size: 9pt; }
-        .cols { display: grid; grid-template-columns: 2fr 3fr; gap: 12pt; }
-        .left-col { font-size: 9pt; border-right: 1px solid #ccc; padding-right: 8pt; }
-        .section { margin-bottom: 6pt; }
-        .section-label { font-weight: bold; font-size: 8pt; text-transform: uppercase; color: #666; }
-        .drug-list { list-style: none; padding: 0; margin: 0; }
-        .drug-item-line1 { font-size: 10pt; font-weight: 500; }
-        .drug-item-line2 { font-size: 8.5pt; color: #555; padding-left: 1em; }
-        .advice { margin-top: 8pt; font-size: 9pt; }
-        @media print { body { margin: 10mm; } }
+        * { box-sizing: border-box; }
+        body { font-family: Georgia, serif; font-size: 11pt; margin: 15mm; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        /* Grid layout */
+        .grid { display: grid !important; }
+        .grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+        .col-span-2 { grid-column: span 2 / span 2 !important; }
+        .col-span-3 { grid-column: span 3 / span 3 !important; }
+        .gap-3 { gap: 0.75rem !important; }
+        /* Flex */
+        .flex { display: flex !important; }
+        .flex-wrap { flex-wrap: wrap !important; }
+        .flex-col { flex-direction: column !important; }
+        .items-start { align-items: flex-start !important; }
+        .justify-between { justify-content: space-between !important; }
+        .gap-x-4 { column-gap: 1rem !important; }
+        .gap-y-0 { row-gap: 0 !important; }
+        /* Spacing */
+        .space-y-2 > * + * { margin-top: 0.5rem !important; }
+        .space-y-1 > * + * { margin-top: 0.25rem !important; }
+        .mb-1 { margin-bottom: 0.25rem !important; }
+        .mb-2 { margin-bottom: 0.5rem !important; }
+        .mb-3 { margin-bottom: 0.75rem !important; }
+        .mt-3 { margin-top: 0.75rem !important; }
+        .pb-2 { padding-bottom: 0.5rem !important; }
+        .pt-2 { padding-top: 0.5rem !important; }
+        .pl-4 { padding-left: 1rem !important; }
+        .pr-2 { padding-right: 0.5rem !important; }
+        .p-4 { padding: 1rem !important; }
+        /* Borders */
+        .border-b { border-bottom: 1px solid #d1d5db !important; }
+        .border-t { border-top: 1px solid #d1d5db !important; }
+        .border-r { border-right: 1px solid #d1d5db !important; }
+        .border { border: 1px solid #d1d5db !important; }
+        .border-gray-200 { border-color: #e5e7eb !important; }
+        /* Typography */
+        .font-serif { font-family: Georgia, serif !important; }
+        .font-bold { font-weight: 700 !important; }
+        .font-medium { font-weight: 500 !important; }
+        .font-semibold { font-weight: 600 !important; }
+        .text-base { font-size: 1rem !important; }
+        .text-sm { font-size: 0.875rem !important; }
+        .text-xs { font-size: 0.75rem !important; }
+        .text-2xl { font-size: 1.5rem !important; }
+        .uppercase { text-transform: uppercase !important; }
+        .whitespace-pre-wrap { white-space: pre-wrap !important; }
+        .leading-snug { line-height: 1.375 !important; }
+        /* Colors - force print */
+        .text-gray-900 { color: #111827 !important; }
+        .text-gray-800 { color: #1f2937 !important; }
+        .text-gray-600 { color: #4b5563 !important; }
+        .text-gray-500 { color: #6b7280 !important; }
+        .text-gray-400 { color: #9ca3af !important; }
+        .text-indigo-600 { color: #4f46e5 !important; }
+        .text-orange-600 { color: #ea580c !important; }
+        .text-teal-600 { color: #0d9488 !important; }
+        .text-right { text-align: right !important; }
+        /* Misc */
+        .rounded { border-radius: 0.25rem !important; }
+        .max-w-2xl { max-width: 42rem !important; }
+        .mx-auto { margin-left: auto !important; margin-right: auto !important; }
+        .ml-1 { margin-left: 0.25rem !important; }
+        strong { font-weight: 700 !important; }
+        @media print {
+          body { margin: 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+        }
       </style></head><body>
       ${el.innerHTML}
       </body></html>
     `);
     win.document.close();
+    if (saveAsPdf) {
+      win.onafterprint = () => win.close();
+    }
+    win.focus();
     win.print();
   }
 
@@ -3094,7 +3191,7 @@ function PrescriptionPreview({
       <div className="flex justify-end gap-2 mb-2">
         <button
           type="button"
-          onClick={handlePrint}
+          onClick={() => handlePrint()}
           className="flex items-center gap-1 text-sm px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700"
           data-ocid="rx.print.button"
         >
@@ -3102,7 +3199,7 @@ function PrescriptionPreview({
         </button>
         <button
           type="button"
-          onClick={handlePrint}
+          onClick={() => handlePrint(true)}
           className="flex items-center gap-1 text-sm px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
           data-ocid="rx.download.button"
         >

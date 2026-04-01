@@ -20,12 +20,15 @@ import {
   AlertCircle,
   ArrowLeft,
   Baby,
+  Bell,
   Calendar,
   CheckCircle2,
   ChevronRight,
   Clock,
   Download,
   Droplets,
+  Eye,
+  EyeOff,
   FileText,
   FlaskConical,
   Heart,
@@ -45,7 +48,7 @@ import {
   Wind,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -271,6 +274,152 @@ export default function PatientDashboard({
 
   // Submission form state
   const [complaint, setComplaint] = useState("");
+
+  // ── Drug Reminders ─────────────────────────────────────────────────────────
+  interface DrugReminder {
+    id: string;
+    patientId: string;
+    drugName: string;
+    times: string[];
+    enabled: boolean;
+    createdAt: string;
+  }
+  const REMINDERS_KEY = "medicare_drug_reminders";
+  const [showReminderPanel, setShowReminderPanel] = useState(false);
+  const [reminders, setReminders] = useState<DrugReminder[]>(() => {
+    try {
+      const all: DrugReminder[] = JSON.parse(
+        localStorage.getItem(REMINDERS_KEY) || "[]",
+      );
+      return all.filter((r) => r.patientId === patientId?.toString());
+    } catch {
+      return [];
+    }
+  });
+  const [newReminderDrug, setNewReminderDrug] = useState("");
+  const [newReminderTime, setNewReminderTime] = useState("08:00");
+  const [newReminderTimes, setNewReminderTimes] = useState<string[]>([]);
+  const firedTodayRef = useRef<Set<string>>(new Set());
+  // Auto-populate drug chips from prescriptions
+  const prescriptionDrugChips = useMemo(() => {
+    const drugs: string[] = [];
+    const pid = patientId?.toString();
+    if (!pid) return drugs;
+    try {
+      // Check standard key
+      const raw = localStorage.getItem(`prescriptions_${pid}`);
+      if (raw) {
+        const rxList = JSON.parse(raw) as any[];
+        for (const rx of rxList) {
+          for (const m of rx.medications || []) {
+            const name = [m.drugForm || m.form, m.drugName || m.name, m.dose]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            if (name && !drugs.includes(name)) drugs.push(name);
+          }
+        }
+      }
+      // Scan all keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key !== `prescriptions_${pid}` && key.includes(pid)) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key) || "null");
+            if (Array.isArray(data)) {
+              for (const rx of data) {
+                if (rx && Array.isArray(rx.medications)) {
+                  for (const m of rx.medications) {
+                    const name = [
+                      m.drugForm || m.form,
+                      m.drugName || m.name,
+                      m.dose,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                      .trim();
+                    if (name && !drugs.includes(name)) drugs.push(name);
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    return drugs.slice(0, 20);
+  }, [patientId]);
+
+  const saveReminders = (updated: DrugReminder[]) => {
+    setReminders(updated);
+    const all: DrugReminder[] = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(REMINDERS_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    })();
+    const others = all.filter((r) => r.patientId !== patientId?.toString());
+    localStorage.setItem(
+      REMINDERS_KEY,
+      JSON.stringify([...others, ...updated]),
+    );
+  };
+
+  const addReminder = () => {
+    if (!newReminderDrug.trim() || newReminderTimes.length === 0) return;
+    const r: DrugReminder = {
+      id: `${Date.now()}`,
+      patientId: patientId?.toString() ?? "",
+      drugName: newReminderDrug.trim(),
+      times: newReminderTimes,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    };
+    if (Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    saveReminders([...reminders, r]);
+    setNewReminderDrug("");
+    setNewReminderTimes([]);
+    setNewReminderTime("08:00");
+    toast.success(`Reminder set for ${r.drugName}`);
+  };
+
+  const deleteReminder = (id: string) => {
+    saveReminders(reminders.filter((r) => r.id !== id));
+  };
+
+  const toggleReminder = (id: string) => {
+    saveReminders(
+      reminders.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)),
+    );
+  };
+
+  // Background reminder checker
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const hhmm = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+      const today = now.toDateString();
+      for (const r of reminders) {
+        if (!r.enabled) continue;
+        for (const t of r.times) {
+          const fireKey = `${r.id}-${t}-${today}`;
+          if (t === hhmm && !firedTodayRef.current.has(fireKey)) {
+            firedTodayRef.current.add(fireKey);
+            toast(`💊 সময়মতো ওষুধ খান — ${r.drugName}`, { duration: 8000 });
+            if (Notification.permission === "granted") {
+              new Notification("💊 Time to take your medicine", {
+                body: r.drugName,
+              });
+            }
+          }
+        }
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [reminders]);
   const [vitalFields, setVitalFields] = useState({
     systolic: "",
     diastolic: "",
@@ -306,6 +455,10 @@ export default function PatientDashboard({
         : false;
   const [acctNewPhone, setAcctNewPhone] = useState("");
   const [acctNewPassword, setAcctNewPassword] = useState("");
+  const [showPasswordPlain, setShowPasswordPlain] = useState(false);
+  const [patientNewPhone, setPatientNewPhone] = useState("");
+  const [patientNewPassword, setPatientNewPassword] = useState("");
+  const [patientShowPass, setPatientShowPass] = useState(false);
 
   const { updatePatientCredentials } = useEmailAuth();
 
@@ -668,6 +821,117 @@ export default function PatientDashboard({
   }
 
   if (!patient) {
+    // For patient role: show minimal Account Settings dashboard instead of error
+    if (currentRole === "patient") {
+      return (
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-800 mb-1">
+                  Health records not yet linked
+                </p>
+                <p className="text-sm text-amber-700">
+                  Your portal account is active, but your health records are not
+                  yet linked. Please contact the clinic with your register
+                  number to get set up.
+                </p>
+              </div>
+            </div>
+
+            {/* Patient own credentials section */}
+            <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-5">
+              <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                <span className="text-blue-600">🔑</span> My Login Details
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Your current sign-in credentials.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label
+                    htmlFor="patient-phone-minimal"
+                    className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                  >
+                    Mobile Number
+                  </label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      id="patient-phone-minimal"
+                      type="tel"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      value={patientNewPhone || (_patientAccount?.phone ?? "")}
+                      onChange={(e) => setPatientNewPhone(e.target.value)}
+                      placeholder="Mobile number"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label
+                    htmlFor="patient-pass-minimal"
+                    className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                  >
+                    Password
+                  </label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      id="patient-pass-minimal"
+                      type={patientShowPass ? "text" : "password"}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      value={
+                        patientNewPassword ||
+                        (() => {
+                          if (!_patientAccount) return "";
+                          try {
+                            return (
+                              atob(_patientAccount.passwordHash).split(
+                                "::",
+                              )[1] ?? ""
+                            );
+                          } catch {
+                            return "";
+                          }
+                        })()
+                      }
+                      onChange={(e) => setPatientNewPassword(e.target.value)}
+                      placeholder="Password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPatientShowPass(!patientShowPass)}
+                      className="p-2 text-gray-500 hover:text-gray-700"
+                    >
+                      {patientShowPass ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  onClick={() => {
+                    if (!_patientAccount?.registerNumber) return;
+                    updatePatientCredentials(
+                      _patientAccount.registerNumber,
+                      patientNewPhone || undefined,
+                      patientNewPassword || undefined,
+                    );
+                    setPatientNewPhone("");
+                    setPatientNewPassword("");
+                    toast.success("Credentials updated");
+                  }}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="max-w-4xl mx-auto p-4 sm:p-6">
         <div
@@ -852,6 +1116,20 @@ export default function PatientDashboard({
             </nav>
             <div className="flex items-center gap-2">
               {/* Mobile back */}
+              {/* Bell reminder button */}
+              <button
+                type="button"
+                onClick={() => setShowReminderPanel(true)}
+                className="relative p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-teal-600 transition-colors"
+                data-ocid="patient_dashboard.open_modal_button"
+              >
+                <Bell className="w-5 h-5" />
+                {reminders.filter((r) => r.enabled).length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5">
+                    {reminders.filter((r) => r.enabled).length}
+                  </span>
+                )}
+              </button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -933,15 +1211,13 @@ export default function PatientDashboard({
                   >
                     💬 Chat
                   </TabsTrigger>
-                  {(currentRole === "doctor" || currentRole === "admin") && (
-                    <TabsTrigger
-                      value="account"
-                      className="w-full justify-start text-left shrink-0 rounded-lg px-3 py-2.5 font-medium data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md"
-                      data-ocid="patient_dashboard.account.tab"
-                    >
-                      ⚙️ Account
-                    </TabsTrigger>
-                  )}
+                  <TabsTrigger
+                    value="account"
+                    className="w-full justify-start text-left shrink-0 rounded-lg px-3 py-2.5 font-medium data-[state=active]:bg-slate-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                    data-ocid="patient_dashboard.account.tab"
+                  >
+                    ⚙️ Account
+                  </TabsTrigger>
                 </TabsList>
               </div>
               {/* RIGHT CONTENT */}
@@ -2266,10 +2542,10 @@ export default function PatientDashboard({
                   />
                 </TabsContent>
 
-                {/* ── ACCOUNT SETTINGS (admin/doctor only) ── */}
-                {(currentRole === "doctor" || currentRole === "admin") && (
-                  <TabsContent value="account" className="space-y-4">
-                    {/* Sign-Up Toggle */}
+                {/* ── ACCOUNT SETTINGS ── */}
+                <TabsContent value="account" className="space-y-4">
+                  {/* Sign-Up Toggle — admin/doctor only */}
+                  {(currentRole === "doctor" || currentRole === "admin") && (
                     <div className="bg-white rounded-xl border border-indigo-100 shadow-sm p-5">
                       <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
                         <span className="text-indigo-600">🔓</span>
@@ -2309,8 +2585,99 @@ export default function PatientDashboard({
                         </p>
                       )}
                     </div>
+                  )}
 
-                    {/* Account Credentials */}
+                  {/* Patient own credentials — patient role only */}
+                  {currentRole === "patient" && (
+                    <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-5">
+                      <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                        <span className="text-blue-600">🔑</span>
+                        My Login Details
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Your current sign-in credentials. You can update your
+                        mobile number or password here.
+                      </p>
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Mobile Number</Label>
+                          <Input
+                            type="tel"
+                            placeholder="01XXXXXXXXX"
+                            value={
+                              patientNewPhone || (_patientAccount?.phone ?? "")
+                            }
+                            onChange={(e) => setPatientNewPhone(e.target.value)}
+                            data-ocid="patient_dashboard.account.input"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Password</Label>
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              type={showPasswordPlain ? "text" : "password"}
+                              placeholder="Password"
+                              className="flex-1"
+                              value={
+                                patientNewPassword ||
+                                (() => {
+                                  if (!_patientAccount) return "";
+                                  try {
+                                    return (
+                                      atob(_patientAccount.passwordHash).split(
+                                        "::",
+                                      )[1] ?? ""
+                                    );
+                                  } catch {
+                                    return "";
+                                  }
+                                })()
+                              }
+                              onChange={(e) =>
+                                setPatientNewPassword(e.target.value)
+                              }
+                              data-ocid="patient_dashboard.account.input"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                setShowPasswordPlain(!showPasswordPlain)
+                              }
+                              data-ocid="patient_dashboard.account.toggle"
+                            >
+                              {showPasswordPlain ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        <Button
+                          className="w-full bg-blue-600 hover:bg-blue-700 font-semibold"
+                          onClick={() => {
+                            if (!_patientAccount?.registerNumber) return;
+                            updatePatientCredentials(
+                              _patientAccount.registerNumber,
+                              patientNewPhone || undefined,
+                              patientNewPassword || undefined,
+                            );
+                            setPatientNewPhone("");
+                            setPatientNewPassword("");
+                            toast.success("Credentials updated successfully");
+                          }}
+                          data-ocid="patient_dashboard.account.save_button"
+                        >
+                          Save Changes
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Account Credentials — admin/doctor only */}
+                  {(currentRole === "doctor" || currentRole === "admin") && (
                     <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-5">
                       <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
                         <span className="text-blue-600">🔑</span>
@@ -2393,8 +2760,155 @@ export default function PatientDashboard({
                         </Button>
                       </div>
                     </div>
-                  </TabsContent>
-                )}
+                  )}
+
+                  {/* Drug Reminders Management */}
+                  <div className="bg-white rounded-xl border border-amber-100 shadow-sm p-5">
+                    <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-amber-600" />
+                      Drug Reminders
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Set time-based reminders for taking medications. The app
+                      will alert you at the scheduled times.
+                    </p>
+                    {/* Existing reminders */}
+                    {reminders.length > 0 ? (
+                      <div className="space-y-2 mb-4">
+                        {reminders.map((r) => (
+                          <div
+                            key={r.id}
+                            className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+                          >
+                            <Switch
+                              checked={r.enabled}
+                              onCheckedChange={() => toggleReminder(r.id)}
+                              data-ocid="patient_dashboard.account.switch"
+                            />
+                            <span className="font-medium text-sm flex-1">
+                              {r.drugName}
+                            </span>
+                            <div className="flex gap-1 flex-wrap">
+                              {r.times.map((t) => (
+                                <span
+                                  key={t}
+                                  className="text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-mono"
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => deleteReminder(r.id)}
+                              className="text-red-400 hover:text-red-600 ml-1"
+                              data-ocid="patient_dashboard.account.delete_button"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400 italic mb-4">
+                        No reminders set yet.
+                      </p>
+                    )}
+                    {/* Add new reminder */}
+                    <div className="border border-dashed border-amber-200 rounded-lg p-3 space-y-2">
+                      <Label className="text-sm font-semibold">
+                        Add New Reminder
+                      </Label>
+                      {prescriptionDrugChips.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">
+                            From your prescriptions:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {prescriptionDrugChips.map((drug) => (
+                              <button
+                                key={drug}
+                                type="button"
+                                onClick={() => setNewReminderDrug(drug)}
+                                className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2.5 py-1 rounded-full hover:bg-blue-100 transition-colors font-medium"
+                              >
+                                {drug}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Drug name (e.g. Tab. Napa)"
+                          value={newReminderDrug}
+                          onChange={(e) => setNewReminderDrug(e.target.value)}
+                          className="flex-1 text-sm"
+                          data-ocid="patient_dashboard.account.input"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="time"
+                          value={newReminderTime}
+                          onChange={(e) => setNewReminderTime(e.target.value)}
+                          className="border border-gray-300 rounded px-2 py-1.5 text-sm font-mono"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (
+                              newReminderTime &&
+                              !newReminderTimes.includes(newReminderTime)
+                            ) {
+                              setNewReminderTimes([
+                                ...newReminderTimes,
+                                newReminderTime,
+                              ]);
+                            }
+                          }}
+                          data-ocid="patient_dashboard.account.secondary_button"
+                        >
+                          + Add Time
+                        </Button>
+                      </div>
+                      {newReminderTimes.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {newReminderTimes.map((t) => (
+                            <span
+                              key={t}
+                              className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-mono"
+                            >
+                              {t}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setNewReminderTimes(
+                                    newReminderTimes.filter((x) => x !== t),
+                                  )
+                                }
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <Button
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+                        onClick={addReminder}
+                        disabled={
+                          !newReminderDrug.trim() ||
+                          newReminderTimes.length === 0
+                        }
+                        data-ocid="patient_dashboard.account.save_button"
+                      >
+                        Save Reminder
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
               </div>
               {/* end RIGHT CONTENT */}
             </div>
@@ -2402,6 +2916,166 @@ export default function PatientDashboard({
           </Tabs>
         </main>
       </div>
+
+      {/* ── Drug Reminder Panel Dialog ── */}
+      <Dialog open={showReminderPanel} onOpenChange={setShowReminderPanel}>
+        <DialogContent
+          className="max-w-md"
+          data-ocid="patient_dashboard.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-amber-600" />
+              Drug Reminders
+              {reminders.filter((r) => r.enabled).length > 0 && (
+                <span className="ml-auto text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                  {reminders.filter((r) => r.enabled).length} active
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+            {reminders.length > 0 ? (
+              <div className="space-y-2">
+                {reminders.map((r, idx) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+                    data-ocid={`patient_dashboard.item.${idx + 1}`}
+                  >
+                    <Switch
+                      checked={r.enabled}
+                      onCheckedChange={() => toggleReminder(r.id)}
+                      data-ocid="patient_dashboard.toggle"
+                    />
+                    <span
+                      className={`font-medium text-sm flex-1 ${r.enabled ? "text-gray-800" : "text-gray-400 line-through"}`}
+                    >
+                      {r.drugName}
+                    </span>
+                    <div className="flex gap-1 flex-wrap">
+                      {r.times.map((t) => (
+                        <span
+                          key={t}
+                          className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-mono"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteReminder(r.id)}
+                      className="text-red-400 hover:text-red-600"
+                      data-ocid="patient_dashboard.delete_button"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p
+                className="text-sm text-gray-400 italic text-center py-4"
+                data-ocid="patient_dashboard.empty_state"
+              >
+                No reminders yet.
+              </p>
+            )}
+            <div className="border-t pt-3 space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">
+                Add New Reminder
+              </Label>
+              {prescriptionDrugChips.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">
+                    From your prescriptions:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {prescriptionDrugChips.map((drug) => (
+                      <button
+                        key={drug}
+                        type="button"
+                        onClick={() => setNewReminderDrug(drug)}
+                        className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2.5 py-1 rounded-full hover:bg-blue-100 transition-colors font-medium"
+                      >
+                        {drug}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Input
+                placeholder="Drug name (e.g. Tab. Napa 500mg)"
+                value={newReminderDrug}
+                onChange={(e) => setNewReminderDrug(e.target.value)}
+                className="text-sm"
+                data-ocid="patient_dashboard.input"
+              />
+              <div className="flex gap-2 items-center">
+                <input
+                  type="time"
+                  value={newReminderTime}
+                  onChange={(e) => setNewReminderTime(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm font-mono"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (
+                      newReminderTime &&
+                      !newReminderTimes.includes(newReminderTime)
+                    ) {
+                      setNewReminderTimes([
+                        ...newReminderTimes,
+                        newReminderTime,
+                      ]);
+                    }
+                  }}
+                  data-ocid="patient_dashboard.secondary_button"
+                >
+                  + Add Time
+                </Button>
+              </div>
+              {newReminderTimes.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {newReminderTimes.map((t) => (
+                    <span
+                      key={t}
+                      className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-mono"
+                    >
+                      {t}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewReminderTimes(
+                            newReminderTimes.filter((x) => x !== t),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <Button
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+                onClick={() => {
+                  addReminder();
+                }}
+                disabled={
+                  !newReminderDrug.trim() || newReminderTimes.length === 0
+                }
+                data-ocid="patient_dashboard.save_button"
+              >
+                Save Reminder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Patient Submit Panel (patient role only) ── */}
       {currentRole === "patient" && (
