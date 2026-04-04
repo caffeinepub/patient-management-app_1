@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useNavigate, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
 import {
   Activity,
@@ -195,8 +194,9 @@ export default function PatientDashboard({
   currentPatient: _patientAccount,
   onBack,
 }: Props) {
-  const search = useSearch({ strict: false }) as { id?: string };
-  const navigate = useNavigate();
+  const search = {
+    id: new URLSearchParams(window.location.search).get("id") ?? undefined,
+  };
   const patientId = propPatientId ?? (search.id ? BigInt(search.id) : null);
 
   const [showEditForm, setShowEditForm] = useState(false);
@@ -1044,7 +1044,13 @@ export default function PatientDashboard({
           <p className="font-medium text-foreground mb-2">Patient not found</p>
           <Button
             variant="outline"
-            onClick={() => (onBack ? onBack() : navigate({ to: "/Patients" }))}
+            onClick={() => {
+              if (onBack) {
+                onBack();
+              } else {
+                window.location.href = "/Patients";
+              }
+            }}
             className="mt-2"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -1185,9 +1191,13 @@ export default function PatientDashboard({
               size="sm"
               variant="ghost"
               className="w-full gap-2 text-sm text-gray-500"
-              onClick={() =>
-                onBack ? onBack() : navigate({ to: "/Patients" })
-              }
+              onClick={() => {
+                if (onBack) {
+                  onBack();
+                } else {
+                  window.location.href = "/Patients";
+                }
+              }}
               data-ocid="patient_dashboard.link"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -1207,9 +1217,13 @@ export default function PatientDashboard({
                 <>
                   <button
                     type="button"
-                    onClick={() =>
-                      onBack ? onBack() : navigate({ to: "/Patients" })
-                    }
+                    onClick={() => {
+                      if (onBack) {
+                        onBack();
+                      } else {
+                        window.location.href = "/Patients";
+                      }
+                    }}
                     className="text-gray-500 hover:text-teal-600 font-medium"
                     data-ocid="patient_dashboard.link"
                   >
@@ -1244,9 +1258,13 @@ export default function PatientDashboard({
                   variant="ghost"
                   size="sm"
                   className="lg:hidden gap-1 text-xs"
-                  onClick={() =>
-                    onBack ? onBack() : navigate({ to: "/Patients" })
-                  }
+                  onClick={() => {
+                    if (onBack) {
+                      onBack();
+                    } else {
+                      window.location.href = "/Patients";
+                    }
+                  }}
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                 </Button>
@@ -3686,7 +3704,11 @@ export default function PatientDashboard({
                 deleteMutation.mutate(patientId, {
                   onSuccess: () => {
                     toast.success("Patient deleted");
-                    onBack ? onBack() : navigate({ to: "/Patients" });
+                    if (onBack) {
+                      onBack();
+                    } else {
+                      window.location.href = "/Patients";
+                    }
                   },
                   onError: () => toast.error("Failed to delete patient"),
                 });
