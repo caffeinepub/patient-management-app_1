@@ -65,7 +65,7 @@ import type { Prescription, Visit } from "../backend.d";
 import PatientChat from "../components/PatientChat";
 import PatientForm from "../components/PatientForm";
 import PrescriptionForm from "../components/PrescriptionForm";
-import PrescriptionPad from "../components/PrescriptionPad";
+import PrescriptionPadPreview from "../components/PrescriptionPadPreview";
 import UpgradedPrescriptionEMR from "../components/UpgradedPrescriptionEMR";
 import VisitForm from "../components/VisitForm";
 import type { PatientAccount } from "../hooks/useEmailAuth";
@@ -95,6 +95,33 @@ export interface PatientSubmission {
   data: Record<string, string>;
   timestamp: string;
   status: "pending" | "approved" | "rejected";
+}
+
+// ── Complaints ────────────────────────────────────────────────────────────────
+const COMPLAINTS_KEY_PREFIX = "medicare_complaints_";
+
+export interface ComplaintEntry {
+  id: string;
+  patientId: string;
+  text: string;
+  timestamp: string; // ISO string
+  status: "pending" | "seen";
+  doctorNote?: string;
+}
+
+function loadComplaints(patientId: string): ComplaintEntry[] {
+  try {
+    const raw = localStorage.getItem(COMPLAINTS_KEY_PREFIX + patientId);
+    if (raw) return JSON.parse(raw) as ComplaintEntry[];
+  } catch {}
+  return [];
+}
+
+function saveComplaints(patientId: string, complaints: ComplaintEntry[]) {
+  localStorage.setItem(
+    COMPLAINTS_KEY_PREFIX + patientId,
+    JSON.stringify(complaints),
+  );
 }
 
 function loadSubmissions(): PatientSubmission[] {
@@ -215,6 +242,17 @@ export default function PatientDashboard({
   const [lmpInput, setLmpInput] = useState("");
   const [gravidaInput, setGravidaInput] = useState("");
   const [paraInput, setParaInput] = useState("");
+
+  // ── Complaints state ────────────────────────────────────────────────────────
+  const [complaints, setComplaints] = useState<ComplaintEntry[]>([]);
+  const [newComplaintText, setNewComplaintText] = useState("");
+
+  // Load complaints when patient is loaded
+  useEffect(() => {
+    if (patientId) {
+      setComplaints(loadComplaints(String(patientId)));
+    }
+  }, [patientId]);
 
   const loadSavedPads = () => {
     if (!patientId) return;
@@ -684,6 +722,38 @@ export default function PatientDashboard({
     win.print();
   }
 
+  function downloadSingleVisitPDF(visit: Visit) {
+    if (!patient) return;
+    let extData: any = {};
+    try {
+      const doctorEmail = getDoctorEmail();
+      const raw = localStorage.getItem(
+        `visit_form_data_${visit.id}_${doctorEmail}`,
+      );
+      if (raw) extData = JSON.parse(raw);
+    } catch {}
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<html><head><title>Visit - ${patient.fullName}</title>
+      <style>body{font-family:Georgia,serif;padding:20px;font-size:11pt}h2{color:#0f766e}h3{color:#374151;margin-top:12px}hr{border:1px solid #ccc;margin:10px 0}p{margin:4px 0}</style></head>
+      <body>
+        <h2>Visit Record</h2>
+        <p><strong>Patient:</strong> ${patient.fullName}</p>
+        <p><strong>Date:</strong> ${format(new Date(Number(visit.visitDate / 1000000n)), "MMM d, yyyy")}</p>
+        <p><strong>Visit Type:</strong> ${visit.visitType || "—"}</p>
+        <p><strong>Diagnosis:</strong> ${extData.diagnosis || visit.diagnosis || "—"}</p>
+        <p><strong>Chief Complaint:</strong> ${visit.chiefComplaint || "—"}</p>
+        ${extData.pastMedicalHistory ? `<p><strong>Past Medical History:</strong> ${extData.pastMedicalHistory}</p>` : ""}
+        ${extData.vitalSigns ? `<h3>Vital Signs</h3><p>BP: ${extData.vitalSigns.bloodPressure || "—"} | Pulse: ${extData.vitalSigns.pulse || "—"} | Temp: ${extData.vitalSigns.temperature || "—"} | SpO₂: ${extData.vitalSigns.oxygenSaturation || "—"}</p>` : ""}
+        ${extData.salientFeatures ? `<h3>Clinical Summary</h3><p>${extData.salientFeatures}</p>` : ""}
+        ${extData.differentialDiagnosis ? `<h3>Differential Diagnosis</h3><p>${extData.differentialDiagnosis}</p>` : ""}
+      </body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
   function downloadPrescriptionsPDF() {
     if (!patient) return;
     const rxs = [...prescriptions].sort((a, b) =>
@@ -706,6 +776,36 @@ export default function PatientDashboard({
       `<html><head><title>Prescriptions - ${patient.fullName}</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#f0f0f0;font-weight:bold}h2{color:#0f766e}</style></head><body><h2>Prescriptions — ${patient.fullName}</h2><p>Register No: ${"—"} | Generated: ${new Date().toLocaleDateString()}</p><table><thead><tr><th>#</th><th>Date</th><th>Diagnosis</th><th>Medications</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
     );
     win.document.close();
+    win.print();
+  }
+
+  function downloadSinglePrescriptionPDF(rx: Prescription) {
+    if (!patient) return;
+    const meds = rx.medications
+      .map((m: any, i: number) => {
+        const line1 =
+          `${i + 1}. ${m.drugForm || m.form || ""} ${m.drugName || m.name || ""} ${m.dose || ""}`.trim();
+        const line2 =
+          `   ${m.frequency || ""} – ${m.duration || ""} ${m.instructions ? `– ${m.instructions}` : ""}`.trim();
+        return `<p style="margin:2px 0 6px 16px">${line1}<br/><span style="color:#555">${line2}</span></p>`;
+      })
+      .join("");
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<html><head><title>Prescription - ${patient.fullName}</title>
+      <style>body{font-family:Georgia,serif;padding:20px;font-size:11pt}h2{color:#0f766e}hr{border:1px solid #ccc;margin:10px 0}</style></head>
+      <body>
+        <h2>Prescription</h2>
+        <p><strong>Patient:</strong> ${patient.fullName}</p>
+        <p><strong>Date:</strong> ${format(new Date(Number(rx.prescriptionDate / 1000000n)), "MMM d, yyyy")}</p>
+        <p><strong>Diagnosis:</strong> ${rx.diagnosis || "—"}</p>
+        <hr/>
+        <p><strong>℞ Medications:</strong></p>
+        ${meds || "<p>No medications</p>"}
+        ${rx.notes ? `<hr/><p><strong>Notes/Advice:</strong> ${rx.notes}</p>` : ""}
+      </body></html>`);
+    win.document.close();
+    win.focus();
     win.print();
   }
 
@@ -1080,16 +1180,20 @@ export default function PatientDashboard({
               Delete Patient
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-full gap-2 text-sm text-gray-500"
-            onClick={() => (onBack ? onBack() : navigate({ to: "/Patients" }))}
-            data-ocid="patient_dashboard.link"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Patients
-          </Button>
+          {currentRole !== "patient" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full gap-2 text-sm text-gray-500"
+              onClick={() =>
+                onBack ? onBack() : navigate({ to: "/Patients" })
+              }
+              data-ocid="patient_dashboard.link"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to Patients
+            </Button>
+          )}
         </div>
       </aside>
 
@@ -1099,47 +1203,54 @@ export default function PatientDashboard({
         <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
           <div className="flex items-center justify-between px-4 sm:px-6 py-3">
             <nav className="flex items-center gap-1.5 text-sm">
-              <button
-                type="button"
-                onClick={() =>
-                  onBack ? onBack() : navigate({ to: "/Patients" })
-                }
-                className="text-gray-500 hover:text-teal-600 font-medium"
-                data-ocid="patient_dashboard.link"
-              >
-                Patients
-              </button>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              {currentRole !== "patient" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onBack ? onBack() : navigate({ to: "/Patients" })
+                    }
+                    className="text-gray-500 hover:text-teal-600 font-medium"
+                    data-ocid="patient_dashboard.link"
+                  >
+                    Patients
+                  </button>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </>
+              )}
               <span className="text-gray-800 font-semibold">
                 {patient.fullName}
               </span>
             </nav>
             <div className="flex items-center gap-2">
-              {/* Mobile back */}
-              {/* Bell reminder button */}
-              <button
-                type="button"
-                onClick={() => setShowReminderPanel(true)}
-                className="relative p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-teal-600 transition-colors"
-                data-ocid="patient_dashboard.open_modal_button"
-              >
-                <Bell className="w-5 h-5" />
-                {reminders.filter((r) => r.enabled).length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5">
-                    {reminders.filter((r) => r.enabled).length}
-                  </span>
-                )}
-              </button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="lg:hidden gap-1 text-xs"
-                onClick={() =>
-                  onBack ? onBack() : navigate({ to: "/Patients" })
-                }
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-              </Button>
+              {/* Bell reminder button — hidden for patient role since it's in the nav bar */}
+              {currentRole !== "patient" && (
+                <button
+                  type="button"
+                  onClick={() => setShowReminderPanel(true)}
+                  className="relative p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-teal-600 transition-colors"
+                  data-ocid="patient_dashboard.open_modal_button"
+                >
+                  <Bell className="w-5 h-5" />
+                  {reminders.filter((r) => r.enabled).length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5">
+                      {reminders.filter((r) => r.enabled).length}
+                    </span>
+                  )}
+                </button>
+              )}
+              {currentRole !== "patient" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="lg:hidden gap-1 text-xs"
+                  onClick={() =>
+                    onBack ? onBack() : navigate({ to: "/Patients" })
+                  }
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </Button>
+              )}
             </div>
           </div>
         </header>
@@ -1203,6 +1314,23 @@ export default function PatientDashboard({
                         {pendingCount}
                       </span>
                     )}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="complaints"
+                    className="w-full justify-start text-left shrink-0 rounded-lg px-3 py-2.5 font-medium data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-md"
+                    data-ocid="patient_dashboard.tab"
+                  >
+                    📝 Complaints
+                    {complaints.filter((c) => c.status === "pending").length >
+                      0 &&
+                      (currentRole === "doctor" || currentRole === "admin") && (
+                        <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                          {
+                            complaints.filter((c) => c.status === "pending")
+                              .length
+                          }
+                        </span>
+                      )}
                   </TabsTrigger>
                   <TabsTrigger
                     value="chat"
@@ -2187,6 +2315,18 @@ export default function PatientDashboard({
                                         <Printer className="w-3.5 h-3.5" />
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        downloadSingleVisitPDF(visit);
+                                      }}
+                                      className="p-1 rounded text-purple-600 hover:bg-purple-50"
+                                      title="Download visit"
+                                      data-ocid={`patient_dashboard.visits.secondary_button.${idx + 1}`}
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -2318,20 +2458,46 @@ export default function PatientDashboard({
                                       <Printer className="w-3 h-3" />
                                       Pad
                                     </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs gap-1 border-purple-300 text-purple-700 hover:bg-purple-50"
+                                      onClick={() =>
+                                        downloadSinglePrescriptionPDF(rx)
+                                      }
+                                      data-ocid={`patient_dashboard.prescriptions.button.${idx + 1}`}
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Download
+                                    </Button>
                                   </div>
                                 )}
                                 {(currentRole === "patient" ||
                                   currentRole === "staff") && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-xs gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 shrink-0"
-                                    onClick={() => setSelectedRx(rx)}
-                                    data-ocid={`patient_dashboard.prescriptions.secondary_button.${idx + 1}`}
-                                  >
-                                    <FileText className="w-3 h-3" />
-                                    View
-                                  </Button>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                                      onClick={() => setSelectedRx(rx)}
+                                      data-ocid={`patient_dashboard.prescriptions.secondary_button.${idx + 1}`}
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      View
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs gap-1 border-purple-300 text-purple-700 hover:bg-purple-50"
+                                      onClick={() =>
+                                        downloadSinglePrescriptionPDF(rx)
+                                      }
+                                      data-ocid={`patient_dashboard.prescriptions.button.${idx + 1}`}
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Download
+                                    </Button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -2524,6 +2690,165 @@ export default function PatientDashboard({
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* ── COMPLAINTS ── */}
+                <TabsContent value="complaints" className="space-y-4">
+                  {/* Patient can submit a complaint */}
+                  {currentRole === "patient" && (
+                    <div className="bg-white rounded-xl border border-indigo-200 shadow-sm p-5">
+                      <h3 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4" /> Submit a Complaint
+                      </h3>
+                      <Textarea
+                        placeholder="Describe your symptoms or concerns..."
+                        value={newComplaintText}
+                        onChange={(e) => setNewComplaintText(e.target.value)}
+                        rows={3}
+                        className="mb-3"
+                        data-ocid="patient_dashboard.complaints.textarea"
+                      />
+                      <Button
+                        onClick={() => {
+                          if (!newComplaintText.trim()) return;
+                          const entry: ComplaintEntry = {
+                            id:
+                              Date.now().toString(36) +
+                              Math.random().toString(36).slice(2),
+                            patientId: String(patientId),
+                            text: newComplaintText.trim(),
+                            timestamp: new Date().toISOString(),
+                            status: "pending",
+                          };
+                          const updated = [entry, ...complaints];
+                          setComplaints(updated);
+                          saveComplaints(String(patientId), updated);
+                          setNewComplaintText("");
+                          toast.success("Complaint submitted");
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                        data-ocid="patient_dashboard.complaints.submit_button"
+                      >
+                        Submit Complaint
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Complaints list - visible to both patient and doctor */}
+                  <div className="bg-white rounded-xl border border-indigo-100 shadow-sm p-5">
+                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-indigo-600" />{" "}
+                      Complaints Log
+                      {complaints.length > 0 && (
+                        <span className="ml-auto text-xs font-normal text-gray-400">
+                          {complaints.length} entries
+                        </span>
+                      )}
+                    </h3>
+                    {complaints.length === 0 ? (
+                      <p
+                        className="text-sm text-gray-400 text-center py-4"
+                        data-ocid="patient_dashboard.complaints.empty_state"
+                      >
+                        No complaints submitted yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {complaints.map((c, idx) => (
+                          <div
+                            key={c.id}
+                            className="border border-gray-200 rounded-xl p-4 space-y-2"
+                            data-ocid={`patient_dashboard.complaints.item.${idx + 1}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-800">
+                                  {c.text}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {format(
+                                    new Date(c.timestamp),
+                                    "MMM d, yyyy 'at' h:mm a",
+                                  )}
+                                </p>
+                              </div>
+                              <Badge
+                                className={
+                                  c.status === "seen"
+                                    ? "bg-green-100 text-green-700 border-0 shrink-0"
+                                    : "bg-amber-100 text-amber-700 border-0 shrink-0"
+                                }
+                              >
+                                {c.status === "seen"
+                                  ? "Seen by Doctor"
+                                  : "Pending"}
+                              </Badge>
+                            </div>
+                            {c.doctorNote && (
+                              <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-800">
+                                <span className="font-semibold">
+                                  Doctor's note:
+                                </span>{" "}
+                                {c.doctorNote}
+                              </div>
+                            )}
+                            {/* Doctor/admin can mark as seen and add a note */}
+                            {(currentRole === "doctor" ||
+                              currentRole === "admin" ||
+                              currentRole === "staff") && (
+                              <div className="pt-2 border-t border-gray-100 space-y-2">
+                                <Input
+                                  placeholder="Add a note for the patient (optional)..."
+                                  defaultValue={c.doctorNote || ""}
+                                  onBlur={(e) => {
+                                    const note = e.target.value.trim();
+                                    if (note !== (c.doctorNote || "")) {
+                                      const updated = complaints.map((x) =>
+                                        x.id === c.id
+                                          ? { ...x, doctorNote: note }
+                                          : x,
+                                      );
+                                      setComplaints(updated);
+                                      saveComplaints(
+                                        String(patientId),
+                                        updated,
+                                      );
+                                    }
+                                  }}
+                                  className="text-sm"
+                                  data-ocid="patient_dashboard.complaints.input"
+                                />
+                                {c.status === "pending" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-700 border-green-300 hover:bg-green-50"
+                                    onClick={() => {
+                                      const updated = complaints.map((x) =>
+                                        x.id === c.id
+                                          ? { ...x, status: "seen" as const }
+                                          : x,
+                                      );
+                                      setComplaints(updated);
+                                      saveComplaints(
+                                        String(patientId),
+                                        updated,
+                                      );
+                                      toast.success("Marked as seen");
+                                    }}
+                                    data-ocid="patient_dashboard.complaints.confirm_button"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />{" "}
+                                    Mark as Seen
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -3677,7 +4002,7 @@ export default function PatientDashboard({
             </DialogTitle>
           </DialogHeader>
           <div className="overflow-x-auto pb-4">
-            <PrescriptionPad
+            <PrescriptionPadPreview
               prescription={padPrescription}
               patientName={patient?.fullName}
               patientAge={age ?? undefined}

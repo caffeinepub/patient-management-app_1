@@ -73,6 +73,7 @@ interface UpgradedPrescriptionEMRProps {
   initialDiagnosis?: string;
   visitExtendedData?: Record<string, unknown>;
   patientRegisterNumber?: string;
+  forceVisitData?: boolean;
   onSubmit: (data: {
     patientId: bigint;
     visitId: bigint | null;
@@ -387,6 +388,7 @@ export default function UpgradedPrescriptionEMR(
     initialDiagnosis,
     visitExtendedData,
     patientRegisterNumber,
+    forceVisitData,
     onSubmit,
     onCancel,
     isLoading,
@@ -526,22 +528,27 @@ export default function UpgradedPrescriptionEMR(
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (d.cc) setCc(d.cc);
-        if (d.pmh) setPmh(d.pmh);
-        if (d.dh) setDh(d.dh);
-        if (d.oe) setOe(d.oe);
-        if (d.investigation) setInvestigation(d.investigation);
-        if (d.adviceNewInv) setAdviceNewInv(d.adviceNewInv);
-        if (d.adviceText) setAdviceText(d.adviceText);
-        if (d.diagnoses) setDiagnoses(d.diagnoses);
-        else if (d.diagnosis) setDiagnoses([d.diagnosis]);
-        if (d.diagnosis) setDiagnosis(d.diagnosis);
-        if (d.rxDrugs) setRxDrugs(d.rxDrugs);
-      } else if (visitExtendedData) {
+      if (forceVisitData && visitExtendedData) {
+        // Skip draft, load from this specific visit
         applyVisitData(visitExtendedData);
+      } else {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (d.cc) setCc(d.cc);
+          if (d.pmh) setPmh(d.pmh);
+          if (d.dh) setDh(d.dh);
+          if (d.oe) setOe(d.oe);
+          if (d.investigation) setInvestigation(d.investigation);
+          if (d.adviceNewInv) setAdviceNewInv(d.adviceNewInv);
+          if (d.adviceText) setAdviceText(d.adviceText);
+          if (d.diagnoses) setDiagnoses(d.diagnoses);
+          else if (d.diagnosis) setDiagnoses([d.diagnosis]);
+          if (d.diagnosis) setDiagnosis(d.diagnosis);
+          if (d.rxDrugs) setRxDrugs(d.rxDrugs);
+        } else if (visitExtendedData) {
+          applyVisitData(visitExtendedData);
+        }
       }
     } catch {
       /* ignore */

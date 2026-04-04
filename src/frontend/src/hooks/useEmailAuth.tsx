@@ -363,37 +363,62 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
           );
         }
 
-        // Find all patient records in localStorage
+        // Find all patient records in localStorage (scan all possible key patterns)
         const allPatients: any[] = [];
+        const allKeys: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key?.startsWith("medicare_patients_")) {
+          const k = localStorage.key(i);
+          if (k) allKeys.push(k);
+        }
+        for (const key of allKeys) {
+          // Match patients_* and medicare_patients_data_* and any other patient list keys
+          if (
+            key.startsWith("patients_") ||
+            key.startsWith("medicare_patients_data") ||
+            key === "medicare_patients"
+          ) {
             try {
-              const arr = JSON.parse(localStorage.getItem(key) || "[]");
+              const raw = localStorage.getItem(key);
+              if (!raw) continue;
+              // Handle BigInt serialization (stored as strings like "123n")
+              const arr = JSON.parse(raw, (_k, v) => {
+                if (typeof v === "string" && /^\d+n$/.test(v)) {
+                  try {
+                    return BigInt(v.slice(0, -1));
+                  } catch {
+                    return v;
+                  }
+                }
+                return v;
+              });
               if (Array.isArray(arr)) allPatients.push(...arr);
             } catch {}
           }
         }
 
+        // Normalize register number for comparison (handle "1/26" == "0001/26")
+        const normalizeRegNo = (rn: string) => {
+          const parts = rn.trim().split("/");
+          if (parts.length === 2) {
+            return `${parts[0].replace(/^0+/, "") || "0"}/${parts[1].trim()}`;
+          }
+          return rn.trim().toLowerCase();
+        };
+
         // Verify register number exists in patient records
         const matchedPatient = allPatients.find(
           (p: any) =>
             p.registerNumber &&
-            p.registerNumber.trim().toLowerCase() ===
-              registerNumber.trim().toLowerCase(),
+            normalizeRegNo(p.registerNumber) === normalizeRegNo(registerNumber),
         );
         if (!matchedPatient) {
           throw new Error(
-            "Register number not found. Please contact the clinic to get registered first.",
+            "Register number not found. Please make sure you enter the exact register number given by the clinic (e.g. 0001/26).",
           );
         }
 
-        // Check if sign-up is enabled for this register number
-        if (!isSignUpEnabled(registerNumber.trim())) {
-          throw new Error(
-            "Your account sign-up has not been activated yet. Please contact the clinic to enable it.",
-          );
-        }
+        // NOTE: sign-up is allowed for any valid register number.
+        // Doctor/admin still approves the account before the patient can log in.
 
         // Auto-fill patient details from the record
         const patientName =

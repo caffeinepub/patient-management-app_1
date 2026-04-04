@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Toaster } from "@/components/ui/sonner";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Outlet,
@@ -26,6 +27,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import {
+  Bell,
   CheckCircle2,
   Loader2,
   ShieldCheck,
@@ -35,7 +37,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout from "./Layout";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import {
@@ -874,6 +876,104 @@ function AppInner() {
   const [pendingCount, setPendingCount] = useState(0);
   const [authTab, setAuthTab] = useState("staff");
 
+  // ── Patient Portal Drug Reminder State ──────────────────────────────────────
+  const REMINDERS_KEY = "medicare_drug_reminders";
+
+  interface DrugReminder {
+    id: string;
+    patientId: string;
+    drugName: string;
+    times: string[];
+    enabled: boolean;
+    createdAt: string;
+  }
+
+  const [showNavReminderPanel, setShowNavReminderPanel] = useState(false);
+  const [navReminders, setNavReminders] = useState<DrugReminder[]>([]);
+  const [navReminderDrug, setNavReminderDrug] = useState("");
+  const [navReminderTime, setNavReminderTime] = useState("08:00");
+  const [navReminderTimes, setNavReminderTimes] = useState<string[]>([]);
+  const navFiredTodayRef = useRef<Set<string>>(new Set());
+
+  // Load reminders for current patient
+  const loadNavReminders = useCallback(() => {
+    if (!currentPatient) return;
+    try {
+      const allReminders: DrugReminder[] = JSON.parse(
+        localStorage.getItem(REMINDERS_KEY) || "[]",
+      );
+      // Find patient id by register number
+      let patId = "";
+      if (currentPatient.registerNumber) {
+        const keys = Object.keys(localStorage).filter((k) =>
+          k.startsWith("medicare_patients_"),
+        );
+        outer: for (const key of keys) {
+          try {
+            const arr = JSON.parse(localStorage.getItem(key) || "[]") as any[];
+            for (const p of arr) {
+              if (p.registerNumber === currentPatient.registerNumber) {
+                patId = String(p.id);
+                break outer;
+              }
+            }
+          } catch {}
+        }
+      }
+      setNavReminders(
+        patId ? allReminders.filter((r) => r.patientId === patId) : [],
+      );
+    } catch {}
+  }, [currentPatient]);
+
+  useEffect(() => {
+    if (currentPatient && !currentDoctor) {
+      loadNavReminders();
+    }
+  }, [currentPatient, currentDoctor, loadNavReminders]);
+
+  // Background reminder checker
+  useEffect(() => {
+    if (!currentPatient || currentDoctor) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const hhmm = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+      const today = now.toDateString();
+      for (const r of navReminders) {
+        if (!r.enabled) continue;
+        for (const t of r.times) {
+          const fireKey = `${r.id}-${t}-${today}`;
+          if (t === hhmm && !navFiredTodayRef.current.has(fireKey)) {
+            navFiredTodayRef.current.add(fireKey);
+            import("sonner").then(({ toast }) =>
+              toast(`💊 সময়মতো ওষুধ খান — ${r.drugName}`, { duration: 8000 }),
+            );
+            if (Notification.permission === "granted") {
+              new Notification("💊 Time to take your medicine", {
+                body: r.drugName,
+              });
+            }
+          }
+        }
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [navReminders, currentPatient, currentDoctor]);
+
+  const saveNavReminders = (updated: DrugReminder[], patientId: string) => {
+    setNavReminders(updated);
+    try {
+      const all: DrugReminder[] = JSON.parse(
+        localStorage.getItem(REMINDERS_KEY) || "[]",
+      );
+      const others = all.filter((r) => r.patientId !== patientId);
+      localStorage.setItem(
+        REMINDERS_KEY,
+        JSON.stringify([...others, ...updated]),
+      );
+    } catch {}
+  };
+
   // Count combined pending
   useEffect(() => {
     const count = () => {
@@ -889,6 +989,24 @@ function AppInner() {
     const iv = setInterval(count, 5000);
     return () => clearInterval(iv);
   }, []);
+
+  // Helper to get patientId from currentPatient register number (must be BEFORE all early returns)
+  const getPortalPatientId = useMemo(() => {
+    if (!currentPatient?.registerNumber) return "";
+    try {
+      const keys = Object.keys(localStorage).filter((k) =>
+        k.startsWith("medicare_patients_"),
+      );
+      for (const key of keys) {
+        const arr = JSON.parse(localStorage.getItem(key) || "[]") as any[];
+        for (const p of arr) {
+          if (p.registerNumber === currentPatient.registerNumber)
+            return String(p.id);
+        }
+      }
+    } catch {}
+    return "";
+  }, [currentPatient]);
 
   const isSerialDisplay =
     typeof window !== "undefined" &&
@@ -931,6 +1049,8 @@ function AppInner() {
 
   // Patient logged in — show their own profile
   if (currentPatient && !currentDoctor) {
+    const activeReminderCount = navReminders.filter((r) => r.enabled).length;
+
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Patient nav bar */}
@@ -947,20 +1067,215 @@ function AppInner() {
                 <p className="text-xs text-teal-600">Patient Portal</p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={patientSignOut}
-              className="gap-2 text-xs"
-              data-ocid="patient.logout.button"
-            >
-              Sign Out
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Drug Reminder Bell */}
+              <button
+                type="button"
+                onClick={() => {
+                  loadNavReminders();
+                  setShowNavReminderPanel(true);
+                }}
+                className="relative p-2 rounded-lg hover:bg-teal-50 text-gray-500 hover:text-teal-600 transition-colors"
+                data-ocid="patient_nav.open_modal_button"
+                title="Drug Reminders"
+              >
+                <Bell className="w-5 h-5" />
+                {activeReminderCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5">
+                    {activeReminderCount}
+                  </span>
+                )}
+              </button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={patientSignOut}
+                className="gap-2 text-xs"
+                data-ocid="patient.logout.button"
+              >
+                Sign Out
+              </Button>
+            </div>
           </div>
         </header>
         {/* Try to find their patient record by register number */}
         <PatientPortalView currentPatient={currentPatient} />
         <Toaster position="top-right" richColors />
+
+        {/* ── Drug Reminder Panel (patient nav) ── */}
+        <Dialog
+          open={showNavReminderPanel}
+          onOpenChange={setShowNavReminderPanel}
+        >
+          <DialogContent className="max-w-md" data-ocid="patient_nav.dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-amber-600" />
+                Drug Reminders
+                {activeReminderCount > 0 && (
+                  <span className="ml-auto text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                    {activeReminderCount} active
+                  </span>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+              {navReminders.length > 0 ? (
+                <div className="space-y-2">
+                  {navReminders.map((r, idx) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+                      data-ocid={`patient_nav.item.${idx + 1}`}
+                    >
+                      <Switch
+                        checked={r.enabled}
+                        onCheckedChange={() => {
+                          const updated = navReminders.map((x) =>
+                            x.id === r.id ? { ...x, enabled: !x.enabled } : x,
+                          );
+                          saveNavReminders(updated, getPortalPatientId);
+                        }}
+                        data-ocid="patient_nav.toggle"
+                      />
+                      <span
+                        className={`font-medium text-sm flex-1 ${r.enabled ? "text-gray-800" : "text-gray-400 line-through"}`}
+                      >
+                        {r.drugName}
+                      </span>
+                      <div className="flex gap-1 flex-wrap">
+                        {r.times.map((t) => (
+                          <span
+                            key={t}
+                            className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-mono"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          saveNavReminders(
+                            navReminders.filter((x) => x.id !== r.id),
+                            getPortalPatientId,
+                          )
+                        }
+                        className="text-red-400 hover:text-red-600"
+                        data-ocid="patient_nav.delete_button"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p
+                  className="text-sm text-gray-400 italic text-center py-4"
+                  data-ocid="patient_nav.empty_state"
+                >
+                  No reminders yet.
+                </p>
+              )}
+              <div className="border-t pt-3 space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">
+                  Add New Reminder
+                </Label>
+                <Input
+                  placeholder="Drug name (e.g. Tab. Napa 500mg)"
+                  value={navReminderDrug}
+                  onChange={(e) => setNavReminderDrug(e.target.value)}
+                  className="text-sm"
+                  data-ocid="patient_nav.input"
+                />
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="time"
+                    value={navReminderTime}
+                    onChange={(e) => setNavReminderTime(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm font-mono"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (
+                        navReminderTime &&
+                        !navReminderTimes.includes(navReminderTime)
+                      ) {
+                        setNavReminderTimes([
+                          ...navReminderTimes,
+                          navReminderTime,
+                        ]);
+                      }
+                    }}
+                    data-ocid="patient_nav.secondary_button"
+                  >
+                    + Add Time
+                  </Button>
+                </div>
+                {navReminderTimes.length > 0 && (
+                  <div className="flex gap-1 flex-wrap">
+                    {navReminderTimes.map((t) => (
+                      <span
+                        key={t}
+                        className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-mono"
+                      >
+                        {t}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNavReminderTimes(
+                              navReminderTimes.filter((x) => x !== t),
+                            )
+                          }
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    if (
+                      !navReminderDrug.trim() ||
+                      navReminderTimes.length === 0
+                    ) {
+                      import("sonner").then(({ toast }) =>
+                        toast.error("Enter a drug name and at least one time"),
+                      );
+                      return;
+                    }
+                    const patId = getPortalPatientId;
+                    if (Notification.permission === "default")
+                      Notification.requestPermission();
+                    const newR: DrugReminder = {
+                      id: `${Date.now()}`,
+                      patientId: patId,
+                      drugName: navReminderDrug.trim(),
+                      times: navReminderTimes,
+                      enabled: true,
+                      createdAt: new Date().toISOString(),
+                    };
+                    const updated = [...navReminders, newR];
+                    saveNavReminders(updated, patId);
+                    setNavReminderDrug("");
+                    setNavReminderTimes([]);
+                    setNavReminderTime("08:00");
+                    import("sonner").then(({ toast }) =>
+                      toast.success(`Reminder set for ${newR.drugName}`),
+                    );
+                  }}
+                  data-ocid="patient_nav.save_button"
+                >
+                  Save Reminder
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

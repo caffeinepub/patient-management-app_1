@@ -135,6 +135,8 @@ export default function PatientProfile() {
   const [rxPatientRegisterNumber, setRxPatientRegisterNumber] = useState<
     string | undefined
   >(undefined);
+  const [rxForceVisitData, setRxForceVisitData] = useState(false);
+  const [expandedVisitId, setExpandedVisitId] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
   const [editRx, setEditRx] = useState<Prescription | null>(null);
@@ -156,6 +158,7 @@ export default function PatientProfile() {
 
   const openRxForm = (diagnosis?: string, forVisitId?: bigint) => {
     setRxInitialDiagnosis(diagnosis);
+    setRxForceVisitData(!!forVisitId); // force visit data when opened from a specific visit row
     // Load visit extended data from localStorage
     try {
       const doctorEmail = getDoctorEmail();
@@ -189,6 +192,7 @@ export default function PatientProfile() {
   const closeRxForm = () => {
     setShowRxForm(false);
     setRxInitialDiagnosis(undefined);
+    setRxForceVisitData(false);
   };
 
   const openPadPreview = (rx: Prescription) => {
@@ -794,7 +798,7 @@ export default function PatientProfile() {
             </div>
           </div>
 
-          {/* PATIENT HISTORY TABLE */}
+          {/* PATIENT HISTORY - EXPANDABLE VISIT CARDS */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-semibold text-gray-700 flex items-center gap-2">
@@ -819,104 +823,422 @@ export default function PatientProfile() {
                 <p className="text-sm text-gray-400">No visit history yet</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table
-                  className="w-full text-sm"
-                  data-ocid="patient_profile.visits.table"
-                >
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      {[
-                        "Date",
-                        "Diagnosis",
-                        "Chief Complaint",
-                        "Severity",
-                        "Status",
-                        "Actions",
-                      ].map((h) => (
-                        <th
-                          key={h}
-                          className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visits
-                      .slice()
-                      .sort((a, b) => Number(b.visitDate - a.visitDate))
-                      .map((visit, idx) => {
-                        const isRecent = idx === 0;
-                        return (
-                          <tr
-                            key={visit.id.toString()}
-                            className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-                            onClick={() => setSelectedVisit(visit)}
-                            onKeyDown={(e) =>
-                              e.key === "Enter" && setSelectedVisit(visit)
-                            }
-                            tabIndex={0}
-                            data-ocid={`patient_profile.visits.item.${idx + 1}`}
-                          >
-                            <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
-                              {formatTime(visit.visitDate)}
-                            </td>
-                            <td className="py-2.5 px-3 font-medium text-gray-800 max-w-[150px] truncate">
-                              {visit.diagnosis || "—"}
-                            </td>
-                            <td className="py-2.5 px-3 text-gray-600 max-w-[150px] truncate">
-                              {visit.chiefComplaint || "—"}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <Badge
-                                className={`text-xs border-0 ${isRecent ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
-                              >
-                                {isRecent ? "High" : "Low"}
-                              </Badge>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <Badge
-                                className={`text-xs border-0 ${isRecent ? "bg-amber-100 text-amber-700" : "bg-teal-100 text-teal-700"}`}
-                              >
-                                {isRecent ? "Under Treatment" : "Cured"}
-                              </Badge>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedVisit(visit);
-                                  }}
-                                  className="p-1 rounded text-teal-600 hover:bg-teal-50 transition-colors"
-                                  data-ocid={`patient_profile.visits.edit_button.${idx + 1}`}
-                                >
-                                  <FileText className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openRxForm(
-                                      visit.diagnosis || undefined,
-                                      visit.id,
-                                    );
-                                  }}
-                                  className="p-1 rounded text-blue-600 hover:bg-blue-50 transition-colors"
-                                  data-ocid="patient_profile.prescriptions.open_modal_button"
-                                >
-                                  <Printer className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+              <div
+                className="space-y-3"
+                data-ocid="patient_profile.visits.list"
+              >
+                {visits
+                  .slice()
+                  .sort((a, b) => Number(b.visitDate - a.visitDate))
+                  .map((visit, idx) => {
+                    const isRecent = idx === 0;
+                    const visitIdStr = visit.id.toString();
+                    const isExpanded =
+                      expandedVisitId === visitIdStr ||
+                      (idx === 0 && expandedVisitId === null);
+                    const doctorEmail = getDoctorEmail();
+                    // Load visit extended data from localStorage
+                    let visitExt: Record<string, unknown> | null = null;
+                    try {
+                      const key = `visit_form_data_${visit.id}_${doctorEmail}`;
+                      const raw = localStorage.getItem(key);
+                      if (raw) visitExt = JSON.parse(raw);
+                    } catch {}
+                    // Compile salient features from visit data
+                    const salientLines: string[] = [];
+                    if (visitExt) {
+                      const chiefComplaints = visitExt.chiefComplaints as
+                        | string[]
+                        | undefined;
+                      const complaintAnswers = visitExt.complaintAnswers as
+                        | Record<string, string | string[]>
+                        | undefined;
+                      if (chiefComplaints && chiefComplaints.length > 0) {
+                        const ccParts = chiefComplaints.map((c, ci) => {
+                          const raw = complaintAnswers?.[c];
+                          let ans: string[] = [];
+                          if (Array.isArray(raw)) ans = raw.filter(Boolean);
+                          else if (typeof raw === "string" && raw) ans = [raw];
+                          return ans.length > 0
+                            ? `${ci + 1}. ${c} — ${ans.slice(0, 3).join(", ")}`
+                            : `${ci + 1}. ${c}`;
+                        });
+                        salientLines.push(
+                          `Chief complaints: ${ccParts.join("; ")}`,
                         );
-                      })}
-                  </tbody>
-                </table>
+                      }
+                      const sra = visitExt.systemReviewAnswers as
+                        | Record<string, string>
+                        | undefined;
+                      if (sra) {
+                        const positive = Object.entries(sra)
+                          .filter(
+                            ([, v]) =>
+                              v && v !== "Normal" && v !== "None" && v !== "No",
+                          )
+                          .map(([k, v]) => `${k}: ${v}`);
+                        if (positive.length > 0)
+                          salientLines.push(
+                            `Positive system review: ${positive.join("; ")}`,
+                          );
+                      }
+                      const vs = visitExt.vitalSigns as
+                        | {
+                            bloodPressure?: string;
+                            pulse?: string;
+                            temperature?: string;
+                            oxygenSaturation?: string;
+                            respiratoryRate?: string;
+                          }
+                        | undefined;
+                      if (vs) {
+                        const vsParts: string[] = [];
+                        if (vs.bloodPressure)
+                          vsParts.push(`BP: ${vs.bloodPressure}`);
+                        if (vs.pulse) vsParts.push(`Pulse: ${vs.pulse}/min`);
+                        if (vs.temperature)
+                          vsParts.push(`Temp: ${vs.temperature}°F`);
+                        if (vs.oxygenSaturation)
+                          vsParts.push(`SpO2: ${vs.oxygenSaturation}%`);
+                        if (vs.respiratoryRate)
+                          vsParts.push(`RR: ${vs.respiratoryRate}/min`);
+                        if (vsParts.length > 0)
+                          salientLines.push(`Vitals: ${vsParts.join(", ")}`);
+                      }
+                      const genExam = visitExt.generalExamFindings as
+                        | Record<string, string>
+                        | undefined;
+                      if (genExam) {
+                        const pos = Object.entries(genExam)
+                          .filter(
+                            ([, v]) =>
+                              v &&
+                              v !== "Normal" &&
+                              v !== "None" &&
+                              v !== "No" &&
+                              v !== "Absent",
+                          )
+                          .map(([k, v]) => `${k}: ${v}`);
+                        if (pos.length > 0)
+                          salientLines.push(`General exam: ${pos.join("; ")}`);
+                      }
+                      const sysExam = visitExt.systemicExamFindings as
+                        | Record<string, string>
+                        | undefined;
+                      if (sysExam) {
+                        const pos = Object.entries(sysExam)
+                          .filter(
+                            ([, v]) => v && v !== "Normal" && v !== "None",
+                          )
+                          .map(([k, v]) => `${k}: ${v}`);
+                        if (pos.length > 0)
+                          salientLines.push(`Systemic exam: ${pos.join("; ")}`);
+                      }
+                    }
+                    // Investigation profile rows
+                    const invRows = visitExt?.previous_investigation_rows as
+                      | Array<{
+                          date: string;
+                          name: string;
+                          result: string;
+                          unit?: string;
+                          interpretation?: string;
+                        }>
+                      | undefined;
+                    // Ongoing treatment from prescriptions
+                    const linkedRx = prescriptions.filter(
+                      (rx) =>
+                        rx.diagnosis &&
+                        visit.diagnosis &&
+                        rx.diagnosis
+                          .toLowerCase()
+                          .includes(
+                            visit.diagnosis?.toLowerCase() ?? "__never__",
+                          ),
+                    );
+                    const treatmentRx =
+                      linkedRx.length > 0
+                        ? linkedRx[0]
+                        : prescriptions.length > 0
+                          ? [...prescriptions].sort((a, b) =>
+                              Number(b.prescriptionDate - a.prescriptionDate),
+                            )[0]
+                          : null;
+
+                    return (
+                      <div
+                        key={visitIdStr}
+                        className="border border-gray-200 rounded-xl overflow-hidden"
+                        data-ocid={`patient_profile.visits.item.${idx + 1}`}
+                      >
+                        {/* Card Header */}
+                        <button
+                          type="button"
+                          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                          onClick={() =>
+                            setExpandedVisitId(
+                              isExpanded ? "__none__" : visitIdStr,
+                            )
+                          }
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <ChevronRight
+                              className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                            />
+                            <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                              {formatTime(visit.visitDate)}
+                            </span>
+                            <span className="text-sm text-gray-600 truncate max-w-[200px]">
+                              {visit.diagnosis ||
+                                visit.chiefComplaint ||
+                                "Visit"}
+                            </span>
+                            <Badge
+                              className={`text-xs border-0 flex-shrink-0 ${isRecent ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                            >
+                              {isRecent ? "High" : "Low"}
+                            </Badge>
+                            <Badge
+                              className={`text-xs border-0 flex-shrink-0 ${isRecent ? "bg-amber-100 text-amber-700" : "bg-teal-100 text-teal-700"}`}
+                            >
+                              {isRecent ? "Under Treatment" : "Cured"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedVisit(visit);
+                              }}
+                              className="p-1.5 rounded text-teal-600 hover:bg-teal-50 transition-colors"
+                              title="View full visit details"
+                              data-ocid={`patient_profile.visits.edit_button.${idx + 1}`}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRxForm(
+                                  visit.diagnosis || undefined,
+                                  visit.id,
+                                );
+                              }}
+                              className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                              title="Open prescription"
+                              data-ocid="patient_profile.prescriptions.open_modal_button"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </button>
+
+                        {/* Expandable Body — 5-section clinical format */}
+                        {isExpanded && (
+                          <div className="divide-y divide-gray-100 text-sm">
+                            {/* 1. Particulars of the Patient */}
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-blue-700">
+                                  1. Particulars of the Patient
+                                </h4>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-gray-700">
+                                <div>
+                                  <span className="text-gray-400 text-xs">
+                                    Name:
+                                  </span>{" "}
+                                  {patient.fullName}
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 text-xs">
+                                    Age:
+                                  </span>{" "}
+                                  {age !== null ? `${age} yrs` : "—"}
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 text-xs">
+                                    Sex:
+                                  </span>{" "}
+                                  {patient.gender}
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 text-xs">
+                                    Reg No:
+                                  </span>{" "}
+                                  {(patient as any)?.registerNumber || "—"}
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 text-xs">
+                                    Visit Date:
+                                  </span>{" "}
+                                  {formatTime(visit.visitDate)}
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 text-xs">
+                                    Type:
+                                  </span>{" "}
+                                  {visit.visitType}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2. Clinical Diagnosis */}
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-green-700">
+                                  2. Clinical Diagnosis
+                                </h4>
+                              </div>
+                              <p className="text-gray-800 font-medium">
+                                {visit.diagnosis || "Not recorded"}
+                              </p>
+                            </div>
+
+                            {/* 3. Salient Features */}
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="h-2 w-2 rounded-full bg-purple-500 flex-shrink-0" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-purple-700">
+                                  3. Salient Features
+                                </h4>
+                              </div>
+                              {salientLines.length > 0 ? (
+                                <div className="space-y-1 text-gray-700">
+                                  {salientLines.map((line) => (
+                                    <p
+                                      key={line.slice(0, 40)}
+                                      className="leading-relaxed"
+                                    >
+                                      {line}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : visit.chiefComplaint ? (
+                                <p className="text-gray-700">
+                                  Chief complaint: {visit.chiefComplaint}
+                                  {visit.historyOfPresentIllness
+                                    ? `. ${visit.historyOfPresentIllness}`
+                                    : ""}
+                                </p>
+                              ) : (
+                                <p className="text-gray-400 italic text-xs">
+                                  No salient features recorded.
+                                </p>
+                              )}
+                            </div>
+
+                            {/* 4. Investigation Profile */}
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="h-2 w-2 rounded-full bg-amber-500 flex-shrink-0" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                                  4. Investigation Profile
+                                </h4>
+                              </div>
+                              {invRows && invRows.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs border-collapse">
+                                    <thead>
+                                      <tr className="bg-amber-50">
+                                        <th className="text-left py-1.5 px-2 text-amber-700 font-semibold border border-amber-100">
+                                          Date
+                                        </th>
+                                        <th className="text-left py-1.5 px-2 text-amber-700 font-semibold border border-amber-100">
+                                          Investigation
+                                        </th>
+                                        <th className="text-left py-1.5 px-2 text-amber-700 font-semibold border border-amber-100">
+                                          Result
+                                        </th>
+                                        <th className="text-left py-1.5 px-2 text-amber-700 font-semibold border border-amber-100">
+                                          Unit
+                                        </th>
+                                        <th className="text-left py-1.5 px-2 text-amber-700 font-semibold border border-amber-100">
+                                          Interpretation
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {invRows.map((row, ri) => (
+                                        <tr
+                                          key={`${row.date}-${row.name}-${row.result || ri}`}
+                                          className={
+                                            ri % 2 === 0
+                                              ? "bg-white"
+                                              : "bg-amber-50/30"
+                                          }
+                                        >
+                                          <td className="py-1 px-2 border border-amber-100 text-gray-600">
+                                            {row.date || "—"}
+                                          </td>
+                                          <td className="py-1 px-2 border border-amber-100 text-gray-800 font-medium">
+                                            {row.name || "—"}
+                                          </td>
+                                          <td className="py-1 px-2 border border-amber-100 text-gray-700">
+                                            {row.result || "—"}
+                                          </td>
+                                          <td className="py-1 px-2 border border-amber-100 text-gray-500">
+                                            {row.unit || "—"}
+                                          </td>
+                                          <td className="py-1 px-2 border border-amber-100 text-gray-500">
+                                            {row.interpretation || "—"}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <p className="text-gray-400 italic text-xs">
+                                  No investigation data recorded.
+                                </p>
+                              )}
+                            </div>
+
+                            {/* 5. Ongoing Treatment */}
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="h-2 w-2 rounded-full bg-teal-500 flex-shrink-0" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-teal-700">
+                                  5. Ongoing Treatment
+                                </h4>
+                              </div>
+                              {treatmentRx?.medications &&
+                              treatmentRx.medications.length > 0 ? (
+                                <div className="space-y-1">
+                                  {treatmentRx.medications.map((med, mi) => (
+                                    <p
+                                      key={`${med.name}-${mi}`}
+                                      className="text-gray-700"
+                                    >
+                                      <span className="font-medium">
+                                        {mi + 1}. {med.name}
+                                      </span>
+                                      {med.dose ? ` ${med.dose}` : ""}
+                                      {med.frequency
+                                        ? ` — ${med.frequency}`
+                                        : ""}
+                                      {med.duration
+                                        ? ` for ${med.duration}`
+                                        : ""}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-gray-400 italic text-xs">
+                                  No medications recorded.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -1100,6 +1422,7 @@ export default function PatientProfile() {
               patientRegisterNumber={
                 rxPatientRegisterNumber || (patient as any)?.registerNumber
               }
+              forceVisitData={rxForceVisitData}
               onSubmit={(data) => {
                 createRxMutation.mutate(data, {
                   onSuccess: () => {

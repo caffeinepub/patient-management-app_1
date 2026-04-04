@@ -1,31 +1,83 @@
-# Dr. Arman Kabir's Care
+# Dr. Arman Kabir's Care — Version 59
 
 ## Current State
-PatientDashboard.tsx renders a full dashboard with 9 colored tabs (Overview, Vitals, Investigations, History, Prescriptions, Appointments, Pending Approvals, Chat, Account Settings). The Account Settings tab exists but for the patient role it only shows Drug Reminders — it does NOT show the patient's own login credentials (mobile number, password).
 
-The Drug Reminder dialog opens when the bell icon is clicked, but drugs must be typed manually — there is no auto-population from active prescriptions.
+The app is a full-stack bilingual (English/Bangla) Patient Management and Doctor Portal. Built with React + Vite + TailwindCSS + shadcn/ui. All data in localStorage.
 
-When a patient logs in, PatientPortalView in App.tsx tries to find the patientId by matching registerNumber in localStorage. If patientId is found but the patient record exists, tabs show. BUT if patientId is null (record not found), PatientDashboard shows "Patient not found" with no tabs at all — this is the "NO TAB" bug.
+- **Auth**: 4 roles — Admin, Doctor, Staff, Patient. Patients sign up via register number + phone + password; doctor approval required. `useEmailAuth.tsx` handles all auth logic.
+- **Patient Portal**: When `currentPatient` is set and no doctor is logged in, `App.tsx` renders a custom patient navbar + `PatientPortalView` which looks up the patient record and renders `PatientDashboard` with `currentRole="patient"`.
+- **PatientDashboard** (`pages/PatientDashboard.tsx`, ~4061 lines): Has a left sidebar with colored tabs (Overview, Vitals, Investigations, History, Prescriptions, Appointments, Pending Approvals, Chat, Account). The Bell reminder button is rendered in the dashboard header.
+- **Account Settings tab**: Shows current phone/password (masked), allow sign-up toggle, credential edit for admin/doctor.
+- **Drug reminders**: Bell button in dashboard opens a panel where drugs from prescriptions can be selected and reminder times set manually. Both patient and doctor can set reminders. Notifications fire browser + in-app.
+- **Complaints**: Currently submitted via the `PatientSubmission` flow (type=`complaint`) in the Pending Approvals tab. There is no standalone timestamped complaints log.
+- **Patient Portal navbar**: Has patient name, "Patient Portal" label, and a Sign Out button. The bell icon is inside the main dashboard, not the navbar.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Account Settings tab for patient role: show current mobile number and current password (masked, with Show/Hide eye toggle). Patient can also change their password or mobile from here.
-- Drug Reminder auto-populate: when the reminder bell panel opens, auto-list all drugs from all saved prescriptions for this patient (extracted from localStorage key `prescriptions_{patientId}`). Each drug shows with a time picker. Patient can then set reminder times for each auto-listed drug.
-- A minimal patient portal view when patientId is null: show at least Account Settings tab with their credentials and drug reminders, plus a message that their health records are not yet linked.
+
+1. **Patient Portal — own profile only**: When a patient logs in, they land directly on their own dashboard (already done via `PatientPortalView`). Ensure the patient sees ONLY their own record — no ability to navigate to other patients.
+
+2. **Patient Portal — selective view**: Patient can only see their own data across all 9 tabs. No browsing other patients. This is already architected but needs to be verified as strictly enforced.
+
+3. **Drug reminder bell — patient portal navbar only**: Move the Bell icon from inside the dashboard to the patient portal navbar (the sticky header shown when `currentPatient` is logged in). Hide the bell from the doctor's navbar entirely. Bell fires browser + in-app notifications only for the patient. Doctor can still set reminders from inside the patient profile (from within the dashboard).
+
+4. **Complaints Log (new section)**: A dedicated "Complaints" tab (or section within Overview/Pending Approvals) in the patient dashboard where:
+   - Patient can type and submit a new complaint any time — NOT tied to a visit
+   - Each complaint saved with timestamp (date + time)
+   - Both patient and doctor can view the full timestamped complaints log
+   - Doctor sees it inside the patient profile (in the patient's dashboard)
+   - Patient sees it in their own dashboard
+   - Stored in localStorage under a key like `medicare_patient_complaints_{patientId}`
+   - Displayed as a table/list: Date & Time | Complaint text | Status (Pending / Seen by Doctor)
+   - Doctor can mark complaints as "Seen" or respond with a short note
+   - The "Pending Approvals" tab continues to handle vitals/investigation submissions
 
 ### Modify
-- PatientDashboard Account Settings tab: add a patient-facing section (visible when `currentRole === 'patient'`) showing their own phone and password (masked) with a Show/Hide toggle, plus inputs to change mobile/password with a Save button.
-- Drug reminder dialog: on open, scan `prescriptions_{patientId}` from localStorage and extract drug names from all saved prescriptions. Show each unique drug as a quick-add card with a time picker. Clicking the card pre-fills `newReminderDrug` with the drug name.
-- PatientDashboard: when `currentRole === 'patient'` and `patientId` is null or patient record not found, instead of showing "Patient not found" dead end, show a simplified dashboard with the Account Settings tab (with their credentials) and a notice that their health records are pending linking.
-- Account Settings tab: password field shows current password (masked) with an eye icon toggle to reveal it.
+
+1. **Patient Portal navbar**: Add the Bell icon with active reminder count badge to the patient navbar header (in `App.tsx` `AppInner` patient section). Remove bell from the inner dashboard header area.
+
+2. **PatientDashboard tabs**: Add a new "Complaints" tab (💬 Complaints or 📝 Complaints) to the left sidebar with its own color. Keep all existing 9 tabs. This becomes the 10th tab OR replace the Chat tab placement and restructure — actually add it as a new tab between "Pending Approvals" and "Chat":
+   - Overview (blue)
+   - Vitals (green)
+   - Investigations (purple)
+   - History (amber)
+   - Prescriptions (rose)
+   - Appointments (teal)
+   - Pending Approvals (orange)
+   - **Complaints (indigo)** ← NEW
+   - Chat (sky)
+   - Account Settings (gray)
+
+3. **Complaints data model**: Use localStorage key `medicare_complaints_{patientId}` (string patientId). Each entry: `{ id, patientId, text, timestamp, status: 'pending'|'seen', doctorNote?: string }`
 
 ### Remove
-- Nothing removed
+
+- Nothing removed. All existing features preserved.
 
 ## Implementation Plan
-1. In PatientDashboard: add a `showPasswordPlain` state (boolean, default false) for the Show/Hide toggle.
-2. In Account Settings tab, add a patient-role section that reads `currentPatient` (passed as prop) to display their phone and password with Show/Hide toggle. Add inputs + save button that calls the same `handleSaveAccountSettings` logic but also works for the patient themselves (they update their own credentials via the patientRegistry in localStorage).
-3. In the drug reminder dialog, add a `prescriptionDrugs` computed list: read `prescriptions_{patientId}` from localStorage, parse all prescriptions, extract unique drug names from medications arrays. Show these as clickable chips at the top of the Add Reminder section so the user can tap a drug name to pre-fill the drug name input.
-4. In PatientDashboard: if `currentRole === 'patient'` AND (`!patient` or `loadingPatient`), render a minimal layout with just the Account Settings content (credentials + drug reminders) instead of the "Patient not found" error screen. Pass `currentPatient` data through.
-5. In PatientPortalView (App.tsx): if patientId is null but registerNumber exists, pass `patientId={null}` to PatientDashboard with `currentRole='patient'` — already done. Just ensure PatientDashboard handles this gracefully (step 4 above).
+
+1. **Add complaints storage helpers** at the top of `PatientDashboard.tsx`:
+   - `loadComplaints(patientId: string): ComplaintEntry[]`
+   - `saveComplaints(patientId: string, complaints: ComplaintEntry[]): void`
+   - Interface: `ComplaintEntry { id, patientId, text, timestamp, status, doctorNote? }`
+
+2. **Add Complaints tab** to the left sidebar TabsList with indigo active color.
+
+3. **Implement Complaints tab content**:
+   - Top: textarea + "Submit Complaint" button (visible to patient role, or if `currentRole === 'patient'`)
+   - Below: list/table of all complaints sorted newest first
+   - Each row: formatted datetime | complaint text | status badge (Pending = amber, Seen = green)
+   - Doctor sees the same list PLUS a "Mark as Seen" button and a text input for a doctor note per entry
+   - If `currentRole === 'doctor'` or `'staff'` or `'admin'`: show the doctor note field and Mark Seen button per row
+
+4. **Move Bell icon to patient navbar** in `App.tsx`:
+   - The `AppInner` patient section currently renders a simple header with name + Sign Out
+   - Add the bell button (with count badge) to this header, to the right of the patient name
+   - The bell button opens the same reminder panel as before (drug reminder management)
+   - Pass reminder state up or use a shared localStorage key so the bell in the navbar can read the count
+   - Remove the bell button from inside `PatientDashboard` component header area
+
+5. **Bell hidden from doctor navbar**: In `Layout.tsx` (doctor navbar), ensure no bell icon is rendered. Doctors can still set reminders within the patient profile but don't see the bell ring in their own view.
+
+6. **Ensure patient-only view**: In `PatientPortalView` and `PatientDashboard`, when `currentRole === 'patient'`, confirm no navigation links or buttons allow accessing other patients.
