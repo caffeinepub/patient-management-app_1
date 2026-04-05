@@ -32,6 +32,7 @@ import {
   FlaskConical,
   Heart,
   HeartPulse,
+  Lightbulb,
   Loader2,
   MapPin,
   MessageCircle,
@@ -123,6 +124,64 @@ function saveComplaints(patientId: string, complaints: ComplaintEntry[]) {
   );
 }
 
+// ── Advice Entries ────────────────────────────────────────────────────────────
+interface AdviceEntry {
+  id: string;
+  patientId: string;
+  text: string;
+  date: string;
+  addedBy: string;
+  source: string;
+}
+
+const ADVICE_KEY_PREFIX = "medicare_advice_entries_";
+
+function loadAdviceEntries(patientId: string): AdviceEntry[] {
+  try {
+    const raw = localStorage.getItem(ADVICE_KEY_PREFIX + patientId);
+    if (raw) return JSON.parse(raw) as AdviceEntry[];
+  } catch {}
+  return [];
+}
+
+function saveAdviceEntries(patientId: string, entries: AdviceEntry[]): void {
+  localStorage.setItem(ADVICE_KEY_PREFIX + patientId, JSON.stringify(entries));
+}
+
+// ── Profile Edit Requests ─────────────────────────────────────────────────────
+interface ProfileEditRequest {
+  id: string;
+  patientId: string;
+  fields: {
+    phone?: string;
+    address?: string;
+    emergencyContact?: string;
+    email?: string;
+  };
+  timestamp: string;
+  status: "pending" | "approved" | "rejected";
+}
+
+const PROFILE_EDIT_KEY_PREFIX = "medicare_profile_edit_requests_";
+
+function loadProfileEditRequests(patientId: string): ProfileEditRequest[] {
+  try {
+    const raw = localStorage.getItem(PROFILE_EDIT_KEY_PREFIX + patientId);
+    if (raw) return JSON.parse(raw) as ProfileEditRequest[];
+  } catch {}
+  return [];
+}
+
+function saveProfileEditRequests(
+  patientId: string,
+  reqs: ProfileEditRequest[],
+): void {
+  localStorage.setItem(
+    PROFILE_EDIT_KEY_PREFIX + patientId,
+    JSON.stringify(reqs),
+  );
+}
+
 function loadSubmissions(): PatientSubmission[] {
   try {
     const raw = localStorage.getItem(PATIENT_SUBMISSIONS_KEY);
@@ -197,7 +256,18 @@ export default function PatientDashboard({
   const search = {
     id: new URLSearchParams(window.location.search).get("id") ?? undefined,
   };
-  const patientId = propPatientId ?? (search.id ? BigInt(search.id) : null);
+  const patientId =
+    propPatientId ??
+    (search.id
+      ? (() => {
+          try {
+            const s = String(search.id);
+            return BigInt(s.startsWith("__bigint__") ? s.slice(10) : s);
+          } catch {
+            return null;
+          }
+        })()
+      : null);
 
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -247,10 +317,31 @@ export default function PatientDashboard({
   const [complaints, setComplaints] = useState<ComplaintEntry[]>([]);
   const [newComplaintText, setNewComplaintText] = useState("");
 
+  // ── Advice state ─────────────────────────────────────────────────────────────
+  const [adviceEntries, setAdviceEntries] = useState<AdviceEntry[]>([]);
+  const [newAdviceText, setNewAdviceText] = useState("");
+  const [newAdviceDate, setNewAdviceDate] = useState(
+    format(new Date(), "yyyy-MM-dd"),
+  );
+
+  // ── Profile Edit Request state ────────────────────────────────────────────────
+  const [profileEditRequests, setProfileEditRequests] = useState<
+    ProfileEditRequest[]
+  >([]);
+  const [showProfileEditDialog, setShowProfileEditDialog] = useState(false);
+  const [profileEditFields, setProfileEditFields] = useState<{
+    phone: string;
+    address: string;
+    emergencyContact: string;
+    email: string;
+  }>({ phone: "", address: "", emergencyContact: "", email: "" });
+
   // Load complaints when patient is loaded
   useEffect(() => {
     if (patientId) {
       setComplaints(loadComplaints(String(patientId)));
+      setAdviceEntries(loadAdviceEntries(String(patientId)));
+      setProfileEditRequests(loadProfileEditRequests(String(patientId)));
     }
   }, [patientId]);
 
@@ -1351,6 +1442,13 @@ export default function PatientDashboard({
                       )}
                   </TabsTrigger>
                   <TabsTrigger
+                    value="advice"
+                    className="w-full justify-start text-left shrink-0 rounded-lg px-3 py-2.5 font-medium data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                    data-ocid="patient_dashboard.advice.tab"
+                  >
+                    📋 Advice
+                  </TabsTrigger>
+                  <TabsTrigger
                     value="chat"
                     className="w-full justify-start text-left shrink-0 rounded-lg px-3 py-2.5 font-medium data-[state=active]:bg-teal-600 data-[state=active]:text-white data-[state=active]:shadow-md"
                     data-ocid="patient_dashboard.tab"
@@ -1372,6 +1470,30 @@ export default function PatientDashboard({
                 <TabsContent value="overview" className="space-y-4">
                   {/* Profile card */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                    {/* Patient role: Request Profile Update button */}
+                    {currentRole === "patient" && (
+                      <div className="flex justify-end mb-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-50"
+                          onClick={() => {
+                            setProfileEditFields({
+                              phone: patient.phone || "",
+                              address: patient.address || "",
+                              emergencyContact:
+                                (patient as any).emergencyContact || "",
+                              email: (patient as any).email || "",
+                            });
+                            setShowProfileEditDialog(true);
+                          }}
+                          data-ocid="patient_dashboard.overview.open_modal_button"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          ✏️ Request Profile Update
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-4">
                       <div className="flex-1 min-w-[200px]">
                         <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
@@ -2236,122 +2358,15 @@ export default function PatientDashboard({
                           <Skeleton key={k} className="h-12 rounded-lg" />
                         ))}
                       </div>
-                    ) : sortedVisits.length === 0 ? (
-                      <div
-                        className="text-center py-8"
-                        data-ocid="patient_dashboard.visits.empty_state"
-                      >
-                        <Stethoscope className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                        <p className="text-sm text-gray-400">
-                          No visit history yet
-                        </p>
-                      </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-gray-100">
-                              {[
-                                "Date",
-                                "Diagnosis",
-                                "Chief Complaint",
-                                "Severity",
-                                "Status",
-                                "Actions",
-                              ].map((h) => (
-                                <th
-                                  key={h}
-                                  className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                                >
-                                  {h}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sortedVisits.map((visit, idx) => (
-                              <tr
-                                key={visit.id.toString()}
-                                className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-                                onClick={() => setSelectedVisit(visit)}
-                                onKeyDown={(e) =>
-                                  e.key === "Enter" && setSelectedVisit(visit)
-                                }
-                                tabIndex={0}
-                                data-ocid={`patient_dashboard.visits.item.${idx + 1}`}
-                              >
-                                <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
-                                  {formatTime(visit.visitDate)}
-                                </td>
-                                <td className="py-2.5 px-3 font-medium text-gray-800 max-w-[150px] truncate">
-                                  {visit.diagnosis || "—"}
-                                </td>
-                                <td className="py-2.5 px-3 text-gray-600 max-w-[150px] truncate">
-                                  {visit.chiefComplaint || "—"}
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <Badge
-                                    className={`text-xs border-0 ${idx === 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
-                                  >
-                                    {idx === 0 ? "High" : "Low"}
-                                  </Badge>
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <Badge
-                                    className={`text-xs border-0 ${idx === 0 ? "bg-amber-100 text-amber-700" : "bg-teal-100 text-teal-700"}`}
-                                  >
-                                    {idx === 0 ? "Under Treatment" : "Cured"}
-                                  </Badge>
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedVisit(visit);
-                                      }}
-                                      className="p-1 rounded text-teal-600 hover:bg-teal-50"
-                                      data-ocid={`patient_dashboard.visits.edit_button.${idx + 1}`}
-                                    >
-                                      <FileText className="w-3.5 h-3.5" />
-                                    </button>
-                                    {(currentRole === "doctor" ||
-                                      currentRole === "admin") && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openRxForm(
-                                            visit.diagnosis || undefined,
-                                            visit.id,
-                                          );
-                                        }}
-                                        className="p-1 rounded text-blue-600 hover:bg-blue-50"
-                                        data-ocid="patient_dashboard.prescriptions.open_modal_button"
-                                      >
-                                        <Printer className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        downloadSingleVisitPDF(visit);
-                                      }}
-                                      className="p-1 rounded text-purple-600 hover:bg-purple-50"
-                                      title="Download visit"
-                                      data-ocid={`patient_dashboard.visits.secondary_button.${idx + 1}`}
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <HistoryTabContent
+                        sortedVisits={sortedVisits}
+                        currentRole={currentRole}
+                        setSelectedVisit={setSelectedVisit}
+                        downloadSingleVisitPDF={downloadSingleVisitPDF}
+                        openRxForm={openRxForm}
+                        formatTime={formatTime}
+                      />
                     )}
                   </div>
                 </TabsContent>
@@ -2717,16 +2732,43 @@ export default function PatientDashboard({
                 <TabsContent value="complaints" className="space-y-4">
                   {/* Patient can submit a complaint */}
                   {currentRole === "patient" && (
-                    <div className="bg-white rounded-xl border border-indigo-200 shadow-sm p-5">
+                    <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border-2 border-indigo-300 shadow-sm p-5">
                       <h3 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
-                        <MessageCircle className="w-4 h-4" /> Submit a Complaint
+                        <MessageCircle className="w-4 h-4" /> Submit a Daily
+                        Complaint
                       </h3>
+                      {/* Quick complaint chips */}
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {[
+                          "Fever",
+                          "Headache",
+                          "Chest Pain",
+                          "Cough",
+                          "Nausea",
+                          "Vomiting",
+                          "Dizziness",
+                          "Pain",
+                        ].map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() =>
+                              setNewComplaintText((prev) =>
+                                prev ? `${prev}, ${chip}` : chip,
+                              )
+                            }
+                            className="text-xs bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 text-indigo-700 px-2.5 py-1 rounded-full font-medium transition-colors"
+                          >
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
                       <Textarea
                         placeholder="Describe your symptoms or concerns..."
                         value={newComplaintText}
                         onChange={(e) => setNewComplaintText(e.target.value)}
                         rows={3}
-                        className="mb-3"
+                        className="mb-3 border-indigo-200 focus:ring-indigo-400"
                         data-ocid="patient_dashboard.complaints.textarea"
                       />
                       <Button
@@ -2747,9 +2789,10 @@ export default function PatientDashboard({
                           setNewComplaintText("");
                           toast.success("Complaint submitted");
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-700"
+                        className="bg-indigo-600 hover:bg-indigo-700 w-full"
                         data-ocid="patient_dashboard.complaints.submit_button"
                       >
+                        <MessageCircle className="w-4 h-4 mr-1" />
                         Submit Complaint
                       </Button>
                     </div>
@@ -2872,6 +2915,179 @@ export default function PatientDashboard({
                   </div>
                 </TabsContent>
 
+                {/* ── ADVICE ── */}
+                <TabsContent value="advice" className="space-y-4">
+                  {/* Add advice — doctor/admin only */}
+                  {(currentRole === "doctor" || currentRole === "admin") && (
+                    <div className="bg-white rounded-xl border border-emerald-200 shadow-sm p-5">
+                      <h3 className="font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                        <Lightbulb className="w-4 h-4" />
+                        Add Advice / Instructions
+                      </h3>
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Date
+                          </Label>
+                          <input
+                            type="date"
+                            value={newAdviceDate}
+                            onChange={(e) => setNewAdviceDate(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                            data-ocid="patient_dashboard.advice.input"
+                          />
+                        </div>
+                        <Textarea
+                          placeholder="Enter advice or instructions for the patient..."
+                          value={newAdviceText}
+                          onChange={(e) => setNewAdviceText(e.target.value)}
+                          rows={3}
+                          data-ocid="patient_dashboard.advice.textarea"
+                        />
+                        <Button
+                          onClick={() => {
+                            if (!newAdviceText.trim() || !patientId) return;
+                            const entry: AdviceEntry = {
+                              id:
+                                Date.now().toString(36) +
+                                Math.random().toString(36).slice(2),
+                              patientId: String(patientId),
+                              text: newAdviceText.trim(),
+                              date: newAdviceDate || new Date().toISOString(),
+                              addedBy: currentRole,
+                              source: "Doctor's Note",
+                            };
+                            const updated = [entry, ...adviceEntries];
+                            setAdviceEntries(updated);
+                            saveAdviceEntries(String(patientId), updated);
+                            setNewAdviceText("");
+                            toast.success("Advice added");
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          data-ocid="patient_dashboard.advice.submit_button"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add Advice
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Advice Timeline */}
+                  <div className="bg-white rounded-xl border border-emerald-100 shadow-sm p-5">
+                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4 text-emerald-600" />
+                      Advice &amp; Instructions
+                      {adviceEntries.length > 0 && (
+                        <span className="ml-auto text-xs font-normal text-gray-400">
+                          {adviceEntries.length} entries
+                        </span>
+                      )}
+                    </h3>
+                    {/* Also show advice from prescriptions */}
+                    {(() => {
+                      const rxAdvice: AdviceEntry[] = [];
+                      [...prescriptions]
+                        .sort((a, b) =>
+                          Number(b.prescriptionDate - a.prescriptionDate),
+                        )
+                        .forEach((rx, idx) => {
+                          const advice = rx.notes || (rx as any).advice;
+                          if (advice?.trim()) {
+                            const existing = adviceEntries.find(
+                              (e) => e.source === `Prescription #${idx + 1}`,
+                            );
+                            if (!existing) {
+                              rxAdvice.push({
+                                id: `rx-${rx.id}`,
+                                patientId: String(patientId),
+                                text: advice,
+                                date: format(
+                                  new Date(
+                                    Number(rx.prescriptionDate / 1000000n),
+                                  ),
+                                  "yyyy-MM-dd",
+                                ),
+                                addedBy: "rx",
+                                source: `Prescription #${idx + 1}`,
+                              });
+                            }
+                          }
+                        });
+                      const combined = [...rxAdvice, ...adviceEntries].sort(
+                        (a, b) => {
+                          return (
+                            new Date(b.date).getTime() -
+                            new Date(a.date).getTime()
+                          );
+                        },
+                      );
+                      if (combined.length === 0) {
+                        return (
+                          <p
+                            className="text-sm text-gray-400 text-center py-6"
+                            data-ocid="patient_dashboard.advice.empty_state"
+                          >
+                            No advice or instructions recorded yet.
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="space-y-3">
+                          {combined.map((entry, idx) => (
+                            <div
+                              key={entry.id}
+                              className="border border-emerald-100 rounded-xl p-4 bg-emerald-50 relative"
+                              data-ocid={`patient_dashboard.advice.item.${idx + 1}`}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-200 px-2 py-0.5 rounded-full">
+                                    {entry.source}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    {entry.date
+                                      ? format(
+                                          new Date(entry.date),
+                                          "MMM d, yyyy",
+                                        )
+                                      : "—"}
+                                  </span>
+                                </div>
+                                {(currentRole === "doctor" ||
+                                  currentRole === "admin") &&
+                                  entry.addedBy !== "rx" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!patientId) return;
+                                        const updated = adviceEntries.filter(
+                                          (e) => e.id !== entry.id,
+                                        );
+                                        setAdviceEntries(updated);
+                                        saveAdviceEntries(
+                                          String(patientId),
+                                          updated,
+                                        );
+                                      }}
+                                      className="text-red-400 hover:text-red-600"
+                                      data-ocid={`patient_dashboard.advice.delete_button.${idx + 1}`}
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                    </button>
+                                  )}
+                              </div>
+                              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                {entry.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </TabsContent>
+
                 {/* ── CHAT ── */}
                 <TabsContent value="chat">
                   <PatientChat
@@ -2887,6 +3103,157 @@ export default function PatientDashboard({
 
                 {/* ── ACCOUNT SETTINGS ── */}
                 <TabsContent value="account" className="space-y-4">
+                  {/* Pending Profile Edit Requests — admin/doctor only */}
+                  {(currentRole === "doctor" || currentRole === "admin") &&
+                    profileEditRequests.filter((r) => r.status === "pending")
+                      .length > 0 && (
+                      <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-5">
+                        <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          Pending Profile Edit Requests
+                          <Badge className="ml-auto bg-amber-100 text-amber-700 border-0 text-xs">
+                            {
+                              profileEditRequests.filter(
+                                (r) => r.status === "pending",
+                              ).length
+                            }{" "}
+                            pending
+                          </Badge>
+                        </h3>
+                        <div className="space-y-3">
+                          {profileEditRequests
+                            .filter((r) => r.status === "pending")
+                            .map((req, idx) => (
+                              <div
+                                key={req.id}
+                                className="bg-amber-50 border border-amber-200 rounded-xl p-4"
+                                data-ocid={`patient_dashboard.account.item.${idx + 1}`}
+                              >
+                                <p className="text-xs text-gray-400 mb-2">
+                                  Requested:{" "}
+                                  {format(
+                                    new Date(req.timestamp),
+                                    "MMM d, yyyy 'at' h:mm a",
+                                  )}
+                                </p>
+                                <div className="space-y-1.5 text-sm">
+                                  {req.fields.phone && (
+                                    <div>
+                                      <span className="font-semibold text-gray-600">
+                                        Phone:
+                                      </span>{" "}
+                                      <span className="text-gray-800">
+                                        {req.fields.phone}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {req.fields.address && (
+                                    <div>
+                                      <span className="font-semibold text-gray-600">
+                                        Address:
+                                      </span>{" "}
+                                      <span className="text-gray-800">
+                                        {req.fields.address}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {req.fields.emergencyContact && (
+                                    <div>
+                                      <span className="font-semibold text-gray-600">
+                                        Emergency Contact:
+                                      </span>{" "}
+                                      <span className="text-gray-800">
+                                        {req.fields.emergencyContact}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {req.fields.email && (
+                                    <div>
+                                      <span className="font-semibold text-gray-600">
+                                        Email:
+                                      </span>{" "}
+                                      <span className="text-gray-800">
+                                        {req.fields.email}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white gap-1"
+                                    onClick={() => {
+                                      if (!patientId) return;
+                                      // Apply changes
+                                      const updates: Record<string, string> =
+                                        {};
+                                      if (req.fields.phone)
+                                        updates.phone = req.fields.phone;
+                                      if (req.fields.address)
+                                        updates.address = req.fields.address;
+                                      updateMutation.mutate(
+                                        { id: patientId, ...(updates as any) },
+                                        {
+                                          onSuccess: () => {
+                                            const updated =
+                                              profileEditRequests.map((r) =>
+                                                r.id === req.id
+                                                  ? {
+                                                      ...r,
+                                                      status:
+                                                        "approved" as const,
+                                                    }
+                                                  : r,
+                                              );
+                                            setProfileEditRequests(updated);
+                                            saveProfileEditRequests(
+                                              String(patientId),
+                                              updated,
+                                            );
+                                            toast.success(
+                                              "Profile update approved and applied",
+                                            );
+                                          },
+                                        },
+                                      );
+                                    }}
+                                    data-ocid={`patient_dashboard.account.confirm_button.${idx + 1}`}
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" /> Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-red-300 text-red-600 hover:bg-red-50 gap-1"
+                                    onClick={() => {
+                                      if (!patientId) return;
+                                      const updated = profileEditRequests.map(
+                                        (r) =>
+                                          r.id === req.id
+                                            ? {
+                                                ...r,
+                                                status: "rejected" as const,
+                                              }
+                                            : r,
+                                      );
+                                      setProfileEditRequests(updated);
+                                      saveProfileEditRequests(
+                                        String(patientId),
+                                        updated,
+                                      );
+                                      toast.success("Request rejected");
+                                    }}
+                                    data-ocid={`patient_dashboard.account.cancel_button.${idx + 1}`}
+                                  >
+                                    <XCircle className="w-3 h-3" /> Reject
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
                   {/* Sign-Up Toggle — admin/doctor only */}
                   {(currentRole === "doctor" || currentRole === "admin") && (
                     <div className="bg-white rounded-xl border border-indigo-100 shadow-sm p-5">
@@ -3644,6 +4011,118 @@ export default function PatientDashboard({
         </>
       )}
 
+      {/* ── Profile Edit Request Dialog (patient role) ── */}
+      {currentRole === "patient" && (
+        <Dialog
+          open={showProfileEditDialog}
+          onOpenChange={setShowProfileEditDialog}
+        >
+          <DialogContent
+            className="max-w-md"
+            data-ocid="patient_dashboard.overview.dialog"
+          >
+            <DialogHeader>
+              <DialogTitle>Request Profile Update</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-gray-500 mb-3">
+              Submit your updated details. Your doctor will review and approve
+              the changes.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm">Phone Number</Label>
+                <Input
+                  type="tel"
+                  placeholder="01XXXXXXXXX"
+                  value={profileEditFields.phone}
+                  onChange={(e) =>
+                    setProfileEditFields((p) => ({
+                      ...p,
+                      phone: e.target.value,
+                    }))
+                  }
+                  data-ocid="patient_dashboard.overview.input"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Address</Label>
+                <Input
+                  placeholder="Your address"
+                  value={profileEditFields.address}
+                  onChange={(e) =>
+                    setProfileEditFields((p) => ({
+                      ...p,
+                      address: e.target.value,
+                    }))
+                  }
+                  data-ocid="patient_dashboard.overview.input"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Emergency Contact</Label>
+                <Input
+                  placeholder="Emergency contact number"
+                  value={profileEditFields.emergencyContact}
+                  onChange={(e) =>
+                    setProfileEditFields((p) => ({
+                      ...p,
+                      emergencyContact: e.target.value,
+                    }))
+                  }
+                  data-ocid="patient_dashboard.overview.input"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Email</Label>
+                <Input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={profileEditFields.email}
+                  onChange={(e) =>
+                    setProfileEditFields((p) => ({
+                      ...p,
+                      email: e.target.value,
+                    }))
+                  }
+                  data-ocid="patient_dashboard.overview.input"
+                />
+              </div>
+              <Button
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                onClick={() => {
+                  if (!patientId) return;
+                  const req: ProfileEditRequest = {
+                    id:
+                      Date.now().toString(36) +
+                      Math.random().toString(36).slice(2),
+                    patientId: String(patientId),
+                    fields: {
+                      phone: profileEditFields.phone || undefined,
+                      address: profileEditFields.address || undefined,
+                      emergencyContact:
+                        profileEditFields.emergencyContact || undefined,
+                      email: profileEditFields.email || undefined,
+                    },
+                    timestamp: new Date().toISOString(),
+                    status: "pending",
+                  };
+                  const updated = [req, ...profileEditRequests];
+                  setProfileEditRequests(updated);
+                  saveProfileEditRequests(String(patientId), updated);
+                  setShowProfileEditDialog(false);
+                  toast.success(
+                    "Profile update request submitted. Your doctor will review it.",
+                  );
+                }}
+                data-ocid="patient_dashboard.overview.submit_button"
+              >
+                Submit Request
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* ── Dialogs ── */}
       {/* Edit Patient */}
       <Dialog open={showEditForm} onOpenChange={setShowEditForm}>
@@ -4190,6 +4669,178 @@ function VitalsBar({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── HistoryTabContent ────────────────────────────────────────────────────────
+
+function HistoryTabContent({
+  sortedVisits,
+  currentRole,
+  setSelectedVisit,
+  downloadSingleVisitPDF,
+  openRxForm,
+  formatTime,
+}: {
+  sortedVisits: import("../backend.d").Visit[];
+  currentRole: string;
+  setSelectedVisit: (v: import("../backend.d").Visit) => void;
+  downloadSingleVisitPDF: (v: import("../backend.d").Visit) => void;
+  openRxForm: (diag?: string, visitId?: bigint) => void;
+  formatTime: (t: bigint) => string;
+}) {
+  // Patient role: only show visits marked showToPatient = true
+  const visitsToShow = (() => {
+    if (currentRole !== "patient") return sortedVisits;
+    const doctorEmail = getDoctorEmail();
+    return sortedVisits.filter((v) => {
+      try {
+        const raw = localStorage.getItem(
+          `visit_form_data_${v.id}_${doctorEmail}`,
+        );
+        if (raw) {
+          const d = JSON.parse(raw);
+          return d.showToPatient === true;
+        }
+      } catch {}
+      return false;
+    });
+  })();
+
+  if (currentRole === "patient" && visitsToShow.length === 0) {
+    return (
+      <div
+        className="text-center py-8"
+        data-ocid="patient_dashboard.visits.empty_state"
+      >
+        <Stethoscope className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+        <p className="text-sm text-gray-500">
+          Your doctor will share your visit history with you when available.
+        </p>
+      </div>
+    );
+  }
+
+  if (visitsToShow.length === 0) {
+    return (
+      <div
+        className="text-center py-8"
+        data-ocid="patient_dashboard.visits.empty_state"
+      >
+        <Stethoscope className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+        <p className="text-sm text-gray-400">No visit history yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-100">
+            {[
+              "Date",
+              "Diagnosis",
+              "Chief Complaint",
+              "Severity",
+              "Status",
+              "Actions",
+            ].map((h) => (
+              <th
+                key={h}
+                className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {visitsToShow.map((visit, idx) => (
+            <tr
+              key={visit.id.toString()}
+              className={`border-b border-gray-50 hover:bg-gray-50 ${currentRole !== "patient" ? "cursor-pointer" : ""}`}
+              onClick={() =>
+                currentRole !== "patient" && setSelectedVisit(visit)
+              }
+              onKeyDown={(e) =>
+                e.key === "Enter" &&
+                currentRole !== "patient" &&
+                setSelectedVisit(visit)
+              }
+              tabIndex={currentRole !== "patient" ? 0 : undefined}
+              data-ocid={`patient_dashboard.visits.item.${idx + 1}`}
+            >
+              <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
+                {formatTime(visit.visitDate)}
+              </td>
+              <td className="py-2.5 px-3 font-medium text-gray-800 max-w-[150px] truncate">
+                {visit.diagnosis || "—"}
+              </td>
+              <td className="py-2.5 px-3 text-gray-600 max-w-[150px] truncate">
+                {visit.chiefComplaint || "—"}
+              </td>
+              <td className="py-2.5 px-3">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium border-0 ${idx === 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                >
+                  {idx === 0 ? "High" : "Low"}
+                </span>
+              </td>
+              <td className="py-2.5 px-3">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium border-0 ${idx === 0 ? "bg-amber-100 text-amber-700" : "bg-teal-100 text-teal-700"}`}
+                >
+                  {idx === 0 ? "Under Treatment" : "Cured"}
+                </span>
+              </td>
+              <td className="py-2.5 px-3">
+                <div className="flex items-center gap-1">
+                  {currentRole !== "patient" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVisit(visit);
+                      }}
+                      className="p-1 rounded text-teal-600 hover:bg-teal-50"
+                      data-ocid={`patient_dashboard.visits.edit_button.${idx + 1}`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {(currentRole === "doctor" || currentRole === "admin") && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRxForm(visit.diagnosis || undefined, visit.id);
+                      }}
+                      className="p-1 rounded text-blue-600 hover:bg-blue-50"
+                      data-ocid="patient_dashboard.prescriptions.open_modal_button"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadSingleVisitPDF(visit);
+                    }}
+                    className="p-1 rounded text-purple-600 hover:bg-purple-50"
+                    title="Download visit"
+                    data-ocid={`patient_dashboard.visits.secondary_button.${idx + 1}`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

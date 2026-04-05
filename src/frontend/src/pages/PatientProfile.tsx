@@ -120,7 +120,16 @@ function PrescriptionCard({
 export default function PatientProfile() {
   const search = useSearch({ strict: false }) as { id?: string };
   const navigate = useNavigate();
-  const patientId = search.id ? BigInt(search.id) : null;
+  const patientId = search.id
+    ? (() => {
+        try {
+          const s = String(search.id);
+          return BigInt(s.startsWith("__bigint__") ? s.slice(10) : s);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
 
   const [showEditForm, setShowEditForm] = useState(false);
   const [showVisitForm, setShowVisitForm] = useState(false);

@@ -906,14 +906,17 @@ function AppInner() {
       let patId = "";
       if (currentPatient.registerNumber) {
         const keys = Object.keys(localStorage).filter((k) =>
-          k.startsWith("medicare_patients_"),
+          k.startsWith("patients_"),
         );
         outer: for (const key of keys) {
           try {
             const arr = JSON.parse(localStorage.getItem(key) || "[]") as any[];
             for (const p of arr) {
               if (p.registerNumber === currentPatient.registerNumber) {
-                patId = String(p.id);
+                patId =
+                  typeof p.id === "string" && p.id.startsWith("__bigint__")
+                    ? p.id.slice(10)
+                    : String(p.id);
                 break outer;
               }
             }
@@ -995,13 +998,15 @@ function AppInner() {
     if (!currentPatient?.registerNumber) return "";
     try {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("medicare_patients_"),
+        k.startsWith("patients_"),
       );
       for (const key of keys) {
         const arr = JSON.parse(localStorage.getItem(key) || "[]") as any[];
         for (const p of arr) {
           if (p.registerNumber === currentPatient.registerNumber)
-            return String(p.id);
+            return typeof p.id === "string" && p.id.startsWith("__bigint__")
+              ? p.id.slice(10)
+              : String(p.id);
         }
       }
     } catch {}
@@ -1454,7 +1459,7 @@ function PatientPortalView({
       // Try to find by register number in all patients
       try {
         const keys = Object.keys(localStorage).filter((k) =>
-          k.startsWith("medicare_patients_"),
+          k.startsWith("patients_"),
         );
         for (const key of keys) {
           const raw = localStorage.getItem(key);
@@ -1463,7 +1468,14 @@ function PatientPortalView({
           const found = arr.find(
             (p: any) => p.registerNumber === currentPatient.registerNumber,
           );
-          if (found) return BigInt(found.id);
+          if (found) {
+            const rawId = found.id;
+            const idStr =
+              typeof rawId === "string" && rawId.startsWith("__bigint__")
+                ? rawId.slice(10)
+                : String(rawId);
+            return BigInt(idStr);
+          }
         }
       } catch {}
     }
