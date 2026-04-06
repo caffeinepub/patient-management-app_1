@@ -1470,11 +1470,14 @@ function PatientPortalView({
           );
           if (found) {
             const rawId = found.id;
-            const idStr =
-              typeof rawId === "string" && rawId.startsWith("__bigint__")
-                ? rawId.slice(10)
-                : String(rawId);
-            return BigInt(idStr);
+            try {
+              const idStr =
+                typeof rawId === "string" && rawId.startsWith("__bigint__")
+                  ? rawId.slice(10)
+                  : String(rawId);
+              const cleaned = idStr.replace(/[^0-9]/g, "");
+              if (cleaned) return BigInt(cleaned);
+            } catch {}
           }
         }
       } catch {}
@@ -1482,7 +1485,7 @@ function PatientPortalView({
     return null;
   }, [currentPatient.registerNumber]);
 
-  if (!patientId && !currentPatient.registerNumber) {
+  if (!patientId) {
     return (
       <div className="max-w-2xl mx-auto p-6 mt-8 text-center">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
@@ -1490,10 +1493,26 @@ function PatientPortalView({
           <h2 className="text-xl font-bold text-gray-800 mb-2">
             Welcome, {currentPatient.name}!
           </h2>
-          <p className="text-gray-500 text-sm">
-            Your account is active. Please contact your doctor and provide your
-            register number to link your health records.
-          </p>
+          {currentPatient.registerNumber ? (
+            <div>
+              <p className="text-gray-600 text-sm mb-2">
+                Your register number is{" "}
+                <strong className="font-mono text-teal-700">
+                  {currentPatient.registerNumber}
+                </strong>
+                .
+              </p>
+              <p className="text-gray-500 text-sm">
+                Your health records are being linked. Please contact the clinic
+                to complete setup.
+              </p>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">
+              Your account is active. Please contact your doctor and provide
+              your register number to link your health records.
+            </p>
+          )}
           {currentPatient.phone && (
             <p className="text-xs text-gray-400 mt-2">
               Phone: {currentPatient.phone}

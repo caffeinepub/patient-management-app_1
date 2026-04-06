@@ -63,6 +63,28 @@ export function loadFromStorage<T>(key: string): T[] {
   }
 }
 
+// Scan ALL keys with prefix (e.g., patients_*) regardless of doctor email
+// Used when patient is logged in and there is no doctor session
+export function loadFromAllDoctorKeys<T>(prefix: string): T[] {
+  try {
+    const results: T[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(`${prefix}_`)) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const items = deserializeBigInt(JSON.parse(raw)) as T[];
+          if (Array.isArray(items)) results.push(...items);
+        } catch {}
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 // ─── Doctor email helper ─────────────────────────────────────────────────────
 
 export function getDoctorEmail(): string {
@@ -78,6 +100,31 @@ export function getDoctorEmail(): string {
 
 export function storageKey(prefix: string): string {
   return `${prefix}_${getDoctorEmail()}`;
+}
+
+// Helper to get visit form data, scanning all doctor emails as fallback
+export function getVisitFormData(
+  visitId: string | bigint | null,
+): Record<string, any> | null {
+  if (!visitId) return null;
+  const id = String(visitId);
+  // Try current doctor first
+  const email = getDoctorEmail();
+  try {
+    const raw = localStorage.getItem(`visit_form_data_${id}_${email}`);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  // Scan all matching keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(`visit_form_data_${id}_`)) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+  }
+  return null;
 }
 
 function nextId<T extends { id: bigint }>(items: T[]): bigint {
@@ -150,8 +197,13 @@ export function useGetPatient(id: bigint | null) {
     queryKey: ["patient", id?.toString()],
     queryFn: async () => {
       if (!id) return null;
-      const patients = loadFromStorage<Patient>(storageKey("patients"));
-      return patients.find((p) => p.id === id) ?? null;
+      // First try the current doctor's key
+      const primary = loadFromStorage<Patient>(storageKey("patients"));
+      const found = primary.find((p) => p.id === id);
+      if (found) return found;
+      // Fallback: scan all patients_* keys (needed when patient is logged in without a doctor session)
+      const all = loadFromAllDoctorKeys<Patient>("patients");
+      return all.find((p) => p.id === id) ?? null;
     },
     enabled: !!id,
   });
@@ -294,8 +346,12 @@ export function useGetVisitsByPatient(patientId: bigint | null) {
     queryKey: ["visits", patientId?.toString()],
     queryFn: async () => {
       if (!patientId) return [];
-      const visits = loadFromStorage<Visit>(storageKey("visits"));
-      return visits.filter((v) => v.patientId === patientId);
+      const primary = loadFromStorage<Visit>(storageKey("visits"));
+      const found = primary.filter((v) => v.patientId === patientId);
+      if (found.length > 0) return found;
+      // Fallback: scan all visits_* keys
+      const all = loadFromAllDoctorKeys<Visit>("visits");
+      return all.filter((v) => v.patientId === patientId);
     },
     enabled: !!patientId,
   });
@@ -364,10 +420,14 @@ export function useGetPrescriptionsByPatient(patientId: bigint | null) {
     queryKey: ["prescriptions", patientId?.toString()],
     queryFn: async () => {
       if (!patientId) return [];
-      const prescriptions = loadFromStorage<Prescription>(
+      const primary = loadFromStorage<Prescription>(
         storageKey("prescriptions"),
       );
-      return prescriptions.filter((p) => p.patientId === patientId);
+      const found = primary.filter((p) => p.patientId === patientId);
+      if (found.length > 0) return found;
+      // Fallback: scan all prescriptions_* keys
+      const all = loadFromAllDoctorKeys<Prescription>("prescriptions");
+      return all.filter((p) => p.patientId === patientId);
     },
     enabled: !!patientId,
   });

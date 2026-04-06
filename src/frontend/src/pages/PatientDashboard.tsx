@@ -76,7 +76,7 @@ import {
   useEmailAuth,
 } from "../hooks/useEmailAuth";
 import {
-  getDoctorEmail,
+  getVisitFormData,
   useCreatePrescription,
   useCreateVisit,
   useDeletePatient,
@@ -262,7 +262,9 @@ export default function PatientDashboard({
       ? (() => {
           try {
             const s = String(search.id);
-            return BigInt(s.startsWith("__bigint__") ? s.slice(10) : s);
+            const raw = s.startsWith("__bigint__") ? s.slice(10) : s;
+            const cleaned = raw.replace(/[^0-9]/g, "");
+            return cleaned ? BigInt(cleaned) : null;
           } catch {
             return null;
           }
@@ -647,17 +649,14 @@ export default function PatientDashboard({
 
   // Get vitals from visits for chart
   const vitalsHistory = useMemo(() => {
-    const doctorEmail = getDoctorEmail();
     return sortedVisits
       .slice()
       .reverse()
       .map((v) => {
         let extra: any = {};
         try {
-          const raw = localStorage.getItem(
-            `visit_form_data_${v.id}_${doctorEmail}`,
-          );
-          if (raw) extra = JSON.parse(raw)?.vitalSigns || {};
+          const formData = getVisitFormData(v.id);
+          if (formData) extra = formData?.vitalSigns || {};
         } catch {}
         const bp = extra.bloodPressure || v.vitalSigns?.bloodPressure || "";
         const systolic = bp ? Number.parseInt(bp.split("/")[0] || "0") : null;
@@ -706,13 +705,9 @@ export default function PatientDashboard({
   const latestVitals = useMemo(() => {
     if (!latestVisit) return null;
     try {
-      const doctorEmail = getDoctorEmail();
-      const raw = localStorage.getItem(
-        `visit_form_data_${latestVisit.id}_${doctorEmail}`,
-      );
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed.vitalSigns as Record<string, string> | null;
+      const formData = getVisitFormData(latestVisit.id);
+      if (formData) {
+        return formData.vitalSigns as Record<string, string> | null;
       }
     } catch {}
     return null;
@@ -720,7 +715,6 @@ export default function PatientDashboard({
 
   // Get all investigation rows across visits
   const allInvestigations = useMemo(() => {
-    const doctorEmail = getDoctorEmail();
     const rows: Array<{
       date: string;
       name: string;
@@ -730,12 +724,9 @@ export default function PatientDashboard({
     }> = [];
     for (const v of sortedVisits) {
       try {
-        const raw = localStorage.getItem(
-          `visit_form_data_${v.id}_${doctorEmail}`,
-        );
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const invRows = parsed.previous_investigation_rows as typeof rows;
+        const formData = getVisitFormData(v.id);
+        if (formData) {
+          const invRows = formData.previous_investigation_rows as typeof rows;
           if (Array.isArray(invRows)) rows.push(...invRows);
         }
       } catch {}
@@ -780,14 +771,8 @@ export default function PatientDashboard({
     if (!patient) return;
     const shown = sortedVisits.filter((v) => {
       try {
-        const doctorEmail = getDoctorEmail();
-        const raw = localStorage.getItem(
-          `visit_form_data_${v.id}_${doctorEmail}`,
-        );
-        if (raw) {
-          const d = JSON.parse(raw);
-          return d.showToPatient !== false;
-        }
+        const d = getVisitFormData(v.id);
+        if (d) return d.showToPatient !== false;
       } catch {}
       return true;
     });
@@ -795,11 +780,8 @@ export default function PatientDashboard({
       .map((v, i) => {
         let diag = "";
         try {
-          const doctorEmail = getDoctorEmail();
-          const raw = localStorage.getItem(
-            `visit_form_data_${v.id}_${doctorEmail}`,
-          );
-          if (raw) diag = JSON.parse(raw).diagnosis || "";
+          const d = getVisitFormData(v.id);
+          if (d) diag = d.diagnosis || "";
         } catch {}
         return `<tr><td>${i + 1}</td><td>${format(new Date(Number(v.visitDate / 1000000n)), "MMM d, yyyy")}</td><td>${v.visitType || "—"}</td><td>${diag || "—"}</td></tr>`;
       })
@@ -817,11 +799,8 @@ export default function PatientDashboard({
     if (!patient) return;
     let extData: any = {};
     try {
-      const doctorEmail = getDoctorEmail();
-      const raw = localStorage.getItem(
-        `visit_form_data_${visit.id}_${doctorEmail}`,
-      );
-      if (raw) extData = JSON.parse(raw);
+      const fd = getVisitFormData(visit.id);
+      if (fd) extData = fd;
     } catch {}
 
     const win = window.open("", "_blank");
@@ -4693,16 +4672,10 @@ function HistoryTabContent({
   // Patient role: only show visits marked showToPatient = true
   const visitsToShow = (() => {
     if (currentRole !== "patient") return sortedVisits;
-    const doctorEmail = getDoctorEmail();
     return sortedVisits.filter((v) => {
       try {
-        const raw = localStorage.getItem(
-          `visit_form_data_${v.id}_${doctorEmail}`,
-        );
-        if (raw) {
-          const d = JSON.parse(raw);
-          return d.showToPatient === true;
-        }
+        const d = getVisitFormData(v.id);
+        if (d) return d.showToPatient === true;
       } catch {}
       return false;
     });

@@ -124,7 +124,9 @@ export default function PatientProfile() {
     ? (() => {
         try {
           const s = String(search.id);
-          return BigInt(s.startsWith("__bigint__") ? s.slice(10) : s);
+          const raw = s.startsWith("__bigint__") ? s.slice(10) : s;
+          const cleaned = raw.replace(/[^0-9]/g, "");
+          return cleaned ? BigInt(cleaned) : null;
         } catch {
           return null;
         }
