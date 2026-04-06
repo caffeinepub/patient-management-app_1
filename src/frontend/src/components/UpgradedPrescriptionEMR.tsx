@@ -181,43 +181,52 @@ function drugFromTreatmentDrug(td: TreatmentDrug): RxDrug {
 
 // ─── Visit data helpers ────────────────────────────────────────────────────────
 
-function populateFromVisitData(vd: Record<string, unknown>) {
-  // C/C
+function populateFromVisitData(
+  vd: Record<string, unknown>,
+  patientWeight?: string,
+) {
+  // C/C — Chief Complaints
   const ccLines: string[] = [];
   const chiefComplaints = vd.chiefComplaints as string[] | undefined;
+  // complaintAnswers is Record<complaintName, Record<questionLabel, answerValue>>
   const complaintAnswers = vd.complaintAnswers as
-    | Record<string, string | string[]>
+    | Record<string, Record<string, string> | string | string[]>
     | undefined;
   if (chiefComplaints) {
     chiefComplaints.forEach((complaint, i) => {
       const rawAnswers = complaintAnswers?.[complaint];
       let answers: string[] = [];
-      if (Array.isArray(rawAnswers)) {
-        answers = rawAnswers.filter(Boolean);
+      if (
+        rawAnswers &&
+        typeof rawAnswers === "object" &&
+        !Array.isArray(rawAnswers)
+      ) {
+        // Object: { "Duration": "10 days", "Character": "productive" } — extract VALUES only
+        answers = Object.values(rawAnswers as Record<string, string>).filter(
+          (v) => v && v !== "-" && v !== "No" && v !== "None",
+        );
+      } else if (Array.isArray(rawAnswers)) {
+        answers = (rawAnswers as string[]).filter(Boolean);
       } else if (typeof rawAnswers === "string" && rawAnswers) {
         answers = [rawAnswers];
-      } else if (rawAnswers && typeof rawAnswers === "object") {
-        answers = Object.values(rawAnswers as Record<string, string>).filter(
-          Boolean,
-        );
       }
       if (answers.length > 0) {
-        ccLines.push(
-          `${i + 1}. ${complaint} — ${answers.slice(0, 3).join(", ")}`,
-        );
+        ccLines.push(`${i + 1}. ${complaint} — ${answers.join(", ")}.`);
       } else {
-        ccLines.push(`${i + 1}. ${complaint}`);
+        ccLines.push(`${i + 1}. ${complaint}.`);
       }
     });
   }
-  // Positive system review
+
+  // System Review — append as "He/she also complains of X: Y" lines
   const sra = vd.systemReviewAnswers as Record<string, string> | undefined;
   if (sra) {
-    const positive = Object.entries(sra)
-      .filter(([, v]) => v && v !== "Normal" && v !== "None" && v !== "No")
-      .map(([k, v]) => `${k}: ${v}`);
-    if (positive.length > 0) {
-      ccLines.push(`Positive system review: ${positive.join("; ")}`);
+    const NEGATIVE = new Set(["Normal", "None", "No", "Absent", "-", ""]);
+    const positive = Object.entries(sra).filter(
+      ([, v]) => v && !NEGATIVE.has(v),
+    );
+    for (const [k, v] of positive) {
+      ccLines.push(`• He/she also complains of ${k}: ${v}`);
     }
   }
 
@@ -233,7 +242,7 @@ function populateFromVisitData(vd: Record<string, unknown>) {
       .join(", ");
     if (pos) pmhLines.push(pos);
   } else if (Array.isArray(pmh) && pmh.length > 0) {
-    pmhLines.push(`${pmh.join(", ")}`);
+    pmhLines.push(pmh.join(", "));
   } else if (typeof pmh === "string" && pmh) {
     pmhLines.push(pmh);
   }
@@ -250,21 +259,40 @@ function populateFromVisitData(vd: Record<string, unknown>) {
   const histFamily =
     (vd.historyFamily as string) ||
     ((vd.familyHistory as string[])?.filter(Boolean).join(", ") ?? "");
-  const histImmunization =
-    (vd.historyImmunization as string) ||
-    ((vd.immunizationHistory as string[])?.filter(Boolean).join(", ") ?? "");
+
+  // Immunization: EPI schedule first, then individual items
+  let histImmunization = (vd.historyImmunization as string) || "";
+  if (!histImmunization) {
+    const immunParts: string[] = [];
+    if ((vd.epiSchedule as string) === "yes") {
+      immunParts.push("Immunised as per EPI schedule.");
+    }
+    const immunArr = vd.immunizationHistory as string[] | undefined;
+    if (immunArr) {
+      immunParts.push(...immunArr.filter(Boolean));
+    }
+    histImmunization = immunParts.join(" ");
+  }
+
+  // Allergy: join array into readable text
   const histAllergy =
     (vd.historyAllergy as string) ||
     ((vd.allergyHistory as string[])?.filter(Boolean).join(", ") ?? "");
+
+  // Others: obstetric + gynaecological
+  const histObstetricArr = vd.obstetricHistory as string[] | undefined;
+  const histGynaeArr = vd.gynaecologicalHistory as string[] | undefined;
   const histObstetric =
     (vd.historyObstetric as string) ||
-    ((vd.obstetricHistory as string[])?.filter(Boolean).join(", ") ?? "");
-  const histGynae = (vd.historyGynaecological as string) || "";
+    (histObstetricArr?.filter(Boolean).join(", ") ?? "");
+  const histGynae =
+    (vd.historyGynaecological as string) ||
+    (histGynaeArr?.filter(Boolean).join(", ") ?? "");
   let histOthers = "";
   if (histObstetric) histOthers += `Obstetric: ${histObstetric}\n`;
   if (histGynae) histOthers += `Gynaecological: ${histGynae}\n`;
 
-  // D/H
+  // D/H — Drug History: no type prefix since VisitForm has no type field
   const dhDrugs = vd.drugHistory as
     | Array<{
         name: string;
@@ -278,8 +306,8 @@ function populateFromVisitData(vd: Record<string, unknown>) {
   if (dhDrugs && dhDrugs.length > 0) {
     for (const d of dhDrugs) {
       if (d.name) {
-        const form = d.type || "Tab.";
-        const parts = [form, d.name, d.dose, d.frequency]
+        // If type exists use it, otherwise omit prefix
+        const parts = [d.type || "", d.name, d.dose, d.duration || d.frequency]
           .filter(Boolean)
           .join(" ");
         dhParts.push(parts.trim());
@@ -287,7 +315,7 @@ function populateFromVisitData(vd: Record<string, unknown>) {
     }
   }
 
-  // O/E
+  // O/E — Vitals first, then Heart/Lung baseline, then exam findings
   const oeLines: string[] = [];
   const vs = vd.vitalSigns as
     | {
@@ -298,39 +326,121 @@ function populateFromVisitData(vd: Record<string, unknown>) {
         respiratoryRate?: string;
       }
     | undefined;
+
+  let hasAnyFindings = false;
+
   if (vs) {
     const vsParts: string[] = [];
-    if (vs.bloodPressure) vsParts.push(`BP: ${vs.bloodPressure}`);
-    if (vs.pulse) vsParts.push(`Pulse: ${vs.pulse}/min`);
+    if (vs.bloodPressure) {
+      // Calculate MAP if systolic/diastolic available
+      const bpMatch = vs.bloodPressure.match(/(\d+)\/(\d+)/);
+      if (bpMatch) {
+        const sbp = Number(bpMatch[1]);
+        const dbp = Number(bpMatch[2]);
+        const map = Math.round(dbp + (sbp - dbp) / 3);
+        vsParts.push(`BP: ${vs.bloodPressure} mmHg (MAP: ${map} mmHg)`);
+      } else {
+        vsParts.push(`BP: ${vs.bloodPressure} mmHg`);
+      }
+    }
+    if (vs.pulse) vsParts.push(`Pulse: ${vs.pulse} /min`);
     if (vs.temperature) vsParts.push(`Temp: ${vs.temperature}°F`);
-    if (vs.oxygenSaturation) vsParts.push(`SpO2: ${vs.oxygenSaturation}%`);
-    if (vs.respiratoryRate) vsParts.push(`RR: ${vs.respiratoryRate}/min`);
-    if (vsParts.length > 0) oeLines.push(vsParts.join(", "));
+    if (vs.oxygenSaturation) vsParts.push(`SpO₂: ${vs.oxygenSaturation}%`);
+    if (vs.respiratoryRate) vsParts.push(`RR: ${vs.respiratoryRate} /min`);
+    if (patientWeight) vsParts.push(`Wt: ${patientWeight} kg`);
+    if (vsParts.length > 0) {
+      oeLines.push(vsParts.join(", "));
+      hasAnyFindings = true;
+    }
+  } else if (patientWeight) {
+    oeLines.push(`Wt: ${patientWeight} kg`);
+    hasAnyFindings = true;
   }
+
+  // Always add baseline Heart/Lung line if we have any vitals or exam data
+  // (fallback will handle the case when nothing at all)
+  let heartLungAdded = false;
+
+  // General examination
   const genExam = vd.generalExamFindings as Record<string, string> | undefined;
   if (genExam) {
     const pos = Object.entries(genExam)
       .filter(
         ([, v]) =>
-          v && v !== "Normal" && v !== "None" && v !== "No" && v !== "Absent",
+          v &&
+          v !== "Normal" &&
+          v !== "None" &&
+          v !== "No" &&
+          v !== "Absent" &&
+          v !== "-",
       )
       .map(([k, v]) => `${k}: ${v}`);
-    if (pos.length > 0) oeLines.push(`General: ${pos.join("; ")}`);
+    if (pos.length > 0) {
+      // Insert Heart/Lung before general findings if not already added
+      if (!heartLungAdded) {
+        oeLines.push("Heart: S1+S2+0, Lung: Clear");
+        heartLungAdded = true;
+      }
+      oeLines.push(`General: ${pos.join("; ")}`);
+      hasAnyFindings = true;
+    }
   }
+
+  // Systemic exam findings
   const sysExam = vd.systemicExamFindings as Record<string, string> | undefined;
   if (sysExam) {
     const pos = Object.entries(sysExam)
-      .filter(([, v]) => v && v !== "Normal" && v !== "None")
+      .filter(([, v]) => v && v !== "Normal" && v !== "None" && v !== "-")
       .map(([k, v]) => `${k}: ${v}`);
-    if (pos.length > 0) oeLines.push(`Systemic: ${pos.join("; ")}`);
+    if (pos.length > 0) {
+      if (!heartLungAdded) {
+        oeLines.push("Heart: S1+S2+0, Lung: Clear");
+        heartLungAdded = true;
+      }
+      oeLines.push(`Systemic: ${pos.join("; ")}`);
+      hasAnyFindings = true;
+    }
   }
-  // fallback
-  if (oeLines.length === 0) {
+
+  // Specialty exam modules
+  const specialtyExams: Array<{ key: string; label: string }> = [
+    { key: "respiratoryExam", label: "Respiratory" },
+    { key: "cardiovascularExam", label: "CVS" },
+    { key: "neurologicalExam", label: "Neurological" },
+    { key: "gastrointestinalExam", label: "GI" },
+    { key: "musculoskeletalExam", label: "MSK" },
+  ];
+  for (const { key, label } of specialtyExams) {
+    const examData = vd[key] as Record<string, string> | undefined;
+    if (examData) {
+      const findings = Object.entries(examData)
+        .filter(([, v]) => v && v !== "Normal" && v !== "None" && v !== "-")
+        .map(([k, v]) => `${k}: ${v}`);
+      if (findings.length > 0) {
+        if (!heartLungAdded) {
+          oeLines.push("Heart: S1+S2+0, Lung: Clear");
+          heartLungAdded = true;
+        }
+        oeLines.push(`${label}: ${findings.join("; ")}`);
+        hasAnyFindings = true;
+      }
+    }
+  }
+
+  // Add Heart/Lung baseline if we have vitals but no exam findings yet
+  if (oeLines.length > 0 && !heartLungAdded) {
+    oeLines.push("Heart: S1+S2+0, Lung: Clear");
+    heartLungAdded = true;
+  }
+
+  // Fallback: no vitals and no exam data at all
+  if (!hasAnyFindings && oeLines.length === 0) {
     oeLines.push("Heart: S1+S2+0, Lung: Clear, P/A: NAD");
   }
 
-  // Investigation — group by date, sort newest first
-  const invRows = vd.previous_investigation_rows as
+  // Investigation — support both camelCase and snake_case keys
+  const invRows = (vd.previousInvestigationRows ||
+    vd.previous_investigation_rows) as
     | Array<{
         date: string;
         name: string;
@@ -510,7 +620,7 @@ export default function UpgradedPrescriptionEMR(
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function applyVisitData(vd: Record<string, unknown>) {
-    const pop = populateFromVisitData(vd);
+    const pop = populateFromVisitData(vd, patientWeight);
     if (pop.cc) setCc(pop.cc);
     if (pop.pmh) setPmh(pop.pmh);
     if (pop.histPersonal) setHistoryPersonal(pop.histPersonal);
