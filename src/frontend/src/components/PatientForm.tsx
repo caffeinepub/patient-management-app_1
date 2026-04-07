@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Camera, Loader2, User } from "lucide-react";
 import { useRef, useState } from "react";
-import type { Patient } from "../backend.d";
+import type { Patient } from "../types";
 
 function cmToFeetInches(cm: number): string {
   const totalInches = cm / 2.54;

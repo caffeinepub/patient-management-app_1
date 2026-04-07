@@ -44,7 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Medication } from "../backend.d";
+import type { Medication } from "../types";
 import {
   type AdviceTemplate,
   deleteCustomTemplate,

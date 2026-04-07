@@ -22,9 +22,9 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Patient } from "../backend.d";
 import PatientForm from "../components/PatientForm";
 import { useCreatePatient, useGetAllPatients } from "../hooks/useQueries";
+import type { Patient } from "../types";
 
 const SKELETON_KEYS = ["sk1", "sk2", "sk3", "sk4", "sk5", "sk6"];
 

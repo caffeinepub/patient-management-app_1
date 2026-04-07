@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Medication } from "../backend.d";
+import type { Medication } from "../types";
 import { type DimsEntry, getDimsByDiagnosis, searchDims } from "./DimsData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

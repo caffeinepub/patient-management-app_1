@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Medication } from "../backend.d";
+import type { Medication } from "../types";
 import { type DimsEntry, getDimsByDiagnosis, searchDims } from "./DimsData";
 
 interface InitialRxData {
@@ -142,7 +142,7 @@ export default function PrescriptionForm({
           dose: m.dose,
           frequency: m.frequency,
           duration: m.duration,
-          instructions: m.instructions,
+          instructions: m.instructions ?? "",
           fromDims: false,
         }))
       : initEntry

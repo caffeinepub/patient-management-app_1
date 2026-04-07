@@ -3,7 +3,7 @@ import { doctors } from "@/data/doctorsData";
 import { Pencil, Printer, Save } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Prescription } from "../backend.d";
+import type { Prescription } from "../types";
 
 interface PrescriptionPadProps {
   prescription?: Prescription | null;

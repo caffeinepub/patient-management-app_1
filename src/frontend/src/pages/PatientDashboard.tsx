@@ -60,8 +60,6 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import { Gender } from "../backend.d";
-import type { Prescription, Visit } from "../backend.d";
 import PatientChat from "../components/PatientChat";
 import PatientForm from "../components/PatientForm";
 import PrescriptionForm from "../components/PrescriptionForm";
@@ -85,6 +83,7 @@ import {
   useGetVisitsByPatient,
   useUpdatePatient,
 } from "../hooks/useQueries";
+import type { Prescription, Visit } from "../types";
 
 const PATIENT_SUBMISSIONS_KEY = "medicare_patient_submissions";
 
@@ -282,6 +281,7 @@ export default function PatientDashboard({
   const [rxVisitExtendedData, setRxVisitExtendedData] = useState<
     Record<string, unknown> | undefined
   >(undefined);
+  const [rxForceVisitData, setRxForceVisitData] = useState(false);
   const [rxPatientRegisterNumber, setRxPatientRegisterNumber] = useState<
     string | undefined
   >(undefined);
@@ -881,21 +881,43 @@ export default function PatientDashboard({
 
   function openRxForm(
     diagnosis?: string,
-    _visitId?: bigint,
+    forVisitId?: bigint,
     extendedData?: Record<string, unknown>,
     regNum?: string,
   ) {
     setRxInitialDiagnosis(diagnosis);
+    setRxForceVisitData(!!forVisitId);
 
-    setRxVisitExtendedData(extendedData);
-    setRxPatientRegisterNumber(regNum);
+    // Load visit extended data from localStorage using the visit id
+    try {
+      const targetVisitId = forVisitId;
+      if (targetVisitId !== undefined) {
+        const loaded = getVisitFormData(targetVisitId);
+        if (loaded) {
+          setRxVisitExtendedData(loaded as Record<string, unknown>);
+        } else if (extendedData) {
+          setRxVisitExtendedData(extendedData);
+        }
+      } else if (extendedData) {
+        setRxVisitExtendedData(extendedData);
+      }
+      // Load register number from patient record
+      if (patientId && !regNum) {
+        const regRaw = localStorage.getItem(`patient_register_${patientId}`);
+        if (regRaw) setRxPatientRegisterNumber(regRaw);
+      } else if (regNum) {
+        setRxPatientRegisterNumber(regNum);
+      }
+    } catch {
+      /* ignore */
+    }
     setShowRxForm(true);
   }
 
   function closeRxForm() {
     setShowRxForm(false);
     setRxInitialDiagnosis(undefined);
-
+    setRxForceVisitData(false);
     setRxVisitExtendedData(undefined);
     setRxPatientRegisterNumber(undefined);
   }
@@ -1569,7 +1591,7 @@ export default function PatientDashboard({
                   </div>
 
                   {/* Pregnancy Card — only for female patients */}
-                  {patient.gender === Gender.female &&
+                  {patient.gender === "female" &&
                     (currentRole === "doctor" || currentRole === "admin") && (
                       <div className="bg-white rounded-xl border border-pink-200 shadow-sm p-5">
                         <div className="flex items-center justify-between mb-3">
@@ -4254,6 +4276,7 @@ export default function PatientDashboard({
               patientAddress={patient.address}
               patientBloodGroup={patient.bloodGroup}
               registerNumber={(patient as any)?.registerNumber}
+              forceVisitData={rxForceVisitData}
               visitExtendedData={rxVisitExtendedData}
               patientRegisterNumber={
                 rxPatientRegisterNumber || (patient as any)?.registerNumber
@@ -4662,10 +4685,10 @@ function HistoryTabContent({
   openRxForm,
   formatTime,
 }: {
-  sortedVisits: import("../backend.d").Visit[];
+  sortedVisits: Visit[];
   currentRole: string;
-  setSelectedVisit: (v: import("../backend.d").Visit) => void;
-  downloadSingleVisitPDF: (v: import("../backend.d").Visit) => void;
+  setSelectedVisit: (v: Visit) => void;
+  downloadSingleVisitPDF: (v: Visit) => void;
   openRxForm: (diag?: string, visitId?: bigint) => void;
   formatTime: (t: bigint) => string;
 }) {

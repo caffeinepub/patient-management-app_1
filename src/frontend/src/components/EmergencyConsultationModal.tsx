@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { loadFromStorage, storageKey } from "@/hooks/useQueries";
 import { AlertTriangle, Phone, Send } from "lucide-react";
 import { useState } from "react";
-import type { Patient } from "../backend.d";
+import type { Patient } from "../types";
 
 const WHATSAPP_NUMBERS: Record<string, string> = {
   arman: "8801751959262",

@@ -44,7 +44,6 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Prescription, Visit } from "../backend.d";
 import NewPrescriptionMode from "../components/NewPrescriptionMode";
 import PatientForm from "../components/PatientForm";
 import PrescriptionForm from "../components/PrescriptionForm";
@@ -60,6 +59,7 @@ import {
   useGetVisitsByPatient,
   useUpdatePatient,
 } from "../hooks/useQueries";
+import type { Prescription, Visit } from "../types";
 
 const RX_SKELETON_KEYS = ["rsk1", "rsk2", "rsk3"];
 

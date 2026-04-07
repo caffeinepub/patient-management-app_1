@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { Download, Edit2, Eye, Printer } from "lucide-react";
 import { useState } from "react";
-import type { Prescription } from "../backend.d";
+import type { Prescription } from "../types";
 
 interface RxDrug {
   id?: string;

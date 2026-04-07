@@ -6,7 +6,7 @@ import type {
   UserProfile,
   Visit,
   VitalSigns,
-} from "../backend.d";
+} from "../types";
 
 // ─── BigInt serialization helpers ───────────────────────────────────────────
 
