@@ -1,0 +1,29 @@
+{
+  "overview": "Dr. Arman Kabir's Care is a comprehensive bilingual (English/Bangla) Patient Management and Doctor Portal App for clinics and individual practitioners. It features 4-role authentication, prescription & EMR module, patient dashboard with 9 tabs, vitals/investigation tracking with trend graphs, appointment scheduling, serial display screen, and a public landing page with doctor profiles and emergency consultation.",
+  "features": [
+    "4-role authentication (Admin, Doctor, Staff, Patient)",
+    "Prescription & EMR with clinical summary auto-population",
+    "Patient dashboard with 9 colored sidebar tabs",
+    "Individual vitals and investigation trend graphs with bold units",
+    "Drug reminder notifications (patient portal only)",
+    "Bilingual Bengali/English drug instructions and advice",
+    "Appointment booking with WhatsApp confirmation",
+    "Waiting room serial display screen with text-to-speech",
+    "Public landing page with doctor profiles and emergency consultation",
+    "PWA with offline support and mobile installation"
+  ],
+  "category": "healthcare",
+  "tags": [
+    "healthcare",
+    "patient-management",
+    "emr",
+    "prescription",
+    "bilingual",
+    "bangla",
+    "clinic",
+    "doctor-portal",
+    "pwa",
+    "appointments"
+  ],
+  "last_updated": "2026-04-08T12:47:36.748Z"
+}

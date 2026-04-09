@@ -15,12 +15,117 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, LogOut, Save, Stethoscope } from "lucide-react";
-import { useState } from "react";
+import {
+  AlertTriangle,
+  Camera,
+  Eye,
+  EyeOff,
+  LogOut,
+  Save,
+  Stethoscope,
+  User,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEmailAuth } from "../hooks/useEmailAuth";
 
 const DESIGNATIONS = ["Dr.", "Prof.", "Assoc. Prof.", "Mr.", "Ms.", "Mrs."];
+
+function ProfilePhotoUploader({
+  doctorKey,
+  name,
+}: {
+  doctorKey: "arman" | "samia";
+  name: string;
+}) {
+  const photoStorageKey = `medicare_doctor_photo_${doctorKey}`;
+  const [photo, setPhoto] = useState<string | null>(() =>
+    localStorage.getItem(photoStorageKey),
+  );
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const initials = name
+    .split(" ")
+    .slice(1, 3)
+    .map((w) => w[0] || "")
+    .join("")
+    .toUpperCase();
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("Photo must be under 3 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      localStorage.setItem(photoStorageKey, dataUrl);
+      setPhoto(dataUrl);
+      toast.success("Profile photo updated");
+    };
+    reader.readAsDataURL(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative group">
+        {photo ? (
+          <img
+            src={photo}
+            alt={name}
+            className="w-16 h-16 rounded-2xl object-cover border-2 border-border"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center border-2 border-primary/20">
+            <span className="text-lg font-bold text-primary">{initials}</span>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <Camera className="w-5 h-5 text-white" />
+        </button>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-foreground">{name}</p>
+        <button
+          type="button"
+          className="text-xs text-primary hover:underline mt-0.5"
+          onClick={() => fileRef.current?.click()}
+          data-ocid="settings.photo.upload_button"
+        >
+          {photo ? "Change photo" : "Upload photo"}
+        </button>
+        {photo && (
+          <button
+            type="button"
+            className="text-xs text-destructive hover:underline mt-0.5 ml-3"
+            onClick={() => {
+              localStorage.removeItem(photoStorageKey);
+              setPhoto(null);
+              toast.success("Photo removed");
+            }}
+            data-ocid="settings.photo.delete_button"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFile}
+      />
+    </div>
+  );
+}
 
 export default function Settings() {
   const { currentDoctor, signOut, updateProfile } = useEmailAuth();
@@ -37,6 +142,11 @@ export default function Settings() {
   const [hospital, setHospital] = useState(currentDoctor?.hospital ?? "");
   const [phone, setPhone] = useState(currentDoctor?.phone ?? "");
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Derive doctor key from email
+  const doctorKey: "arman" | "samia" =
+    currentDoctor?.email === "samiashikder33@gmail.com" ? "samia" : "arman";
 
   const handleSave = () => {
     setSaving(true);
@@ -57,8 +167,29 @@ export default function Settings() {
     }
   };
 
+  // Retrieve stored password hash for display
+  const storedHash = (() => {
+    try {
+      const registry = JSON.parse(
+        localStorage.getItem("medicare_doctors_registry") || "[]",
+      ) as Array<{ id: string; passwordHash?: string }>;
+      const doc = registry.find((d) => d.id === currentDoctor?.id);
+      if (doc?.passwordHash) {
+        // Decode to get original password (base64 encoded "email::password")
+        try {
+          const decoded = atob(doc.passwordHash);
+          const parts = decoded.split("::");
+          return parts[1] || "••••••";
+        } catch {
+          return "••••••";
+        }
+      }
+    } catch {}
+    return "••••••";
+  })();
+
   return (
-    <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8 space-y-4">
       <div className="mb-6">
         <h1 className="font-display text-2xl font-bold text-foreground">
           Settings
@@ -68,8 +199,27 @@ export default function Settings() {
         </p>
       </div>
 
+      {/* Profile Photo */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <User className="w-4 h-4" />
+            Profile Photo
+          </CardTitle>
+          <CardDescription>
+            Photo displayed on the public portal and in the app
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfilePhotoUploader
+            doctorKey={doctorKey}
+            name={`${designation} ${name}`.trim() || "Doctor"}
+          />
+        </CardContent>
+      </Card>
+
       {/* Doctor Profile card */}
-      <Card className="mb-4">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Stethoscope className="w-4 h-4" />
@@ -165,6 +315,55 @@ export default function Settings() {
             <Save className="w-4 h-4" />
             Save Profile
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Sign-in credentials */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Eye className="w-4 h-4" />
+            Sign-in Credentials
+          </CardTitle>
+          <CardDescription>Your current login credentials</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Email / Username</Label>
+            <Input
+              value={email}
+              readOnly
+              className="bg-muted text-muted-foreground cursor-not-allowed font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Current Password</Label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={storedHash}
+                readOnly
+                className="bg-muted text-muted-foreground cursor-not-allowed font-mono text-sm pr-10"
+                data-ocid="settings.password.input"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowPassword((v) => !v)}
+                data-ocid="settings.password.toggle"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              To change your password, contact the admin.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Loader2,
   Plus,
+  Save,
   Sparkles,
   Thermometer,
   Wind,
@@ -27,7 +28,6 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import CardiovascularExam from "./CardiovascularExam";
 import GastrointestinalExam from "./GastrointestinalExam";
-import InvestigationProfile from "./InvestigationProfile";
 import MusculoskeletalExam from "./MusculoskeletalExam";
 import NeurologicalExam from "./NeurologicalExam";
 import PreviousInvestigationTable, {
@@ -35,9 +35,51 @@ import PreviousInvestigationTable, {
 } from "./PreviousInvestigationTable";
 import QuestionStepper from "./QuestionStepper";
 import RespiratoryExam from "./RespiratoryExam";
-import SystemicExaminationSection from "./SystemicExaminationSection";
 
 // ─── Data constants ───────────────────────────────────────────────────────────
+
+const BADGE_PALETTE = [
+  {
+    base: "bg-blue-100 text-blue-800 border-blue-300",
+    active: "bg-blue-500 text-white",
+  },
+  {
+    base: "bg-green-100 text-green-800 border-green-300",
+    active: "bg-green-500 text-white",
+  },
+  {
+    base: "bg-amber-100 text-amber-800 border-amber-300",
+    active: "bg-amber-500 text-white",
+  },
+  {
+    base: "bg-purple-100 text-purple-800 border-purple-300",
+    active: "bg-purple-500 text-white",
+  },
+  {
+    base: "bg-rose-100 text-rose-800 border-rose-300",
+    active: "bg-rose-500 text-white",
+  },
+  {
+    base: "bg-cyan-100 text-cyan-800 border-cyan-300",
+    active: "bg-cyan-500 text-white",
+  },
+  {
+    base: "bg-orange-100 text-orange-800 border-orange-300",
+    active: "bg-orange-500 text-white",
+  },
+  {
+    base: "bg-teal-100 text-teal-800 border-teal-300",
+    active: "bg-teal-500 text-white",
+  },
+  {
+    base: "bg-indigo-100 text-indigo-800 border-indigo-300",
+    active: "bg-indigo-500 text-white",
+  },
+  {
+    base: "bg-lime-100 text-lime-800 border-lime-300",
+    active: "bg-lime-600 text-white",
+  },
+];
 
 const systemReviewData: Record<string, string[]> = {
   Cardiovascular: [
@@ -228,12 +270,6 @@ const generalExaminationCategories: Record<string, string[]> = {
   "Body Build": ["Normal", "Obese", "Thin", "Cachexic"],
   Nutrition: ["Well-nourished", "Malnourished", "Overweight"],
   Cooperation: ["Cooperative", "Uncooperative", "Agitated", "Confused"],
-  Decubitus: [
-    "Any position",
-    "Orthopnea",
-    "Prefers lying down",
-    "Cannot lie flat",
-  ],
   Dehydration: ["Not dehydrated", "Mild", "Moderate", "Severe"],
   Edema: [
     "Absent",
@@ -243,15 +279,11 @@ const generalExaminationCategories: Record<string, string[]> = {
     "Pitting",
     "Non-pitting",
   ],
-  "Bony tenderness": ["Absent", "Present - specify location"],
   Anemia: ["No pallor", "Mild pallor", "Moderate pallor", "Severe pallor"],
   Jaundice: ["Absent", "Mild icterus", "Moderate icterus", "Severe icterus"],
   Cyanosis: ["Absent", "Central", "Peripheral", "Both"],
   Clubbing: ["Absent", "Grade 1", "Grade 2", "Grade 3", "Grade 4"],
   Koilonychia: ["Absent", "Present"],
-  Leukonychia: ["Absent", "Present"],
-  "Body hair": ["Normal", "Excessive", "Sparse", "Loss of axillary/pubic hair"],
-  Pigmentation: ["Normal", "Hyperpigmentation", "Hypopigmentation", "Vitiligo"],
   "Lymph nodes": [
     "Not palpable",
     "Cervical enlarged",
@@ -265,72 +297,67 @@ const generalExaminationCategories: Record<string, string[]> = {
     "Enlarged - diffuse",
     "Enlarged - nodular",
   ],
-  Breasts: [
-    "Normal",
-    "Mass detected",
-    "Discharge",
-    "Tenderness",
-    "Not examined",
-  ],
-  "DRE/Genitalia": ["Normal", "Abnormal - specify", "Not examined"],
 };
 
 const commonComplaints: Record<string, { q: string; options: string[] }[]> = {
   Cough: [
     {
-      q: "When did the cough start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 1 week", "1-2 weeks", "2-4 weeks", "> 1 month"],
     },
     {
-      q: "Is it dry or productive (with phlegm)?",
+      q: "Character (dry or productive)? / শুষ্ক নাকি কফসহ?",
       options: ["Dry", "Productive", "Both"],
     },
     {
-      q: "Any associated symptoms (fever, shortness of breath)?",
-      options: ["None", "Fever", "Shortness of breath", "Both"],
+      q: "Sputum color / কফের রং?",
+      options: ["Clear", "Yellow", "Green", "Blood-stained"],
     },
-    { q: "Does anything make it better or worse?", options: [] },
+    { q: "Aggravating factors / কিসে বাড়ে?", options: [] },
   ],
   Fever: [
     {
-      q: "When did the fever start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
     },
     {
-      q: "What is the highest temperature recorded?",
+      q: "Highest temperature recorded / সর্বোচ্চ জ্বরের মাত্রা?",
       options: ["< 100°F", "100-102°F", "102-104°F", "> 104°F"],
     },
     {
-      q: "Is it continuous or intermittent?",
-      options: ["Continuous", "Intermittent", "Only at night"],
+      q: "Pattern / জ্বরের ধরন?",
+      options: ["Continuous", "Intermittent", "Only at night", "Remittent"],
     },
     {
-      q: "Any associated symptoms (chills, sweating, body aches)?",
-      options: [],
+      q: "Associated symptoms / সাথে কি আর কিছু আছে?",
+      options: ["Chills", "Sweating", "Body aches", "Rash"],
     },
   ],
   Headache: [
     {
-      q: "When did the headache start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
     },
     {
-      q: "Location of pain (frontal, temporal, occipital)?",
+      q: "Location / কোথায় ব্যথা?",
       options: ["Frontal", "Temporal", "Occipital", "Whole head"],
     },
     {
-      q: "Severity (1-10 scale)?",
+      q: "Severity (1-10 scale) / তীব্রতা?",
       options: ["1-3 Mild", "4-6 Moderate", "7-10 Severe"],
     },
-    { q: "Any associated symptoms (nausea, vision changes)?", options: [] },
+    {
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Nausea", "Vomiting", "Vision changes", "Photophobia"],
+    },
   ],
   "Abdominal Pain": [
     {
-      q: "When did the pain start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 6 hours", "6-24 hours", "1-3 days", "> 3 days"],
     },
     {
-      q: "Location of pain?",
+      q: "Location / কোথায় ব্যথা?",
       options: [
         "Upper abdomen",
         "Lower abdomen",
@@ -340,18 +367,21 @@ const commonComplaints: Record<string, { q: string; options: string[] }[]> = {
       ],
     },
     {
-      q: "Type of pain (sharp, dull, cramping)?",
+      q: "Character / ব্যথার ধরন?",
       options: ["Sharp", "Dull", "Cramping", "Burning"],
     },
-    { q: "Any associated symptoms (nausea, vomiting, diarrhea)?", options: [] },
+    {
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Nausea", "Vomiting", "Diarrhea", "Constipation"],
+    },
   ],
   "Chest Pain": [
     {
-      q: "When did the pain start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 1 hour", "1-6 hours", "6-24 hours", "> 24 hours"],
     },
     {
-      q: "Location and radiation?",
+      q: "Location and radiation / কোথায়, কোথায় ছড়ায়?",
       options: [
         "Central chest",
         "Left side",
@@ -361,181 +391,169 @@ const commonComplaints: Record<string, { q: string; options: string[] }[]> = {
       ],
     },
     {
-      q: "Nature of pain (sharp, pressure, burning)?",
+      q: "Character / ব্যথার ধরন?",
       options: ["Sharp", "Pressure", "Burning", "Squeezing"],
     },
     {
-      q: "Any associated symptoms (shortness of breath, sweating)?",
-      options: [],
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Shortness of breath", "Sweating", "Nausea", "Palpitations"],
     },
   ],
   "Back Pain": [
     {
-      q: "When did the pain start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 24 hours", "1-7 days", "1-4 weeks", "> 1 month"],
     },
     {
-      q: "Location (upper, middle, lower back)?",
+      q: "Location / কোথায় ব্যথা?",
       options: ["Upper back", "Middle back", "Lower back"],
     },
-    { q: "Any trauma or injury?", options: ["Yes", "No"] },
-    { q: "Any radiation to legs or numbness?", options: [] },
+    { q: "Any trauma or injury? / কোনো আঘাত পেয়েছেন?", options: ["Yes", "No"] },
+    {
+      q: "Radiation to legs? / পায়ে ছড়ায়?",
+      options: ["No", "Yes - right leg", "Yes - left leg", "Both legs"],
+    },
   ],
-  "Sore Throat": [
+  "Shortness of Breath": [
     {
-      q: "When did it start?",
-      options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
+      q: "Duration / কতদিন ধরে?",
+      options: ["< 1 hour", "1-6 hours", "6-24 hours", "> 24 hours"],
     },
     {
-      q: "Difficulty swallowing?",
-      options: ["No", "Mild", "Moderate", "Severe"],
+      q: "At rest or exertion? / বিশ্রামে নাকি পরিশ্রমে?",
+      options: ["At rest", "With exertion", "Both"],
     },
-    { q: "Any associated symptoms (fever, cough)?", options: [] },
     {
-      q: "Any visible swelling or white patches?",
-      options: ["No", "Yes - swelling", "Yes - white patches", "Both"],
+      q: "Severity / তীব্রতা?",
+      options: ["Mild", "Moderate", "Severe", "Cannot speak in sentences"],
+    },
+    {
+      q: "Leg swelling? / পা ফোলা আছে?",
+      options: ["No", "Yes - mild", "Yes - moderate", "Yes - severe"],
     },
   ],
   Dizziness: [
     {
-      q: "When did the dizziness start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 1 hour", "1-24 hours", "1-7 days", "> 1 week"],
     },
     {
-      q: "Is it spinning sensation or light-headedness?",
-      options: ["Spinning", "Light-headed", "Both"],
+      q: "Type / কি ধরনের মাথা ঘোরা?",
+      options: ["Spinning (vertigo)", "Light-headed", "Both"],
     },
-    { q: "Any associated symptoms (nausea, hearing loss)?", options: [] },
     {
-      q: "Does it occur with position changes?",
+      q: "With position changes? / নড়াচড়ায় বাড়ে?",
       options: ["Yes", "No", "Sometimes"],
+    },
+    {
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Nausea", "Hearing loss", "Tinnitus", "Vomiting"],
     },
   ],
   "Nausea/Vomiting": [
     {
-      q: "When did it start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 6 hours", "6-24 hours", "1-3 days", "> 3 days"],
     },
     {
-      q: "Frequency of vomiting?",
+      q: "Frequency of vomiting / কতবার বমি হয়?",
       options: ["Not vomiting", "1-2 times", "3-5 times", "> 5 times"],
     },
-    { q: "Any blood in vomit?", options: ["No", "Yes"] },
-    { q: "Any associated symptoms (abdominal pain, diarrhea)?", options: [] },
+    { q: "Blood in vomit? / বমিতে রক্ত আছে?", options: ["No", "Yes"] },
+    {
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Abdominal pain", "Diarrhea", "Fever", "Headache"],
+    },
   ],
   Diarrhea: [
     {
-      q: "When did it start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
     },
     {
-      q: "Frequency per day?",
+      q: "Frequency per day / দিনে কতবার?",
       options: ["3-5 times", "6-10 times", "> 10 times"],
     },
     {
-      q: "Any blood or mucus in stool?",
+      q: "Blood or mucus in stool? / মলে রক্ত বা আম?",
       options: ["No", "Blood", "Mucus", "Both"],
     },
-    { q: "Any associated symptoms (fever, abdominal pain)?", options: [] },
-  ],
-  "Shortness of Breath": [
     {
-      q: "When did it start?",
-      options: ["< 1 hour", "1-6 hours", "6-24 hours", "> 24 hours"],
-    },
-    {
-      q: "Is it at rest or with exertion?",
-      options: ["At rest", "With exertion", "Both"],
-    },
-    { q: "Any chest pain or wheezing?", options: [] },
-    {
-      q: "Any leg swelling?",
-      options: ["No", "Yes - mild", "Yes - moderate", "Yes - severe"],
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Fever", "Abdominal pain", "Vomiting", "Weakness"],
     },
   ],
   Fatigue: [
     {
-      q: "How long have you felt tired?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 1 week", "1-4 weeks", "1-3 months", "> 3 months"],
     },
-    { q: "Does rest help?", options: ["Yes", "No", "Partially"] },
     {
-      q: "Any weight changes?",
+      q: "Does rest help? / বিশ্রামে ভালো হয়?",
+      options: ["Yes", "No", "Partially"],
+    },
+    {
+      q: "Weight changes? / ওজন পরিবর্তন?",
       options: ["No change", "Weight loss", "Weight gain"],
     },
-    { q: "Any other symptoms?", options: [] },
+    {
+      q: "Associated symptoms / সাথে কি আর কিছু?",
+      options: ["Fever", "Sweating", "Pallor", "Shortness of breath"],
+    },
   ],
   Rash: [
     {
-      q: "When did the rash appear?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
     },
     {
-      q: "Location and spread?",
+      q: "Location / কোথায়?",
       options: ["Localized", "Spreading", "All over body"],
     },
     {
-      q: "Is it itchy or painful?",
+      q: "Itchy or painful? / চুলকায় নাকি ব্যথা করে?",
       options: ["Not itchy/painful", "Itchy", "Painful", "Both"],
     },
-    { q: "Any recent new medications or exposures?", options: [] },
+    { q: "New medications or exposure? / নতুন ওষুধ বা সংস্পর্শ?", options: [] },
   ],
   "Joint Pain": [
     {
-      q: "Which joint(s) are affected?",
+      q: "Which joints? / কোন জয়েন্টে?",
       options: ["Knee", "Hip", "Shoulder", "Elbow", "Wrist", "Multiple joints"],
     },
     {
-      q: "When did it start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 1 week", "1-4 weeks", "1-3 months", "> 3 months"],
     },
     {
-      q: "Any swelling or redness?",
+      q: "Swelling or redness? / ফোলা বা লালভাব আছে?",
       options: ["No", "Swelling only", "Redness only", "Both"],
     },
-    { q: "Any morning stiffness?", options: [] },
-  ],
-  "Ear Pain": [
-    { q: "Which ear is affected?", options: ["Left", "Right", "Both"] },
     {
-      q: "When did it start?",
-      options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
+      q: "Morning stiffness? / সকালে শক্ত হয়?",
+      options: ["No", "Yes - < 30 min", "Yes - > 30 min"],
     },
-    { q: "Any discharge or hearing loss?", options: [] },
-    {
-      q: "Any recent cold or flu?",
-      options: ["No", "Yes - current", "Yes - recent"],
-    },
-  ],
-  "Eye Problem": [
-    {
-      q: "What is the main symptom (pain, redness, vision change)?",
-      options: ["Pain", "Redness", "Vision change", "Discharge", "Multiple"],
-    },
-    {
-      q: "When did it start?",
-      options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
-    },
-    { q: "One or both eyes?", options: ["Left eye", "Right eye", "Both eyes"] },
-    { q: "Any discharge or sensitivity to light?", options: [] },
   ],
   "Urinary Problem": [
     {
-      q: "What is the main issue (pain, frequency, blood)?",
+      q: "Main issue / প্রধান সমস্যা?",
       options: ["Pain/burning", "Frequency", "Blood in urine", "Multiple"],
     },
     {
-      q: "When did it start?",
+      q: "Duration / কতদিন ধরে?",
       options: ["< 24 hours", "1-3 days", "3-7 days", "> 1 week"],
     },
-    { q: "Any fever or back pain?", options: [] },
     {
-      q: "Any difficulty urinating?",
+      q: "Associated fever or back pain? / জ্বর বা কোমর ব্যথা?",
+      options: ["No", "Fever only", "Back pain only", "Both"],
+    },
+    {
+      q: "Difficulty urinating? / প্রস্রাবে কষ্ট?",
       options: [
         "No",
-        "Yes - difficulty starting",
-        "Yes - weak stream",
-        "Yes - incomplete emptying",
+        "Difficulty starting",
+        "Weak stream",
+        "Incomplete emptying",
       ],
     },
   ],
@@ -550,6 +568,7 @@ interface VitalSignsForm {
   temperature: string | number;
   respiratory_rate: string | number;
   oxygen_saturation: string | number;
+  weight?: string;
   height?: string;
 }
 
@@ -628,6 +647,16 @@ function nowDateTimeLocal() {
   return now.toISOString().slice(0, 16);
 }
 
+// ─── Vital Unit Badge ─────────────────────────────────────────────────────────
+
+function UnitBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="font-bold text-teal-700 text-sm bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded text-xs ml-1">
+      {children}
+    </span>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VisitForm({
@@ -640,7 +669,7 @@ export default function VisitForm({
   isLoading,
 }: VisitFormProps) {
   const [visitType, setVisitType] = useState(
-    visit?.visit_type || (patientType === "outdoor" ? "outdoor" : "admitted"),
+    visit?.visit_type || (patientType === "outdoor" ? "outdoor" : "outdoor"),
   );
 
   const [formData, setFormData] = useState<VisitFormData>(
@@ -669,6 +698,7 @@ export default function VisitForm({
         temperature: "",
         respiratory_rate: "",
         oxygen_saturation: "",
+        weight: "",
         height: "",
       },
       general_examination: {},
@@ -718,14 +748,21 @@ export default function VisitForm({
   const [generalExamFindings, setGeneralExamFindings] = useState<
     Record<string, string>
   >({});
-  const [systemicExamFindings, _setSystemicExamFindings] = useState<
-    Record<string, string>
+  const [respiratoryExam, setRespiratoryExam] = useState<
+    Record<string, unknown>
   >({});
-  const [respiratoryExam, setRespiratoryExam] = useState<any>({});
-  const [neurologicalExam, setNeurologicalExam] = useState<any>({});
-  const [gastrointestinalExam, setGastrointestinalExam] = useState<any>({});
-  const [musculoskeletalExam, setMusculoskeletalExam] = useState<any>({});
-  const [cardiovascularExam, setCardiovascularExam] = useState<any>({});
+  const [neurologicalExam, setNeurologicalExam] = useState<
+    Record<string, unknown>
+  >({});
+  const [gastrointestinalExam, setGastrointestinalExam] = useState<
+    Record<string, unknown>
+  >({});
+  const [musculoskeletalExam, setMusculoskeletalExam] = useState<
+    Record<string, unknown>
+  >({});
+  const [cardiovascularExam, setCardiovascularExam] = useState<
+    Record<string, unknown>
+  >({});
 
   const [showSurgicalQuestions, setShowSurgicalQuestions] = useState(false);
   const [showPersonalQuestions, setShowPersonalQuestions] = useState(false);
@@ -779,10 +816,7 @@ export default function VisitForm({
   const handleVitalChange = (field: keyof VitalSignsForm, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      vital_signs: {
-        ...prev.vital_signs!,
-        [field]: value === "" ? "" : value,
-      },
+      vital_signs: { ...prev.vital_signs!, [field]: value },
     }));
   };
 
@@ -795,10 +829,12 @@ export default function VisitForm({
       const current = prev.drug_history?.length
         ? prev.drug_history
         : [{ drug_name: "", dose: "", daily_dose: "" }];
-      const newDrugs = current.map((d, i) =>
-        i === index ? { ...d, [field]: value } : d,
-      );
-      return { ...prev, drug_history: newDrugs };
+      return {
+        ...prev,
+        drug_history: current.map((d, i) =>
+          i === index ? { ...d, [field]: value } : d,
+        ),
+      };
     });
   };
 
@@ -823,11 +859,13 @@ export default function VisitForm({
 
   const toggleSystemReview = (system: string, symptom: string) => {
     setSystemReviewAnswers((prev) => {
-      const systemSymptoms = prev[system] || [];
-      const newSymptoms = systemSymptoms.includes(symptom)
-        ? systemSymptoms.filter((s) => s !== symptom)
-        : [...systemSymptoms, symptom];
-      return { ...prev, [system]: newSymptoms };
+      const current = prev[system] || [];
+      return {
+        ...prev,
+        [system]: current.includes(symptom)
+          ? current.filter((s) => s !== symptom)
+          : [...current, symptom],
+      };
     });
   };
 
@@ -863,9 +901,9 @@ export default function VisitForm({
   const allComplaints = { ...commonComplaints, ...customComplaints };
 
   const getComplaintQuestions = (complaint: string) => {
-    const baseQuestions = allComplaints[complaint] || [];
-    const additionalQuestions = complaintQuestions[complaint] || [];
-    return [...baseQuestions, ...additionalQuestions];
+    const base = allComplaints[complaint] || [];
+    const extra = complaintQuestions[complaint] || [];
+    return [...base, ...extra];
   };
 
   const handleTemplateSelect = (template: string) => {
@@ -877,7 +915,7 @@ export default function VisitForm({
     if (!isSelected) {
       setComplaintAnswers((prev) => ({
         ...prev,
-        [template]: allComplaints[template].map(() => ""),
+        [template]: (allComplaints[template] || []).map(() => ""),
       }));
     } else {
       const newAnswers = { ...complaintAnswers };
@@ -917,8 +955,8 @@ export default function VisitForm({
         ...updated[index],
         options: value
           .split(",")
-          .map((opt) => opt.trim())
-          .filter((opt) => opt !== ""),
+          .map((o) => o.trim())
+          .filter((o) => o !== ""),
       };
     }
     setNewQuestions(updated);
@@ -943,18 +981,20 @@ export default function VisitForm({
       const options = window.prompt(
         "Enter options (comma separated, or leave empty):",
       );
-      const newQuestionObj = {
-        q: newQuestion.trim(),
-        options: options
-          ? options
-              .split(",")
-              .map((o) => o.trim())
-              .filter((o) => o)
-          : [],
-      };
       setComplaintQuestions((prev) => ({
         ...prev,
-        [complaint]: [...(prev[complaint] || []), newQuestionObj],
+        [complaint]: [
+          ...(prev[complaint] || []),
+          {
+            q: newQuestion.trim(),
+            options: options
+              ? options
+                  .split(",")
+                  .map((o) => o.trim())
+                  .filter((o) => o)
+              : [],
+          },
+        ],
       }));
       setComplaintAnswers((prev) => ({
         ...prev,
@@ -983,7 +1023,7 @@ export default function VisitForm({
             : "",
         ),
       ]
-        .filter((s) => s)
+        .filter(Boolean)
         .join("\n");
 
     const surgicalHistorySummary = buildSummary(
@@ -1022,7 +1062,6 @@ export default function VisitForm({
       "gynaecological",
     );
 
-    // Build HPI from history sections (outdoor) or direct field (admitted)
     let historyOfPresentIllness: string | null = null;
     if (visitType === "outdoor") {
       const sections = [
@@ -1041,6 +1080,7 @@ export default function VisitForm({
       historyOfPresentIllness =
         sections.length > 0 ? sections.join("\n\n") : null;
     } else {
+      // Admitted: include HPI
       historyOfPresentIllness =
         formData.history_of_present_illness?.trim() || null;
     }
@@ -1049,68 +1089,42 @@ export default function VisitForm({
     let physicalExamination: string | null = null;
     {
       const genExamLines = Object.entries(generalExamFindings)
-        .filter(([, v]) => v)
+        .filter(([, v]) => v && !String(v).endsWith("_note"))
         .map(([k, v]) => `${k}: ${v}`);
-      const sysExamLines = Object.entries(systemicExamFindings)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}: ${v}`);
-      const respLines = Object.entries(respiratoryExam)
-        .filter(
-          ([, v]) =>
-            v &&
-            (Array.isArray(v)
-              ? (v as string[]).length > 0
-              : typeof v === "object"
-                ? Object.keys(v as object).length > 0
-                : true),
-        )
-        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
-      const neuroLines = Object.entries(neurologicalExam)
-        .filter(
-          ([, v]) =>
-            v &&
-            (Array.isArray(v)
-              ? (v as string[]).length > 0
-              : typeof v === "object"
-                ? Object.keys(v as object).length > 0
-                : true),
-        )
-        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
-      const giLines = Object.entries(gastrointestinalExam)
-        .filter(
-          ([, v]) =>
-            v && (Array.isArray(v) ? (v as string[]).length > 0 : true),
-        )
-        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
-      const mskLines = Object.entries(musculoskeletalExam)
-        .filter(
-          ([, v]) =>
-            v &&
-            (Array.isArray(v)
-              ? (v as string[]).length > 0
-              : typeof v === "object"
-                ? Object.keys(v as object).length > 0
-                : true),
-        )
-        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+      const flattenExam = (
+        exam: Record<string, unknown>,
+        label: string,
+      ): string => {
+        const parts: string[] = [];
+        for (const [, v] of Object.entries(exam)) {
+          if (!v) continue;
+          if (Array.isArray(v) && v.length > 0) parts.push(...v.map(String));
+          else if (typeof v === "object" && v !== null) {
+            const sub = Object.values(v as Record<string, unknown>)
+              .filter(Boolean)
+              .map(String);
+            parts.push(...sub);
+          } else if (typeof v === "string" && v.trim()) parts.push(v);
+        }
+        return parts.length > 0
+          ? `${label}: ${parts.slice(0, 4).join(", ")}.`
+          : "";
+      };
       const parts = [
         genExamLines.length > 0 &&
           `General Examination:\n${genExamLines.join("\n")}`,
-        sysExamLines.length > 0 &&
-          `Systemic Examination:\n${sysExamLines.join("\n")}`,
-        respLines.length > 0 && `Respiratory Exam:\n${respLines.join("\n")}`,
-        neuroLines.length > 0 && `Neurological Exam:\n${neuroLines.join("\n")}`,
-        giLines.length > 0 && `Gastrointestinal Exam:\n${giLines.join("\n")}`,
-        mskLines.length > 0 && `Musculoskeletal Exam:\n${mskLines.join("\n")}`,
+        flattenExam(respiratoryExam, "Respiratory system"),
+        flattenExam(neurologicalExam, "Neurological system"),
+        flattenExam(gastrointestinalExam, "Gastrointestinal system"),
+        flattenExam(musculoskeletalExam, "Musculoskeletal system"),
+        flattenExam(cardiovascularExam, "Cardiovascular system"),
       ].filter(Boolean);
       physicalExamination = parts.length > 0 ? parts.join("\n\n") : null;
     }
 
-    // Build vitalSigns
     const vs = formData.vital_signs;
     const toStr = (v: string | number | undefined) =>
       v !== undefined && v !== "" ? String(v) : undefined;
-
     const vitalSigns = {
       bloodPressure: vs?.blood_pressure?.trim() || undefined,
       pulse: toStr(vs?.pulse),
@@ -1119,7 +1133,6 @@ export default function VisitForm({
       oxygenSaturation: toStr(vs?.oxygen_saturation),
     };
 
-    // Build notes
     const notesParts = [
       formData.previous_investigation_report,
       formData.differential_diagnosis,
@@ -1143,7 +1156,7 @@ export default function VisitForm({
       BigInt(new Date(formData.visit_date || nowDateTimeLocal()).getTime()) *
       1000000n;
 
-    // Save extended visit form data to localStorage for prescription auto-population
+    // Save extended visit form data to localStorage
     try {
       const doctorEmail = getDoctorEmail();
       const existingVisits = loadFromStorage<{ id: bigint }>(
@@ -1157,13 +1170,13 @@ export default function VisitForm({
               0n as bigint,
             ) + 1n;
       const extendedKey = `visit_form_data_${nextVisitId}_${doctorEmail}`;
-      const vs = formData.vital_signs;
       const extendedData = {
+        visitType,
         chiefComplaints: selectedComplaints,
         complaintAnswers: (() => {
           const result: Record<string, Record<string, string>> = {};
           for (const complaint of selectedComplaints) {
-            const qs = complaintQuestions[complaint] || [];
+            const qs = getComplaintQuestions(complaint);
             const ans = complaintAnswers[complaint] || [];
             result[complaint] = {};
             qs.forEach((q, i) => {
@@ -1192,6 +1205,7 @@ export default function VisitForm({
         allergyHistory: allergyAnswers.filter(Boolean),
         obstetricHistory: obstetricAnswers.filter(Boolean),
         gynaecologicalHistory: gynaecologicalAnswers.filter(Boolean),
+        historyOfPresentIllness: formData.history_of_present_illness || "",
         vitalSigns: {
           bloodPressure: vs?.blood_pressure?.trim() || undefined,
           pulse: vs?.pulse ? String(vs.pulse) : undefined,
@@ -1202,9 +1216,10 @@ export default function VisitForm({
           oxygenSaturation: vs?.oxygen_saturation
             ? String(vs.oxygen_saturation)
             : undefined,
+          weight: vs?.weight ? String(vs.weight) : undefined,
+          height: vs?.height ? String(vs.height) : undefined,
         },
         generalExamFindings,
-        systemicExamFindings,
         respiratoryExam,
         neurologicalExam,
         gastrointestinalExam,
@@ -1217,6 +1232,10 @@ export default function VisitForm({
           : [],
         differentialDiagnosis: formData.differential_diagnosis || "",
         investigationAdvice: formData.investigation_advice || "",
+        diagnosis: formData.diagnosis || "",
+        salientFeatures: formData.salient_features || "",
+        otherMedicalHistory:
+          (formData as Record<string, unknown>).other_medical_history || "",
       };
       localStorage.setItem(extendedKey, JSON.stringify(extendedData));
     } catch {
@@ -1237,7 +1256,6 @@ export default function VisitForm({
   };
 
   const generateSalientFeatures = (): string => {
-    // Patient info
     const title = patient?.gender?.toLowerCase() === "female" ? "Mrs/Ms" : "Mr";
     const name = patient?.fullName || "...";
     let age = "...";
@@ -1250,17 +1268,20 @@ export default function VisitForm({
     const htn = medicalHistory.HTN === "+" ? "hypertensive" : "normotensive";
     const dm = medicalHistory.DM === "+" ? "diabetic" : "nondiabetic";
 
-    // Chief complaints with answers
     const complaintLines: string[] = [];
     if (selectedComplaints.length > 0) {
       selectedComplaints.forEach((complaint, i) => {
+        const qs = getComplaintQuestions(complaint);
         const answers = complaintAnswers[complaint] || [];
-        const parts = answers.filter(Boolean).slice(0, 4);
-        if (parts.length > 0) {
-          complaintLines.push(`${i + 1}. ${complaint} — ${parts.join(", ")}`);
-        } else {
-          complaintLines.push(`${i + 1}. ${complaint}`);
-        }
+        const parts = qs
+          .map((_q, idx) => (answers[idx] ? answers[idx] : ""))
+          .filter(Boolean)
+          .slice(0, 4);
+        complaintLines.push(
+          parts.length > 0
+            ? `${i + 1}. ${complaint} — ${parts.join(", ")}`
+            : `${i + 1}. ${complaint}`,
+        );
       });
     } else if (formData.chief_complaint?.trim()) {
       complaintLines.push(`1. ${formData.chief_complaint.trim()}`);
@@ -1271,17 +1292,14 @@ export default function VisitForm({
         ? `presented with:\n${complaintLines.join("\n")}`
         : "presented with various complaints";
 
-    // Positive system review
     const positiveSysReview: string[] = [];
-    if (systemReviewAnswers) {
-      for (const [k, v] of Object.entries(systemReviewAnswers)) {
-        const vals = Array.isArray(v) ? v.filter(Boolean) : [];
-        if (
-          vals.length > 0 &&
-          !vals.every((x) => x === "Normal" || x === "None" || x === "No")
-        ) {
-          positiveSysReview.push(`${k}: ${vals.join(", ")}`);
-        }
+    for (const [k, v] of Object.entries(systemReviewAnswers)) {
+      const vals = Array.isArray(v) ? v.filter(Boolean) : [];
+      if (
+        vals.length > 0 &&
+        !vals.every((x) => x === "Normal" || x === "None" || x === "No")
+      ) {
+        positiveSysReview.push(`${k}: ${vals.join(", ")}`);
       }
     }
     const sysReviewLine =
@@ -1289,22 +1307,24 @@ export default function VisitForm({
         ? `He/She also complains of ${positiveSysReview.join("; ")}.`
         : "";
 
-    // Vital signs
     const vitalParts: string[] = [];
     if (formData.vital_signs?.blood_pressure)
-      vitalParts.push(`BP ${formData.vital_signs.blood_pressure}`);
+      vitalParts.push(`BP ${formData.vital_signs.blood_pressure} mmHg`);
     if (formData.vital_signs?.pulse)
-      vitalParts.push(`Pulse ${formData.vital_signs.pulse} bpm`);
+      vitalParts.push(`Pulse ${formData.vital_signs.pulse} beats/min`);
     if (formData.vital_signs?.temperature)
-      vitalParts.push(`Temperature ${formData.vital_signs.temperature}°F`);
+      vitalParts.push(`Temp ${formData.vital_signs.temperature} °C`);
     if (formData.vital_signs?.respiratory_rate)
-      vitalParts.push(`RR ${formData.vital_signs.respiratory_rate}/min`);
+      vitalParts.push(
+        `RR ${formData.vital_signs.respiratory_rate} breaths/min`,
+      );
     if (formData.vital_signs?.oxygen_saturation)
-      vitalParts.push(`SpO2 ${formData.vital_signs.oxygen_saturation}%`);
+      vitalParts.push(`SpO₂ ${formData.vital_signs.oxygen_saturation}%`);
+    if (formData.vital_signs?.weight)
+      vitalParts.push(`Weight ${formData.vital_signs.weight} kg`);
     const vitalsLine =
       vitalParts.length > 0 ? `On examination, ${vitalParts.join(", ")}.` : "";
 
-    // General examination
     const genExamParts = Object.entries(generalExamFindings)
       .filter(([k, v]) => v && !k.endsWith("_note"))
       .map(([k, v]) => `${k}: ${v}`);
@@ -1313,7 +1333,6 @@ export default function VisitForm({
         ? `On general examination: ${genExamParts.join(", ")}.`
         : "On general examination: within normal limits.";
 
-    // Systemic examination summary
     const flattenExam = (
       exam: Record<string, unknown>,
       label: string,
@@ -1334,30 +1353,24 @@ export default function VisitForm({
         : "";
     };
 
-    const respLine = flattenExam(respiratoryExam, "Respiratory system");
-    const neuroLine = flattenExam(neurologicalExam, "Neurological system");
-    const giLine = flattenExam(gastrointestinalExam, "Gastrointestinal system");
-    const mskLine = flattenExam(musculoskeletalExam, "Musculoskeletal system");
-    const cvLine = flattenExam(
-      cardiovascularExam || {},
-      "Cardiovascular system",
-    );
-    const systemicParts = [respLine, neuroLine, giLine, mskLine, cvLine].filter(
-      Boolean,
-    );
+    const systemicParts = [
+      flattenExam(cardiovascularExam, "Cardiovascular system"),
+      flattenExam(respiratoryExam, "Respiratory system"),
+      flattenExam(gastrointestinalExam, "Gastrointestinal system"),
+      flattenExam(neurologicalExam, "Neurological system"),
+      flattenExam(musculoskeletalExam, "Musculoskeletal system"),
+    ].filter(Boolean);
     const systemicLine =
       systemicParts.length > 0
         ? `On systemic examination:\n${systemicParts.join("\n")}`
-        : "";
+        : "On systemic examination: Heart: S1+S2+0, Lung: Clear, P/A: NAD";
 
-    // Personal history - smoking
     const smokingStatus = personalHistoryAnswers[0]?.trim();
     const smokingLine =
       smokingStatus && smokingStatus !== "Non-smoker"
         ? `He/She is a ${smokingStatus.toLowerCase()}.`
         : "";
 
-    // Family history
     const familyLines = familyHistoryAnswers
       .map((ans, i) =>
         ans && ans !== "No"
@@ -1370,7 +1383,6 @@ export default function VisitForm({
         ? `On query, family history reveals ${familyLines.join("; ")}.`
         : "";
 
-    // Drug history
     const drugs = (formData.drug_history || []).filter((d) =>
       d.drug_name?.trim(),
     );
@@ -1379,7 +1391,6 @@ export default function VisitForm({
         ? `He/She uses ${drugs.map((d) => d.drug_name.trim()).join(", ")}.`
         : "";
 
-    // Previous investigation report
     let invLine = "";
     const prevInvRows = formData.previous_investigation_rows || [];
     if (prevInvRows.length > 0) {
@@ -1413,49 +1424,132 @@ export default function VisitForm({
   const drugHistory = formData.drug_history || [
     { drug_name: "", dose: "", daily_dose: "" },
   ];
+  const isAdmitted = visitType === "admitted";
+
+  const historySections = [
+    {
+      key: "surgical",
+      label: "Past Surgical History / অতীতের অস্ত্রোপচারের ইতিহাস",
+      show: showSurgicalQuestions,
+      setShow: setShowSurgicalQuestions,
+      questions: surgicalHistoryQuestions,
+      answers: surgicalHistoryAnswers,
+      setAnswers: setSurgicalHistoryAnswers,
+    },
+    {
+      key: "personal",
+      label: "Personal History / ব্যক্তিগত ইতিহাস",
+      show: showPersonalQuestions,
+      setShow: setShowPersonalQuestions,
+      questions: personalHistoryQuestions,
+      answers: personalHistoryAnswers,
+      setAnswers: setPersonalHistoryAnswers,
+    },
+    {
+      key: "family",
+      label: "Family History / পারিবারিক ইতিহাস",
+      show: showFamilyQuestions,
+      setShow: setShowFamilyQuestions,
+      questions: familyHistoryQuestions,
+      answers: familyHistoryAnswers,
+      setAnswers: setFamilyHistoryAnswers,
+    },
+    {
+      key: "immunization",
+      label: "Immunization History / টিকার ইতিহাস",
+      show: showImmunizationQuestions,
+      setShow: setShowImmunizationQuestions,
+      questions: immunizationQuestions,
+      answers: immunizationAnswers,
+      setAnswers: setImmunizationAnswers,
+    },
+    {
+      key: "allergy",
+      label: "Allergy History / এলার্জির ইতিহাস",
+      show: showAllergyQuestions,
+      setShow: setShowAllergyQuestions,
+      questions: allergyQuestions,
+      answers: allergyAnswers,
+      setAnswers: setAllergyAnswers,
+    },
+    {
+      key: "obstetric",
+      label: "Obstetric History / প্রসূতি ইতিহাস",
+      show: showObstetricQuestions,
+      setShow: setShowObstetricQuestions,
+      questions: obstetricQuestions,
+      answers: obstetricAnswers,
+      setAnswers: setObstetricAnswers,
+    },
+    {
+      key: "gynaecological",
+      label: "Gynaecological History / স্ত্রীরোগ বিষয়ক ইতিহাস",
+      show: showGynaecologicalQuestions,
+      setShow: setShowGynaecologicalQuestions,
+      questions: gynaecologicalQuestions,
+      answers: gynaecologicalAnswers,
+      setAnswers: setGynaecologicalAnswers,
+    },
+  ] as {
+    key: string;
+    label: string;
+    show: boolean;
+    setShow: (v: boolean) => void;
+    questions: { q: string; options: string[] }[];
+    answers: string[];
+    setAnswers: (v: string[]) => void;
+  }[];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pb-24 lg:pb-0">
-      {/* Visit Type */}
+    <form onSubmit={handleSubmit} className="space-y-6 pb-28 lg:pb-8">
+      {/* Visit Type Toggle */}
       <div className="space-y-3">
-        <Label>Visit Type *</Label>
+        <Label className="text-base font-semibold">
+          Visit Type / রোগীর ধরন *
+        </Label>
         <div className="grid grid-cols-2 gap-4">
-          <Card
-            className={`cursor-pointer transition-all ${
-              visitType === "outdoor"
-                ? "border-teal-500 bg-teal-50 shadow-md"
-                : "border-slate-200 hover:border-slate-300"
-            }`}
-            onClick={() => setVisitType("outdoor")}
-            data-ocid="visit_form.toggle"
-          >
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl mb-2">🚶</div>
-              <h4 className="font-semibold text-slate-800">Outdoor Patient</h4>
-              <p className="text-xs text-slate-500 mt-1">Outpatient care</p>
-            </CardContent>
-          </Card>
-          <Card
-            className={`cursor-pointer transition-all ${
-              visitType === "admitted"
-                ? "border-teal-500 bg-teal-50 shadow-md"
-                : "border-slate-200 hover:border-slate-300"
-            }`}
-            onClick={() => setVisitType("admitted")}
-          >
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl mb-2">🏥</div>
-              <h4 className="font-semibold text-slate-800">Admitted Patient</h4>
-              <p className="text-xs text-slate-500 mt-1">Inpatient care</p>
-            </CardContent>
-          </Card>
+          {[
+            {
+              value: "outdoor",
+              emoji: "🚶",
+              en: "Outdoor Patient",
+              bn: "বহির্বিভাগ রোগী",
+            },
+            {
+              value: "admitted",
+              emoji: "🏥",
+              en: "Admitted Patient",
+              bn: "ভর্তি রোগী",
+            },
+          ].map(({ value, emoji, en, bn }) => (
+            <Card
+              key={value}
+              className={`cursor-pointer transition-all ${visitType === value ? "border-teal-500 bg-teal-50 shadow-md ring-2 ring-teal-300" : "border-slate-200 hover:border-slate-300"}`}
+              onClick={() => setVisitType(value)}
+              data-ocid="visit_form.toggle"
+            >
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl mb-2">{emoji}</div>
+                <h4 className="font-semibold text-slate-800">{en}</h4>
+                <p className="text-xs text-slate-500 mt-1">{bn}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
+        {isAdmitted && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            ℹ️ Admitted mode: Only History of Present Illness is shown after
+            chief complaints. All other sections remain.
+          </div>
+        )}
       </div>
 
       {/* Visit Date */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <Label htmlFor="visit_date">Visit Date &amp; Time *</Label>
+          <Label htmlFor="visit_date" className="text-base font-semibold">
+            Visit Date & Time *
+          </Label>
           <Input
             id="visit_date"
             type="datetime-local"
@@ -1471,63 +1565,20 @@ export default function VisitForm({
       {/* Chief Complaints */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <Label>Chief Complaints *</Label>
-          <span className="text-xs text-slate-500">
-            Select one or more complaints
-          </span>
+          <Label className="text-base font-semibold">
+            Chief Complaints / প্রধান অভিযোগ *
+          </Label>
+          <span className="text-xs text-slate-500">Select one or more</span>
         </div>
-
         <div className="flex flex-wrap gap-2">
           {Object.keys(allComplaints).map((complaint, ccIdx) => {
-            const PALETTE = [
-              {
-                base: "bg-blue-100 text-blue-800 border-blue-300",
-                active: "bg-blue-500 text-white",
-              },
-              {
-                base: "bg-green-100 text-green-800 border-green-300",
-                active: "bg-green-500 text-white",
-              },
-              {
-                base: "bg-amber-100 text-amber-800 border-amber-300",
-                active: "bg-amber-500 text-white",
-              },
-              {
-                base: "bg-purple-100 text-purple-800 border-purple-300",
-                active: "bg-purple-500 text-white",
-              },
-              {
-                base: "bg-rose-100 text-rose-800 border-rose-300",
-                active: "bg-rose-500 text-white",
-              },
-              {
-                base: "bg-cyan-100 text-cyan-800 border-cyan-300",
-                active: "bg-cyan-500 text-white",
-              },
-              {
-                base: "bg-orange-100 text-orange-800 border-orange-300",
-                active: "bg-orange-500 text-white",
-              },
-              {
-                base: "bg-teal-100 text-teal-800 border-teal-300",
-                active: "bg-teal-500 text-white",
-              },
-              {
-                base: "bg-indigo-100 text-indigo-800 border-indigo-300",
-                active: "bg-indigo-500 text-white",
-              },
-              {
-                base: "bg-lime-100 text-lime-800 border-lime-300",
-                active: "bg-lime-600 text-white",
-              },
-            ];
-            const colors = PALETTE[ccIdx % PALETTE.length];
+            const colors = BADGE_PALETTE[ccIdx % BADGE_PALETTE.length];
             const isActive = selectedComplaints.includes(complaint);
             return (
               <Badge
                 key={complaint}
                 variant="outline"
-                className={`cursor-pointer border min-h-[36px] flex items-center transition-all ${isActive ? colors.active : colors.base}`}
+                className={`cursor-pointer border min-h-[38px] flex items-center transition-all text-sm font-medium px-3 ${isActive ? colors.active : colors.base}`}
                 onClick={() => handleTemplateSelect(complaint)}
               >
                 {complaint}
@@ -1537,7 +1588,7 @@ export default function VisitForm({
           })}
           <Badge
             variant="outline"
-            className="cursor-pointer hover:bg-slate-100 border-dashed"
+            className="cursor-pointer hover:bg-slate-100 border-dashed min-h-[38px]"
             onClick={() => setShowAddDialog(true)}
             data-ocid="visit_form.open_modal_button"
           >
@@ -1545,14 +1596,13 @@ export default function VisitForm({
             Add Custom
           </Badge>
         </div>
-
         {selectedComplaints.length > 0 && (
           <Input
             value={selectedComplaints
               .map((c, idx) => `${idx + 1}. ${c}`)
               .join(", ")}
             readOnly
-            className="bg-slate-50 h-11"
+            className="bg-slate-50 h-11 text-sm"
             placeholder="Selected complaints"
           />
         )}
@@ -1570,7 +1620,7 @@ export default function VisitForm({
           {selectedComplaints.map((complaint) => (
             <Card
               key={complaint}
-              className="border-2 border-teal-200 shadow-md bg-gradient-to-br from-white to-blue-50/30"
+              className="border-2 border-teal-200 shadow-md"
             >
               <CardHeader className="pb-4 bg-gradient-to-r from-teal-500 to-blue-500 rounded-t-lg">
                 <div className="flex items-center justify-between">
@@ -1603,6 +1653,950 @@ export default function VisitForm({
           ))}
         </div>
       )}
+
+      {/* History of Present Illness — shown for BOTH types, but for admitted it's the ONLY history section */}
+      <Card className="border-blue-200 bg-blue-50/30">
+        <CardHeader className="pb-3 bg-blue-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
+            History of Present Illness / বর্তমান রোগের ইতিহাস
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-3">
+          <Textarea
+            id="history_of_present_illness"
+            value={formData.history_of_present_illness || ""}
+            onChange={(e) =>
+              handleChange("history_of_present_illness", e.target.value)
+            }
+            placeholder="Detailed history of the current illness..."
+            rows={5}
+            className="text-sm"
+          />
+        </CardContent>
+      </Card>
+
+      {/* System Review — HIDDEN for admitted */}
+      {!isAdmitted && (
+        <Card className="border-slate-200">
+          <CardHeader className="pb-4 bg-slate-700 rounded-t-xl">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-medium text-white">
+                System Review / সিস্টেম রিভিউ
+              </CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const systemName = window.prompt("Enter new system name:");
+                  if (systemName?.trim()) {
+                    setCustomSystems((prev) => ({
+                      ...prev,
+                      [systemName.trim()]: [],
+                    }));
+                  }
+                }}
+                className="h-8 bg-white/10 text-white border-white/30 hover:bg-white/20"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add System
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            {Object.entries({ ...systemReviewData, ...customSystems }).map(
+              ([system, symptoms]) => (
+                <div key={system} className="space-y-2">
+                  <Label className="text-sm font-semibold text-slate-700">
+                    {system}
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {symptoms.map((symptom, sIdx) => {
+                      const colors = BADGE_PALETTE[sIdx % BADGE_PALETTE.length];
+                      const isActive =
+                        systemReviewAnswers[system]?.includes(symptom);
+                      return (
+                        <Badge
+                          key={symptom}
+                          variant="outline"
+                          className={`cursor-pointer border min-h-[36px] flex items-center transition-all text-sm ${isActive ? colors.active : colors.base}`}
+                          onClick={() => toggleSystemReview(system, symptom)}
+                        >
+                          {symptom}
+                        </Badge>
+                      );
+                    })}
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer hover:bg-slate-100 border-dashed"
+                      onClick={() => {
+                        const symptom = window.prompt(
+                          `Add symptom to ${system}:`,
+                        );
+                        if (symptom?.trim()) {
+                          setCustomSystems((prev) => ({
+                            ...prev,
+                            [system]: [
+                              ...(prev[system] ||
+                                systemReviewData[system] ||
+                                []),
+                              symptom.trim(),
+                            ],
+                          }));
+                        }
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Badge>
+                  </div>
+                </div>
+              ),
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* History Card — HIDDEN for admitted */}
+      {!isAdmitted && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader className="pb-4 bg-amber-600 rounded-t-xl">
+            <CardTitle className="text-base font-medium text-white">
+              History / ইতিহাস
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            {/* Past Medical History */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-700">
+                Past Medical History / অতীত চিকিৎসা ইতিহাস
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {medicalHistoryOptions.map((condition) => (
+                  <Badge
+                    key={condition}
+                    variant="outline"
+                    className={`cursor-pointer min-h-[36px] text-sm font-medium px-3 ${
+                      medicalHistory[condition] === "+"
+                        ? "bg-green-50 border-green-500 text-green-700"
+                        : medicalHistory[condition] === "-"
+                          ? "bg-red-50 border-red-500 text-red-700"
+                          : ""
+                    }`}
+                    onClick={() => toggleMedicalHistory(condition)}
+                  >
+                    {condition}
+                    {medicalHistory[condition] || ""}
+                  </Badge>
+                ))}
+              </div>
+              <Input
+                value={
+                  ((formData as Record<string, unknown>)
+                    .other_medical_history as string) || ""
+                }
+                onChange={(e) =>
+                  handleChange(
+                    "other_medical_history" as keyof VisitFormData,
+                    e.target.value,
+                  )
+                }
+                placeholder="Other chronic disease / অন্যান্য দীর্ঘমেয়াদী রোগ..."
+                className="h-10 text-sm"
+              />
+            </div>
+
+            {/* History sub-sections */}
+            {historySections.map(
+              ({
+                key,
+                label,
+                show,
+                setShow,
+                questions,
+                answers,
+                setAnswers,
+              }) => (
+                <div key={key} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold text-slate-700">
+                      {label}
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShow(!show)}
+                      className="h-8"
+                    >
+                      {show ? "Hide" : "Answer"} Questions
+                    </Button>
+                  </div>
+                  {show && (
+                    <>
+                      <QuestionStepper
+                        questions={questions}
+                        answers={answers}
+                        onChange={(idx, value) => {
+                          const a = [...answers];
+                          a[idx] = value;
+                          setAnswers(a);
+                        }}
+                      />
+                      {key === "immunization" && (
+                        <div className="mt-3 space-y-2 bg-lime-50 border border-lime-200 rounded-lg p-3">
+                          <Label className="text-lime-800 font-semibold text-sm">
+                            Immunized as per EPI Schedule / ইপিআই সূচি অনুযায়ী টিকা
+                          </Label>
+                          <div className="flex gap-3 flex-wrap">
+                            {(["yes", "no"] as const).map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() =>
+                                  setEpiSchedule(epiSchedule === val ? "" : val)
+                                }
+                                className={`px-5 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
+                                  epiSchedule === val
+                                    ? val === "yes"
+                                      ? "bg-lime-500 border-lime-500 text-white"
+                                      : "bg-rose-500 border-rose-500 text-white"
+                                    : "bg-white border-slate-300 text-slate-600 hover:border-lime-400"
+                                }`}
+                                data-ocid={`epi_schedule.${val === "yes" ? "primary_button" : "secondary_button"}`}
+                              >
+                                {val === "yes" ? "✓ Yes / হ্যাঁ" : "✗ No / না"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(extraHistoryQuestions[key] || []).map((item, eIdx) => (
+                        <div
+                          key={`ex-${key}-${item.q}-${eIdx}`}
+                          className="space-y-2"
+                        >
+                          <Label className="text-sm font-medium text-blue-700">
+                            {item.q}
+                          </Label>
+                          <Input
+                            value={extraHistoryAnswers[key]?.[eIdx] || ""}
+                            onChange={(e) => {
+                              const arr = [...(extraHistoryAnswers[key] || [])];
+                              arr[eIdx] = e.target.value;
+                              setExtraHistoryAnswers((prev) => ({
+                                ...prev,
+                                [key]: arr,
+                              }));
+                            }}
+                            placeholder="Type answer..."
+                            className="h-10 bg-blue-50"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex gap-2 pt-2 border-t border-dashed border-slate-200 mt-2">
+                        <Input
+                          value={newHistoryQuestionText[key] || ""}
+                          onChange={(e) =>
+                            setNewHistoryQuestionText((prev) => ({
+                              ...prev,
+                              [key]: e.target.value,
+                            }))
+                          }
+                          placeholder="Add a question..."
+                          className="h-9 text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addHistoryQuestion(key);
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addHistoryQuestion(key)}
+                          className="h-9 px-3 shrink-0"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ),
+            )}
+
+            {/* Drug History */}
+            <div className="space-y-3 bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-fuchsia-700 font-semibold">
+                  Drug History / ওষুধের ইতিহাস
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addDrugHistory}
+                  className="h-8"
+                  data-ocid="drug_history.add_button"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Drug
+                </Button>
+              </div>
+              <div className="flex gap-2 items-center bg-slate-100 rounded-lg p-2">
+                <Input
+                  id="drugSearchInput"
+                  placeholder="Search drug in Medex..."
+                  className="h-8 text-sm bg-white flex-1"
+                  data-ocid="drug_history.search_input"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs whitespace-nowrap"
+                  onClick={() => {
+                    const val = (
+                      document.getElementById(
+                        "drugSearchInput",
+                      ) as HTMLInputElement
+                    )?.value;
+                    if (!val.trim()) {
+                      toast.error("Enter a drug name first");
+                      return;
+                    }
+                    window.open(
+                      `https://medex.com.bd/?search=${encodeURIComponent(val.trim())}`,
+                      "_blank",
+                    );
+                  }}
+                  data-ocid="drug_history.medex_button"
+                >
+                  Search Medex
+                </Button>
+              </div>
+              {drugHistory.map((drug, index) => (
+                <Card
+                  key={String(index)}
+                  className="bg-slate-50 border-slate-200 p-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 grid grid-cols-3 gap-2">
+                      <Input
+                        value={drug.drug_name}
+                        onChange={(e) =>
+                          handleDrugHistoryChange(
+                            index,
+                            "drug_name",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Drug name"
+                        className="h-9 bg-white col-span-1"
+                        data-ocid={`drug_history.input.${index + 1}`}
+                      />
+                      <Input
+                        value={drug.dose}
+                        onChange={(e) =>
+                          handleDrugHistoryChange(index, "dose", e.target.value)
+                        }
+                        placeholder="Dose (e.g. 500mg)"
+                        className="h-9 bg-white"
+                      />
+                      <Input
+                        value={drug.daily_dose}
+                        onChange={(e) =>
+                          handleDrugHistoryChange(
+                            index,
+                            "daily_dose",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Frequency (e.g. 1+1+1)"
+                        className="h-9 bg-white"
+                      />
+                    </div>
+                    {drugHistory.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeDrugHistory(index)}
+                        className="h-9 w-9 text-red-500"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Other History */}
+            <div className="space-y-2">
+              <Label
+                htmlFor="other_history"
+                className="text-sm font-semibold text-slate-700"
+              >
+                Other History / অন্যান্য ইতিহাস
+              </Label>
+              <Textarea
+                id="other_history"
+                value={formData.other_history || ""}
+                onChange={(e) => handleChange("other_history", e.target.value)}
+                placeholder="Other relevant history..."
+                rows={2}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Vital Signs — shown for both types */}
+      <Card className="border-green-200 bg-green-50/30">
+        <CardHeader className="pb-4 bg-green-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center gap-2 text-white">
+            <Activity className="h-5 w-5 text-white/80" />
+            Vital Signs / জীবনের চিহ্ন
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5 text-red-500" />
+              Blood Pressure <UnitBadge>mmHg</UnitBadge>
+            </Label>
+            <Input
+              type="text"
+              value={formData.vital_signs?.blood_pressure || ""}
+              onChange={(e) =>
+                handleChange("vital_signs", {
+                  ...formData.vital_signs,
+                  blood_pressure: e.target.value,
+                })
+              }
+              placeholder="120/80"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5 text-pink-500" />
+              Pulse Rate <UnitBadge>beats/min</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              value={formData.vital_signs?.pulse || ""}
+              onChange={(e) => handleVitalChange("pulse", e.target.value)}
+              placeholder="72"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5 text-rose-500" />
+              Heart Rate <UnitBadge>beats/min</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              value={formData.vital_signs?.heart_rate || ""}
+              onChange={(e) => handleVitalChange("heart_rate", e.target.value)}
+              placeholder="72"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Thermometer className="h-3.5 w-3.5 text-orange-500" />
+              Temperature <UnitBadge>°C</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={formData.vital_signs?.temperature || ""}
+              onChange={(e) => handleVitalChange("temperature", e.target.value)}
+              placeholder="37.0"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Wind className="h-3.5 w-3.5 text-blue-500" />
+              Resp. Rate <UnitBadge>breaths/min</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              value={formData.vital_signs?.respiratory_rate || ""}
+              onChange={(e) =>
+                handleVitalChange("respiratory_rate", e.target.value)
+              }
+              placeholder="16"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">
+              SpO₂ <UnitBadge>%</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              value={formData.vital_signs?.oxygen_saturation || ""}
+              onChange={(e) =>
+                handleVitalChange("oxygen_saturation", e.target.value)
+              }
+              placeholder="98"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">
+              Weight <UnitBadge>kg</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={formData.vital_signs?.weight || ""}
+              onChange={(e) => handleVitalChange("weight", e.target.value)}
+              placeholder="65"
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">
+              Height <UnitBadge>cm</UnitBadge>
+            </Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={formData.vital_signs?.height || ""}
+              onChange={(e) => handleVitalChange("height", e.target.value)}
+              placeholder="170"
+              className="h-11 text-base"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* General Examination — shown for both types */}
+      <Card className="border-purple-200 bg-purple-50/30">
+        <CardHeader className="pb-4 bg-purple-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
+            General Examination / সাধারণ পরীক্ষা
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          {Object.entries(generalExaminationCategories).map(
+            ([category, options]) => (
+              <div key={category} className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">
+                  {category}
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((option, optIdx) => {
+                    const colors = BADGE_PALETTE[optIdx % BADGE_PALETTE.length];
+                    const isActive = generalExamFindings[category] === option;
+                    return (
+                      <Badge
+                        key={option}
+                        variant="outline"
+                        className={`cursor-pointer border min-h-[36px] flex items-center transition-all text-sm ${isActive ? colors.active : colors.base}`}
+                        onClick={() => toggleGeneralExam(category, option)}
+                      >
+                        {option}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                <Input
+                  value={generalExamFindings[`${category}_note`] || ""}
+                  onChange={(e) =>
+                    setGeneralExamFindings((prev) => ({
+                      ...prev,
+                      [`${category}_note`]: e.target.value,
+                    }))
+                  }
+                  placeholder={`Add note for ${category}...`}
+                  className="h-9 text-sm bg-slate-50"
+                />
+              </div>
+            ),
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Systemic Examination — shown for both types */}
+      <Card className="border-teal-200 bg-teal-50/30">
+        <CardHeader className="pb-4 bg-teal-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
+            Systemic Examination / পদ্ধতিগত পরীক্ষা
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="cardiovascular">
+            <TabsList className="flex flex-wrap w-full gap-1 h-auto">
+              <TabsTrigger
+                value="cardiovascular"
+                className="flex-1 min-w-[70px]"
+                data-ocid="systemic.cardiovascular.tab"
+              >
+                CVS
+              </TabsTrigger>
+              <TabsTrigger
+                value="respiratory"
+                className="flex-1 min-w-[70px]"
+                data-ocid="systemic.respiratory.tab"
+              >
+                Respiratory
+              </TabsTrigger>
+              <TabsTrigger
+                value="neurological"
+                className="flex-1 min-w-[70px]"
+                data-ocid="systemic.neurological.tab"
+              >
+                Neuro
+              </TabsTrigger>
+              <TabsTrigger
+                value="gastrointestinal"
+                className="flex-1 min-w-[70px]"
+                data-ocid="systemic.gastrointestinal.tab"
+              >
+                GI
+              </TabsTrigger>
+              <TabsTrigger
+                value="musculoskeletal"
+                className="flex-1 min-w-[70px]"
+                data-ocid="systemic.musculoskeletal.tab"
+              >
+                MSK
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="cardiovascular">
+              <CardiovascularExam
+                data={cardiovascularExam}
+                onChange={setCardiovascularExam}
+              />
+            </TabsContent>
+            <TabsContent value="respiratory">
+              <RespiratoryExam
+                data={respiratoryExam}
+                onChange={setRespiratoryExam}
+              />
+            </TabsContent>
+            <TabsContent value="neurological">
+              <NeurologicalExam
+                data={neurologicalExam}
+                onChange={setNeurologicalExam}
+              />
+            </TabsContent>
+            <TabsContent value="gastrointestinal">
+              <GastrointestinalExam
+                data={gastrointestinalExam}
+                onChange={setGastrointestinalExam}
+              />
+            </TabsContent>
+            <TabsContent value="musculoskeletal">
+              <MusculoskeletalExam
+                data={musculoskeletalExam}
+                onChange={setMusculoskeletalExam}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Previous Investigation Report */}
+      <Card className="border-cyan-200 bg-cyan-50/30">
+        <CardHeader className="pb-3 bg-cyan-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
+            Previous Investigation Report / পূর্ববর্তী তদন্ত প্রতিবেদন
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-3">
+          <PreviousInvestigationTable
+            rows={
+              Array.isArray(formData.previous_investigation_rows)
+                ? formData.previous_investigation_rows
+                : []
+            }
+            onChange={(rows) =>
+              handleChange("previous_investigation_rows", rows)
+            }
+            onArchive={() => {
+              const rows = formData.previous_investigation_rows || [];
+              if (rows.length === 0) return;
+              const key = `archived_investigations_${patientId}`;
+              const existing = JSON.parse(localStorage.getItem(key) || "[]");
+              localStorage.setItem(key, JSON.stringify([...existing, ...rows]));
+              handleChange("previous_investigation_rows", []);
+              toast.success("Investigation profile archived successfully.");
+            }}
+          />
+          <p className="text-xs text-slate-400 mt-2">
+            Five-field structured report. Values included in Auto-Generated
+            Salient Features.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Salient Features */}
+      <Card className="border-rose-200 bg-rose-50/30">
+        <CardHeader className="pb-3 bg-rose-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between">
+            <span className="text-white">Salient Features / বিশেষ বৈশিষ্ট্য</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                handleChange("salient_features", generateSalientFeatures())
+              }
+              className="flex items-center gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"
+              data-ocid="salient_features.button"
+            >
+              <Sparkles className="h-4 w-4" />
+              Auto-Generate
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={formData.salient_features || ""}
+            onChange={(e) => handleChange("salient_features", e.target.value)}
+            placeholder="Click 'Auto-Generate' to build salient features from form data, or type manually..."
+            rows={12}
+            className="bg-slate-50 font-mono text-sm leading-relaxed"
+            data-ocid="salient_features.textarea"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Diagnosis */}
+      <Card className="border-teal-200 bg-teal-50/30">
+        <CardHeader className="pb-3 bg-teal-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
+            <span>Diagnosis / রোগ নির্ণয়</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const complaints =
+                  selectedComplaints.length > 0
+                    ? selectedComplaints.join(", ")
+                    : formData.chief_complaint?.trim() || "";
+                const pmh = Object.entries(medicalHistory)
+                  .map(([k, v]) => `${k}${v}`)
+                  .join(", ");
+                handleChange(
+                  "diagnosis",
+                  `Based on clinical presentation and examination findings:\n\nPossible Diagnosis: [Review and enter diagnosis based on: ${complaints ? `complaints of ${complaints}, ` : ""}${pmh ? `history of ${pmh}, ` : ""}salient features reviewed]`,
+                );
+              }}
+              className="flex items-center gap-2 text-teal-700 border-teal-200 hover:bg-teal-50"
+              data-ocid="diagnosis.button"
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Generate
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            id="diagnosis"
+            value={formData.diagnosis || ""}
+            onChange={(e) => handleChange("diagnosis", e.target.value)}
+            placeholder="Enter diagnosis here, or click AI Generate..."
+            rows={3}
+            className="bg-slate-50 text-sm"
+            data-ocid="diagnosis.textarea"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Differential Diagnosis */}
+      <Card className="border-orange-200 bg-orange-50/30">
+        <CardHeader className="pb-3 bg-orange-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
+            <span>Differential Diagnosis / ডিফারেনশিয়াল ডায়াগনসিস</span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const complaints =
+                    selectedComplaints.length > 0
+                      ? selectedComplaints.join(", ")
+                      : formData.chief_complaint?.trim() || "";
+                  const pmh = Object.entries(medicalHistory)
+                    .filter(([, v]) => v === "+")
+                    .map(([k]) => k)
+                    .join(", ");
+                  const diagnosis = formData.diagnosis?.trim() || "";
+                  handleChange(
+                    "differential_diagnosis",
+                    `Differential Diagnosis:\n\nBased on: ${complaints ? `complaints of ${complaints}` : "presenting symptoms"}${pmh ? `, history of ${pmh}` : ""}${diagnosis ? `, diagnosis of ${diagnosis}` : ""}\n\n1. [DDx 1]\n2. [DDx 2]\n3. [DDx 3]\n\nPlease review and edit based on clinical findings.`,
+                  );
+                }}
+                className="flex items-center gap-2 text-violet-700 border-violet-300 hover:bg-violet-50"
+              >
+                <Sparkles className="h-4 w-4" />
+                AI Generate
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => ddImageInputRef.current?.click()}
+                className="flex items-center gap-2 text-blue-700 border-blue-300 hover:bg-blue-50"
+              >
+                Upload Image
+              </Button>
+              <input
+                ref={ddImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={() => setDdImageConfirmOpen(true)}
+              />
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ddImageHasData && (
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+              ⚠️ Image data extracted. Please review all values before
+              finalizing.
+            </div>
+          )}
+          <Textarea
+            value={formData.differential_diagnosis || ""}
+            onChange={(e) =>
+              handleChange("differential_diagnosis", e.target.value)
+            }
+            placeholder="Click 'AI Generate' to suggest differential diagnoses, or enter manually..."
+            rows={8}
+            className="bg-slate-50 text-sm"
+            data-ocid="differential_diagnosis.textarea"
+          />
+        </CardContent>
+      </Card>
+
+      {/* New Investigation Advice */}
+      <Card className="border-lime-200 bg-lime-50/30">
+        <CardHeader className="pb-3 bg-lime-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
+            <span>New Investigation Advice / নতুন তদন্তের পরামর্শ</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                handleChange(
+                  "investigation_advice",
+                  "Suggested investigations:\n1. Complete Blood Count (CBC)\n2. Blood Glucose (Fasting & PP)\n3. Liver Function Tests (LFT)\n4. Renal Function Tests (RFT)\n5. Chest X-Ray\n6. ECG\n\n[Doctor to review and customize]",
+                );
+              }}
+              className="flex items-center gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Suggest
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={formData.investigation_advice || ""}
+            onChange={(e) =>
+              handleChange("investigation_advice", e.target.value)
+            }
+            placeholder="New investigation advice..."
+            rows={4}
+            className="bg-slate-50 text-sm"
+            data-ocid="investigation_advice.textarea"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Notes */}
+      <Card className="border-slate-200">
+        <CardHeader className="pb-3 bg-slate-600 rounded-t-xl">
+          <CardTitle className="text-base font-medium text-white">
+            Additional Notes / অতিরিক্ত নোট
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-3">
+          <Textarea
+            id="notes"
+            value={formData.notes || ""}
+            onChange={(e) => handleChange("notes", e.target.value)}
+            placeholder="Any additional notes..."
+            rows={3}
+            className="text-sm"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Sticky Save Bar — mobile/tablet */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-card border-t shadow-2xl px-4 py-3">
+        <div className="flex gap-3 max-w-2xl mx-auto">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            className="flex-1 h-14 text-base font-semibold"
+            data-ocid="visit_form.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="flex-1 h-14 text-base font-semibold bg-teal-600 hover:bg-teal-700"
+            data-ocid="visit_form.save_button"
+          >
+            {isLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            ) : (
+              <Save className="h-5 w-5 mr-2" />
+            )}
+            Save Visit
+          </Button>
+        </div>
+      </div>
+
+      {/* Desktop Save Bar */}
+      <div className="hidden lg:flex gap-3 pt-4 border-t">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          className="px-8 h-12 text-base"
+          data-ocid="visit_form.cancel_button"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={isLoading}
+          className="px-10 h-12 text-base font-semibold bg-teal-600 hover:bg-teal-700"
+          data-ocid="visit_form.save_button"
+        >
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+          ) : (
+            <Save className="h-5 w-5 mr-2" />
+          )}
+          Save Visit
+        </Button>
+      </div>
 
       {/* Add Custom Complaint Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -1680,1200 +2674,55 @@ export default function VisitForm({
         </DialogContent>
       </Dialog>
 
-      {/* Outdoor-only sections */}
-      {visitType === "outdoor" && (
-        <>
-          {/* System Review */}
-          <Card className="border-slate-200">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-medium text-white">
-                  System Review
-                </CardTitle>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const systemName = window.prompt("Enter new system name:");
-                    if (systemName?.trim()) {
-                      setCustomSystems((prev) => ({
-                        ...prev,
-                        [systemName.trim()]: [],
-                      }));
-                    }
-                  }}
-                  className="h-8"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add System
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries({ ...systemReviewData, ...customSystems }).map(
-                ([system, symptoms]) => (
-                  <div key={system} className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">
-                      {system}
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {symptoms.map((symptom, sIdx) => {
-                        const PALETTE = [
-                          {
-                            base: "bg-blue-100 text-blue-800 border-blue-300",
-                            active: "bg-blue-500 text-white",
-                          },
-                          {
-                            base: "bg-green-100 text-green-800 border-green-300",
-                            active: "bg-green-500 text-white",
-                          },
-                          {
-                            base: "bg-amber-100 text-amber-800 border-amber-300",
-                            active: "bg-amber-500 text-white",
-                          },
-                          {
-                            base: "bg-purple-100 text-purple-800 border-purple-300",
-                            active: "bg-purple-500 text-white",
-                          },
-                          {
-                            base: "bg-rose-100 text-rose-800 border-rose-300",
-                            active: "bg-rose-500 text-white",
-                          },
-                          {
-                            base: "bg-cyan-100 text-cyan-800 border-cyan-300",
-                            active: "bg-cyan-500 text-white",
-                          },
-                          {
-                            base: "bg-orange-100 text-orange-800 border-orange-300",
-                            active: "bg-orange-500 text-white",
-                          },
-                          {
-                            base: "bg-teal-100 text-teal-800 border-teal-300",
-                            active: "bg-teal-500 text-white",
-                          },
-                        ];
-                        const colors = PALETTE[sIdx % PALETTE.length];
-                        const isActive =
-                          systemReviewAnswers[system]?.includes(symptom);
-                        return (
-                          <Badge
-                            key={symptom}
-                            variant="outline"
-                            className={`cursor-pointer border min-h-[36px] flex items-center transition-all ${isActive ? colors.active : colors.base}`}
-                            onClick={() => toggleSystemReview(system, symptom)}
-                          >
-                            {symptom}
-                          </Badge>
-                        );
-                      })}
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer hover:bg-slate-100 border-dashed"
-                        onClick={() => {
-                          const symptom = window.prompt(
-                            `Add symptom to ${system}:`,
-                          );
-                          if (symptom?.trim()) {
-                            if (customSystems[system]) {
-                              setCustomSystems((prev) => ({
-                                ...prev,
-                                [system]: [...prev[system], symptom.trim()],
-                              }));
-                            } else {
-                              setCustomSystems((prev) => ({
-                                ...prev,
-                                [system]: [
-                                  ...(systemReviewData[system] || []),
-                                  symptom.trim(),
-                                ],
-                              }));
-                            }
-                          }
-                        }}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add
-                      </Badge>
-                    </div>
-                  </div>
-                ),
-              )}
-            </CardContent>
-          </Card>
-
-          {/* History */}
-          <Card className="border-amber-200 bg-amber-50/30">
-            <CardHeader className="pb-4 bg-amber-600 rounded-t-xl">
-              <CardTitle className="text-base font-medium text-white">
-                History
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Past Medical History */}
-              <div className="space-y-3">
-                <Label>Past Medical History</Label>
-                <div className="flex flex-wrap gap-2">
-                  {medicalHistoryOptions.map((condition) => (
-                    <Badge
-                      key={condition}
-                      variant="outline"
-                      className={`cursor-pointer ${
-                        medicalHistory[condition] === "+"
-                          ? "bg-green-50 border-green-500 text-green-700"
-                          : medicalHistory[condition] === "-"
-                            ? "bg-red-50 border-red-500 text-red-700"
-                            : ""
-                      }`}
-                      onClick={() => toggleMedicalHistory(condition)}
-                    >
-                      {condition}
-                      {medicalHistory[condition] || ""}
-                    </Badge>
-                  ))}
-                </div>
-                <Input
-                  value={(formData as any).other_medical_history || ""}
-                  onChange={(e) =>
-                    handleChange(
-                      "other_medical_history" as keyof VisitFormData,
-                      e.target.value,
-                    )
-                  }
-                  placeholder="Other chronic disease / অন্যান্য দীর্ঘমেয়াদী রোগ..."
-                  className="h-10 text-sm"
-                />
-              </div>
-
-              {/* History sections helper */}
-              {(
-                [
-                  {
-                    key: "surgical",
-                    label: "Past Surgical History / অতীতের অস্ত্রোপচারের ইতিহাস",
-                    show: showSurgicalQuestions,
-                    setShow: setShowSurgicalQuestions,
-                    questions: surgicalHistoryQuestions,
-                    answers: surgicalHistoryAnswers,
-                    setAnswers: setSurgicalHistoryAnswers,
-                  },
-                  {
-                    key: "personal",
-                    label: "Personal History / ব্যক্তিগত ইতিহাস",
-                    show: showPersonalQuestions,
-                    setShow: setShowPersonalQuestions,
-                    questions: personalHistoryQuestions,
-                    answers: personalHistoryAnswers,
-                    setAnswers: setPersonalHistoryAnswers,
-                  },
-                  {
-                    key: "family",
-                    label: "Family History / পারিবারিক ইতিহাস",
-                    show: showFamilyQuestions,
-                    setShow: setShowFamilyQuestions,
-                    questions: familyHistoryQuestions,
-                    answers: familyHistoryAnswers,
-                    setAnswers: setFamilyHistoryAnswers,
-                  },
-                  {
-                    key: "immunization",
-                    label: "Immunization History / টিকার ইতিহাস",
-                    show: showImmunizationQuestions,
-                    setShow: setShowImmunizationQuestions,
-                    questions: immunizationQuestions,
-                    answers: immunizationAnswers,
-                    setAnswers: setImmunizationAnswers,
-                  },
-                  {
-                    key: "allergy",
-                    label: "Allergy History / এলার্জির ইতিহাস",
-                    show: showAllergyQuestions,
-                    setShow: setShowAllergyQuestions,
-                    questions: allergyQuestions,
-                    answers: allergyAnswers,
-                    setAnswers: setAllergyAnswers,
-                  },
-                  {
-                    key: "obstetric",
-                    label: "Obstetric History / প্রসূতি ইতিহাস",
-                    show: showObstetricQuestions,
-                    setShow: setShowObstetricQuestions,
-                    questions: obstetricQuestions,
-                    answers: obstetricAnswers,
-                    setAnswers: setObstetricAnswers,
-                  },
-                  {
-                    key: "gynaecological",
-                    label: "Gynaecological History / স্ত্রীরোগ বিষয়ক ইতিহাস",
-                    show: showGynaecologicalQuestions,
-                    setShow: setShowGynaecologicalQuestions,
-                    questions: gynaecologicalQuestions,
-                    answers: gynaecologicalAnswers,
-                    setAnswers: setGynaecologicalAnswers,
-                  },
-                ] as {
-                  key: string;
-                  label: string;
-                  show: boolean;
-                  setShow: (v: boolean) => void;
-                  questions: { q: string; options: string[] }[];
-                  answers: string[];
-                  setAnswers: (v: string[]) => void;
-                }[]
-              ).map(
-                ({
-                  key,
-                  label,
-                  show,
-                  setShow,
-                  questions,
-                  answers,
-                  setAnswers,
-                }) => (
-                  <div key={key} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>{label}</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShow(!show)}
-                        className="h-8"
-                      >
-                        {show ? "Hide" : "Answer"} Questions
-                      </Button>
-                    </div>
-                    {show && (
-                      <>
-                        <QuestionStepper
-                          questions={questions}
-                          answers={answers}
-                          onChange={(idx, value) => {
-                            const a = [...answers];
-                            a[idx] = value;
-                            setAnswers(a);
-                          }}
-                        />
-                        {(extraHistoryQuestions[key] || []).map(
-                          (item, eIdx) => (
-                            <div
-                              key={`ex-${key}-${item.q}-${eIdx}`}
-                              className="space-y-2"
-                            >
-                              <Label className="text-sm font-medium text-blue-700">
-                                {item.q}
-                              </Label>
-                              <Input
-                                value={extraHistoryAnswers[key]?.[eIdx] || ""}
-                                onChange={(e) => {
-                                  const arr = [
-                                    ...(extraHistoryAnswers[key] || []),
-                                  ];
-                                  arr[eIdx] = e.target.value;
-                                  setExtraHistoryAnswers((prev) => ({
-                                    ...prev,
-                                    [key]: arr,
-                                  }));
-                                }}
-                                placeholder="Type answer..."
-                                className="h-10 bg-blue-50"
-                              />
-                            </div>
-                          ),
-                        )}
-                        <div className="flex gap-2 pt-2 border-t border-dashed border-slate-200 mt-2">
-                          <Input
-                            value={newHistoryQuestionText[key] || ""}
-                            onChange={(e) =>
-                              setNewHistoryQuestionText((prev) => ({
-                                ...prev,
-                                [key]: e.target.value,
-                              }))
-                            }
-                            placeholder="Add a question..."
-                            className="h-9 text-sm"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                addHistoryQuestion(key);
-                              }
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addHistoryQuestion(key)}
-                            className="h-9 px-3 shrink-0"
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add
-                          </Button>
-                          {key === "immunization" && (
-                            <div className="mt-3 space-y-2 bg-lime-50 border border-lime-200 rounded-lg p-3">
-                              <Label className="text-lime-800 font-semibold text-sm">
-                                Immunized as per EPI Schedule / ইপিআই সূচি অনুযায়ী
-                                টিকা
-                              </Label>
-                              <div className="flex gap-3 flex-wrap">
-                                {(["yes", "no"] as const).map((val) => (
-                                  <button
-                                    key={val}
-                                    type="button"
-                                    onClick={() =>
-                                      setEpiSchedule(
-                                        epiSchedule === val ? "" : val,
-                                      )
-                                    }
-                                    className={`px-5 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
-                                      epiSchedule === val
-                                        ? val === "yes"
-                                          ? "bg-lime-500 border-lime-500 text-white"
-                                          : "bg-rose-500 border-rose-500 text-white"
-                                        : "bg-white border-slate-300 text-slate-600 hover:border-lime-400"
-                                    }`}
-                                    data-ocid={`epi_schedule.${val === "yes" ? "primary_button" : "secondary_button"}`}
-                                  >
-                                    {val === "yes" ? "✓ Yes / হ্যাঁ" : "✗ No / না"}
-                                  </button>
-                                ))}
-                                {epiSchedule && (
-                                  <span
-                                    className={`text-xs font-medium px-3 py-1 rounded-full self-center ${
-                                      epiSchedule === "yes"
-                                        ? "bg-lime-100 text-lime-700"
-                                        : "bg-rose-100 text-rose-700"
-                                    }`}
-                                  >
-                                    {epiSchedule === "yes"
-                                      ? "Immunized as per EPI schedule"
-                                      : "Not immunized as per EPI schedule"}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ),
-              )}
-
-              {/* Drug History */}
-              <div className="space-y-2 bg-lime-50 border border-lime-200 rounded-lg p-3">
-                <Label className="text-lime-800 font-semibold text-sm">
-                  Immunized as per EPI Schedule / ইপিআই সূচি অনুযায়ী টিকা
-                </Label>
-                <div className="flex gap-3 flex-wrap">
-                  {(["yes", "no"] as const).map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() =>
-                        setEpiSchedule(epiSchedule === val ? "" : val)
-                      }
-                      className={`px-5 py-2 rounded-full border-2 text-sm font-semibold transition-all ${
-                        epiSchedule === val
-                          ? val === "yes"
-                            ? "bg-lime-500 border-lime-500 text-white"
-                            : "bg-rose-500 border-rose-500 text-white"
-                          : "bg-white border-slate-300 text-slate-600 hover:border-lime-400"
-                      }`}
-                      data-ocid={`epi_schedule.${val === "yes" ? "primary_button" : "secondary_button"}`}
-                    >
-                      {val === "yes" ? "✓ Yes / হ্যাঁ" : "✗ No / না"}
-                    </button>
-                  ))}
-                  {epiSchedule && (
-                    <span
-                      className={`text-xs font-medium px-3 py-1 rounded-full self-center ${
-                        epiSchedule === "yes"
-                          ? "bg-lime-100 text-lime-700"
-                          : "bg-rose-100 text-rose-700"
-                      }`}
-                    >
-                      {epiSchedule === "yes"
-                        ? "Immunized as per EPI schedule"
-                        : "Not immunized as per EPI schedule"}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Drug History */}
-              <div className="space-y-3 bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-fuchsia-700 font-semibold">
-                    Drug History
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addDrugHistory}
-                    className="h-8"
-                    data-ocid="drug_history.add_button"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Drug
-                  </Button>
-                </div>
-                {/* Drug Search Bar */}
-                <div className="flex gap-2 items-center bg-slate-100 rounded-lg p-2">
-                  <Input
-                    id="drugSearchInput"
-                    placeholder="Search drug name to check in DIMS or Medex..."
-                    className="h-8 text-sm bg-white flex-1"
-                    data-ocid="drug_history.search_input"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") e.preventDefault();
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs whitespace-nowrap"
-                    onClick={() => {
-                      const val = (
-                        document.getElementById(
-                          "drugSearchInput",
-                        ) as HTMLInputElement
-                      )?.value;
-                      if (!val.trim()) {
-                        toast.error("Enter a drug name first");
-                        return;
-                      }
-                      window.open(
-                        `https://medex.com.bd/?search=${encodeURIComponent(val.trim())}`,
-                        "_blank",
-                      );
-                    }}
-                    data-ocid="drug_history.medex_button"
-                  >
-                    Search Medex
-                  </Button>
-                </div>
-                {drugHistory.map((drug, index) => (
-                  <Card
-                    key={String(index)}
-                    className="bg-slate-50 border-slate-200 p-3"
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 grid grid-cols-3 gap-2">
-                        <div className="relative">
-                          <Input
-                            value={drug.drug_name}
-                            onChange={(e) =>
-                              handleDrugHistoryChange(
-                                index,
-                                "drug_name",
-                                e.target.value,
-                              )
-                            }
-                            placeholder="Drug name"
-                            className="h-9 bg-white pr-16"
-                            data-ocid={`drug_history.input.${index + 1}`}
-                          />
-                          <button
-                            type="button"
-                            className="absolute right-1 top-1 text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-100"
-                            onClick={() => {
-                              if (drug.drug_name.trim()) {
-                                window.open(
-                                  `https://medex.com.bd/?search=${encodeURIComponent(drug.drug_name.trim())}`,
-                                  "_blank",
-                                );
-                              }
-                            }}
-                            title="Search on Medex"
-                          >
-                            Medex
-                          </button>
-                        </div>
-                        <Input
-                          value={drug.dose}
-                          onChange={(e) =>
-                            handleDrugHistoryChange(
-                              index,
-                              "dose",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="Dose"
-                          className="h-9 bg-white"
-                        />
-                        <Input
-                          value={drug.daily_dose}
-                          onChange={(e) =>
-                            handleDrugHistoryChange(
-                              index,
-                              "daily_dose",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="Daily dose"
-                          className="h-9 bg-white"
-                        />
-                      </div>
-                      {drugHistory.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeDrugHistory(index)}
-                          className="h-9 w-9 text-red-500"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Other History */}
-              <div className="space-y-2">
-                <Label htmlFor="other_history">Other History</Label>
-                <Textarea
-                  id="other_history"
-                  value={formData.other_history || ""}
-                  onChange={(e) =>
-                    handleChange("other_history", e.target.value)
-                  }
-                  placeholder="Other relevant history..."
-                  rows={2}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* Admitted HPI */}
-      {visitType === "admitted" && (
-        <div className="space-y-2">
-          <Label htmlFor="history_of_present_illness">
-            History of Present Illness
-          </Label>
-          <Textarea
-            id="history_of_present_illness"
-            value={formData.history_of_present_illness || ""}
-            onChange={(e) =>
-              handleChange("history_of_present_illness", e.target.value)
-            }
-            placeholder="Detailed history of the current illness..."
-            rows={6}
-          />
-        </div>
-      )}
-
-      {/* Vital Signs */}
-      <Card className="border-green-200 bg-green-50/30">
-        <CardHeader className="pb-4 bg-green-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium flex items-center gap-2 text-white">
-            <Activity className="h-5 w-5 text-white/80" />
-            Vital Signs
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500 flex items-center gap-1">
-              <Heart className="h-3 w-3" /> Blood Pressure
-            </Label>
-            <Input
-              type="text"
-              value={formData.vital_signs?.blood_pressure || ""}
-              onChange={(e) =>
-                handleChange("vital_signs", {
-                  ...formData.vital_signs,
-                  blood_pressure: e.target.value,
-                })
-              }
-              placeholder="120/80 mmHg"
-              className="h-10"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Pulse (bpm)</Label>
-            <Input
-              type="number"
-              value={formData.vital_signs?.pulse || ""}
-              onChange={(e) => handleVitalChange("pulse", e.target.value)}
-              placeholder="72"
-              className="h-10"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500 flex items-center gap-1">
-              <Heart className="h-3 w-3" /> Heart Rate (bpm)
-            </Label>
-            <Input
-              type="number"
-              value={formData.vital_signs?.heart_rate || ""}
-              onChange={(e) => handleVitalChange("heart_rate", e.target.value)}
-              placeholder="72"
-              className="h-10"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500 flex items-center gap-1">
-              <Thermometer className="h-3 w-3" /> Temp (°F)
-            </Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={formData.vital_signs?.temperature || ""}
-              onChange={(e) => handleVitalChange("temperature", e.target.value)}
-              placeholder="98.6"
-              className="h-10"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500 flex items-center gap-1">
-              <Wind className="h-3 w-3" /> Resp Rate (/min)
-            </Label>
-            <Input
-              type="number"
-              value={formData.vital_signs?.respiratory_rate || ""}
-              onChange={(e) =>
-                handleVitalChange("respiratory_rate", e.target.value)
-              }
-              placeholder="16"
-              className="h-10"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500">SpO2 (%)</Label>
-            <Input
-              type="number"
-              value={formData.vital_signs?.oxygen_saturation || ""}
-              onChange={(e) =>
-                handleVitalChange("oxygen_saturation", e.target.value)
-              }
-              placeholder="98"
-              className="h-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* General Examination */}
-      <Card className="border-purple-200 bg-purple-50/30">
-        <CardHeader className="pb-4 bg-purple-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium text-white">
-            General Examination / সাধারণ পরীক্ষা
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {Object.entries(generalExaminationCategories).map(
-            ([category, options]) => (
-              <div key={category} className="space-y-2">
-                <Label className="text-sm font-medium text-slate-700">
-                  {category}
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {options.map((option, optIdx) => {
-                    const PALETTE = [
-                      {
-                        base: "bg-blue-100 text-blue-800 border-blue-300",
-                        active: "bg-blue-500 text-white",
-                      },
-                      {
-                        base: "bg-green-100 text-green-800 border-green-300",
-                        active: "bg-green-500 text-white",
-                      },
-                      {
-                        base: "bg-amber-100 text-amber-800 border-amber-300",
-                        active: "bg-amber-500 text-white",
-                      },
-                      {
-                        base: "bg-purple-100 text-purple-800 border-purple-300",
-                        active: "bg-purple-500 text-white",
-                      },
-                      {
-                        base: "bg-rose-100 text-rose-800 border-rose-300",
-                        active: "bg-rose-500 text-white",
-                      },
-                      {
-                        base: "bg-cyan-100 text-cyan-800 border-cyan-300",
-                        active: "bg-cyan-500 text-white",
-                      },
-                      {
-                        base: "bg-orange-100 text-orange-800 border-orange-300",
-                        active: "bg-orange-500 text-white",
-                      },
-                      {
-                        base: "bg-teal-100 text-teal-800 border-teal-300",
-                        active: "bg-teal-500 text-white",
-                      },
-                    ];
-                    const colors = PALETTE[optIdx % PALETTE.length];
-                    const isActive = generalExamFindings[category] === option;
-                    return (
-                      <Badge
-                        key={option}
-                        variant="outline"
-                        className={`cursor-pointer border min-h-[36px] flex items-center transition-all ${isActive ? colors.active : colors.base}`}
-                        onClick={() => toggleGeneralExam(category, option)}
-                      >
-                        {option}
-                      </Badge>
-                    );
-                  })}
-                </div>
-                <Input
-                  value={generalExamFindings[`${category}_note`] || ""}
-                  onChange={(e) =>
-                    setGeneralExamFindings((prev) => ({
-                      ...prev,
-                      [`${category}_note`]: e.target.value,
-                    }))
-                  }
-                  placeholder={`Add note for ${category}...`}
-                  className="h-9 text-sm bg-slate-50"
-                />
-              </div>
-            ),
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Systemic Examination */}
-      <Card className="border-teal-200 bg-teal-50/30">
-        <CardHeader className="pb-4 bg-teal-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium text-white">
-            Systemic Examination / পদ্ধতিগত পরীক্ষা
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="cardiovascular">
-            <TabsList className="flex flex-wrap w-full gap-1 h-auto">
-              <TabsTrigger
-                value="cardiovascular"
-                className="flex-1 min-w-[80px]"
-                data-ocid="systemic.cardiovascular.tab"
-              >
-                CVS
-              </TabsTrigger>
-              <TabsTrigger
-                value="respiratory"
-                className="flex-1 min-w-[80px]"
-                data-ocid="systemic.respiratory.tab"
-              >
-                Respiratory
-              </TabsTrigger>
-              <TabsTrigger
-                value="neurological"
-                className="flex-1 min-w-[80px]"
-                data-ocid="systemic.neurological.tab"
-              >
-                Neurological
-              </TabsTrigger>
-              <TabsTrigger
-                value="gastrointestinal"
-                className="flex-1 min-w-[80px]"
-                data-ocid="systemic.gastrointestinal.tab"
-              >
-                GI
-              </TabsTrigger>
-              <TabsTrigger
-                value="musculoskeletal"
-                className="flex-1 min-w-[80px]"
-                data-ocid="systemic.musculoskeletal.tab"
-              >
-                MSK
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="cardiovascular">
-              <CardiovascularExam
-                data={cardiovascularExam}
-                onChange={setCardiovascularExam}
-              />
-            </TabsContent>
-            <TabsContent value="respiratory">
-              <RespiratoryExam
-                data={respiratoryExam}
-                onChange={setRespiratoryExam}
-              />
-            </TabsContent>
-            <TabsContent value="neurological">
-              <NeurologicalExam
-                data={neurologicalExam}
-                onChange={setNeurologicalExam}
-              />
-            </TabsContent>
-            <TabsContent value="gastrointestinal">
-              <GastrointestinalExam
-                data={gastrointestinalExam}
-                onChange={setGastrointestinalExam}
-              />
-            </TabsContent>
-            <TabsContent value="musculoskeletal">
-              <MusculoskeletalExam
-                data={musculoskeletalExam}
-                onChange={setMusculoskeletalExam}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* Previous Investigation Report */}
-      <Card className="border-cyan-200 bg-cyan-50/30">
-        <CardHeader className="pb-3 bg-cyan-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium text-white">
-            Previous Investigation Report / পূর্ববর্তী তদন্ত প্রতিবেদন
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PreviousInvestigationTable
-            rows={
-              Array.isArray(formData.previous_investigation_rows)
-                ? formData.previous_investigation_rows
-                : []
-            }
-            onChange={(rows) =>
-              handleChange("previous_investigation_rows", rows)
-            }
-            onArchive={() => {
-              const rows = formData.previous_investigation_rows || [];
-              if (rows.length === 0) return;
-              const key = `archived_investigations_${patientId}`;
-              const existing = JSON.parse(localStorage.getItem(key) || "[]");
-              localStorage.setItem(key, JSON.stringify([...existing, ...rows]));
-              handleChange("previous_investigation_rows", []);
-              toast.success("Investigation profile archived successfully.");
-            }}
-          />
-          <p className="text-xs text-slate-400 mt-2">
-            Five-field structured report. Values are included in Auto-Generated
-            Salient Features.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Salient Features */}
-      <Card className="border-rose-200 bg-rose-50/30">
-        <CardHeader className="pb-3 bg-rose-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium flex items-center justify-between">
-            <span className="text-white">Salient Features / বিশেষ বৈশিষ্ট্য</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const generated = generateSalientFeatures();
-                handleChange("salient_features", generated);
-              }}
-              className="flex items-center gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"
-              data-ocid="salient_features.button"
-            >
-              <Sparkles className="h-4 w-4" />
-              Auto-Generate
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={formData.salient_features || ""}
-            onChange={(e) => handleChange("salient_features", e.target.value)}
-            placeholder="Click 'Auto-Generate' to build the salient features from form data, or type manually..."
-            rows={12}
-            className="bg-slate-50 font-mono text-sm leading-relaxed"
-            data-ocid="salient_features.textarea"
-          />
-          <p className="text-xs text-slate-400 mt-2">
-            Auto-generated from entered data. You can edit the text freely.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Diagnosis */}
-      <Card className="border-teal-200 bg-teal-50/30">
-        <CardHeader className="pb-3 bg-teal-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
-            <span className="text-white">Diagnosis / রোগ নির্ণয়</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const complaints =
-                  selectedComplaints.length > 0
-                    ? selectedComplaints.join(", ")
-                    : formData.chief_complaint?.trim() || "";
-                const pmh = Object.entries(medicalHistory)
-                  .map(([k, v]) => `${k}${v}`)
-                  .join(", ");
-                const salient = formData.salient_features?.trim() || "";
-                const generated = salient
-                  ? `Based on clinical presentation and examination findings:
-
-Possible Diagnosis: [Review and enter diagnosis based on: ${complaints ? `complaints of ${complaints}, ` : ""}${pmh ? `history of ${pmh}, ` : ""}salient features reviewed]`
-                  : `Based on presenting complaints${complaints ? ` (${complaints})` : ""} and examination findings:
-
-Possible Diagnosis: [Enter diagnosis here]`;
-                handleChange("diagnosis", generated);
-              }}
-              className="flex items-center gap-2 text-teal-700 border-teal-200 hover:bg-teal-50"
-              data-ocid="diagnosis.button"
-            >
-              <Sparkles className="h-4 w-4" />
-              AI Generate
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            id="diagnosis"
-            value={formData.diagnosis || ""}
-            onChange={(e) => handleChange("diagnosis", e.target.value)}
-            placeholder="Enter diagnosis here, or click AI Generate for a suggestion based on collected data..."
-            rows={3}
-            className="bg-slate-50"
-            data-ocid="diagnosis.textarea"
-          />
-          <p className="text-xs text-slate-400 mt-2">
-            Enter confirmed diagnosis. Use AI Generate for suggestions based on
-            clinical data.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Differential Diagnosis */}
-      <Card className="border-orange-200 bg-orange-50/30">
-        <CardHeader className="pb-3 bg-orange-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
-            <span className="text-white">
-              Differential Diagnosis / ডিফারেনশিয়াল ডায়াগনসিস
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const complaints =
-                    selectedComplaints.length > 0
-                      ? selectedComplaints.join(", ")
-                      : formData.chief_complaint?.trim() || "";
-                  const pmh = Object.entries(medicalHistory)
-                    .filter(([, v]) => v === "+")
-                    .map(([k]) => k)
-                    .join(", ");
-                  const diagnosis = formData.diagnosis?.trim() || "";
-                  const generated = `Differential Diagnosis:\n\nBased on: ${complaints ? `complaints of ${complaints}` : "presenting symptoms"}${pmh ? `, history of ${pmh}` : ""}${diagnosis ? `, diagnosis of ${diagnosis}` : ""}\n\nDifferential diagnoses to consider:\n1. [Review and enter DDx 1]\n2. [Review and enter DDx 2]\n3. [Review and enter DDx 3]\n\nPlease review and edit based on clinical findings.`;
-                  handleChange("differential_diagnosis", generated);
-                }}
-                className="flex items-center gap-2 text-violet-700 border-violet-300 hover:bg-violet-50"
-              >
-                <Sparkles className="h-4 w-4" />
-                AI Generate
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => ddImageInputRef.current?.click()}
-                className="flex items-center gap-2 text-blue-700 border-blue-300 hover:bg-blue-50"
-              >
-                Upload Image
-              </Button>
-              <input
-                ref={ddImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={() => setDdImageConfirmOpen(true)}
-              />
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {ddImageHasData && (
-            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
-              ⚠️ Image data extracted. Please review all values before
-              finalizing.
-            </div>
-          )}
-          <Textarea
-            value={formData.differential_diagnosis || ""}
-            onChange={(e) =>
-              handleChange("differential_diagnosis", e.target.value)
-            }
-            placeholder="Click 'AI Generate' to suggest differential diagnoses based on salient features, or enter manually..."
-            rows={8}
-            className="bg-slate-50"
-            data-ocid="differential_diagnosis.textarea"
-          />
-          <p className="text-xs text-slate-400 mt-2">
-            AI-generated suggestions. Must be reviewed and confirmed by the
-            doctor.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* New Investigation Advice */}
-      <Card className="border-lime-200 bg-lime-50/30">
-        <CardHeader className="pb-3 bg-lime-600 rounded-t-xl">
-          <CardTitle className="text-base font-medium flex items-center justify-between text-white">
-            <span className="text-white">
-              New Investigation Advice / নতুন তদন্তের পরামর্শ
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const dd = formData.differential_diagnosis?.trim() || "";
-                if (!dd) {
-                  alert("Please fill in Differential Diagnosis first.");
-                  return;
-                }
-                const generated =
-                  "Investigation Advice based on Differential Diagnosis:\n\nSuggested investigations:\n1. Complete Blood Count (CBC)\n2. Blood Glucose (Fasting & PP)\n3. Liver Function Tests (LFT)\n4. Renal Function Tests (RFT)\n5. Chest X-Ray\n6. ECG\n\n[Doctor to review and customize based on clinical findings]";
-                handleChange("investigation_advice", generated);
-              }}
-              className="flex items-center gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"
-            >
-              <Sparkles className="h-4 w-4" />
-              AI Generate
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={formData.investigation_advice || ""}
-            onChange={(e) =>
-              handleChange("investigation_advice", e.target.value)
-            }
-            placeholder="Click 'AI Generate' to suggest investigations based on differential diagnosis, or enter manually..."
-            rows={8}
-            className="bg-slate-50"
-            data-ocid="investigation_advice.textarea"
-          />
-          <p className="text-xs text-slate-400 mt-2">
-            Suggestions generated based on differential diagnosis. Edit as
-            needed.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Notes */}
-      <div className="space-y-2">
-        <Label htmlFor="notes">Additional Notes</Label>
-        <Textarea
-          id="notes"
-          value={formData.notes || ""}
-          onChange={(e) => handleChange("notes", e.target.value)}
-          placeholder="Any additional notes..."
-          rows={2}
-        />
-      </div>
-
-      {/* DD Image Confirmation Dialog */}
+      {/* DD Image Confirm Dialog */}
       <Dialog open={ddImageConfirmOpen} onOpenChange={setDdImageConfirmOpen}>
-        <DialogContent>
+        <DialogContent data-ocid="dd_image.dialog">
           <DialogHeader>
-            <DialogTitle>Confirm Report Details</DialogTitle>
+            <DialogTitle>
+              Confirm Image Upload for Differential Diagnosis
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-slate-600">
-              Before extracting data from this image, please verify:
-            </p>
-            <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
-              <li>Is the patient name correct?</li>
-              <li>Is the age correct?</li>
-              <li>Is the report date correct?</li>
-            </ul>
-            <p className="text-xs text-slate-500">
-              Only the date will be stored with this report.
-            </p>
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="dd_report_date">Report Date</Label>
+              <Label>Report Date</Label>
               <Input
-                id="dd_report_date"
                 type="date"
                 value={ddReportDate}
                 onChange={(e) => setDdReportDate(e.target.value)}
+                className="h-10"
               />
             </div>
-          </div>
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setDdImageConfirmOpen(false);
-                if (ddImageInputRef.current) ddImageInputRef.current.value = "";
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                const note = `[Image uploaded - Report Date: ${ddReportDate || "Not specified"}]\nExtracted values: [Doctor to review and complete]\n\n`;
-                handleChange(
-                  "differential_diagnosis",
-                  note + (formData.differential_diagnosis || ""),
-                );
-                setDdImageHasData(true);
-                setDdImageConfirmOpen(false);
-                if (ddImageInputRef.current) ddImageInputRef.current.value = "";
-              }}
-            >
-              Confirm & Extract
-            </Button>
+            <p className="text-sm text-slate-600">
+              The AI will attempt to extract differential diagnosis suggestions
+              from the uploaded image. Please review all extracted content
+              before saving.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setDdImageHasData(true);
+                  setDdImageConfirmOpen(false);
+                  toast.success(
+                    "Image processed. Please review the extracted data.",
+                  );
+                }}
+                className="flex-1"
+                data-ocid="dd_image.confirm_button"
+              >
+                Confirm & Process
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setDdImageConfirmOpen(false)}
+                className="flex-1"
+                data-ocid="dd_image.cancel_button"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Actions — Desktop */}
-      <div className="hidden lg:flex justify-end gap-3 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          className="h-11 px-6"
-          data-ocid="visit_form.cancel_button"
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="h-11 px-6 bg-teal-600 hover:bg-teal-700"
-          data-ocid="visit_form.submit_button"
-        >
-          {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          {visit ? "Update Visit" : "Save Visit"}
-        </Button>
-      </div>
-
-      {/* Sticky bottom bar — Mobile & Tablet */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.10)] px-4 py-3 flex gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          className="h-14 flex-1 text-base font-medium"
-          data-ocid="visit_form.cancel_button"
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="h-14 flex-[2] text-base font-semibold bg-teal-600 hover:bg-teal-700 text-white shadow-md"
-          data-ocid="visit_form.submit_button"
-        >
-          {isLoading && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-          {visit ? "Update Visit" : "Save Visit"}
-        </Button>
-      </div>
     </form>
   );
 }

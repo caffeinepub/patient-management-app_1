@@ -141,16 +141,18 @@ const gastrointestinalExamData = {
   },
 };
 
+type GiExamData = Record<string, unknown>;
+
 interface GastrointestinalExamProps {
-  data: any;
-  onChange: (data: any) => void;
+  data: GiExamData;
+  onChange: (data: GiExamData) => void;
 }
 
 export default function GastrointestinalExam({
   data,
   onChange,
 }: GastrointestinalExamProps) {
-  const [examData, setExamData] = useState(
+  const [examData, setExamData] = useState<GiExamData>(
     data || {
       inspection_general: [],
       inspection_abdomen: [],
@@ -165,14 +167,14 @@ export default function GastrointestinalExam({
     },
   );
 
-  const update = (patch: Record<string, any>) => {
+  const update = (patch: GiExamData) => {
     const newData = { ...examData, ...patch };
     setExamData(newData);
     onChange(newData);
   };
 
   const handleMultiSelect = (category: string, value: string) => {
-    const current: string[] = examData[category] || [];
+    const current: string[] = (examData[category] as string[]) || [];
     const updated = current.includes(value)
       ? current.filter((v: string) => v !== value)
       : [...current, value];
@@ -207,11 +209,13 @@ export default function GastrointestinalExam({
                   <Badge
                     key={finding.en}
                     variant={
-                      examData.inspection_general?.includes(finding.en)
+                      (
+                        (examData.inspection_general as string[]) || []
+                      ).includes(finding.en)
                         ? "default"
                         : "outline"
                     }
-                    className={`cursor-pointer text-sm py-2 px-3 ${examData.inspection_general?.includes(finding.en) ? "bg-cyan-600" : ""}`}
+                    className={`cursor-pointer text-sm py-2 px-3 ${((examData.inspection_general as string[]) || []).includes(finding.en) ? "bg-cyan-600" : ""}`}
                     onClick={() =>
                       handleMultiSelect("inspection_general", finding.en)
                     }
@@ -241,11 +245,13 @@ export default function GastrointestinalExam({
                   <Badge
                     key={finding.en}
                     variant={
-                      examData.inspection_abdomen?.includes(finding.en)
+                      (
+                        (examData.inspection_abdomen as string[]) || []
+                      ).includes(finding.en)
                         ? "default"
                         : "outline"
                     }
-                    className={`cursor-pointer text-sm py-2 px-3 ${examData.inspection_abdomen?.includes(finding.en) ? "bg-cyan-600" : ""}`}
+                    className={`cursor-pointer text-sm py-2 px-3 ${((examData.inspection_abdomen as string[]) || []).includes(finding.en) ? "bg-cyan-600" : ""}`}
                     onClick={() =>
                       handleMultiSelect("inspection_abdomen", finding.en)
                     }
@@ -290,11 +296,13 @@ export default function GastrointestinalExam({
                   <Badge
                     key={finding.en}
                     variant={
-                      examData.palpation_general?.includes(finding.en)
+                      ((examData.palpation_general as string[]) || []).includes(
+                        finding.en,
+                      )
                         ? "default"
                         : "outline"
                     }
-                    className={`cursor-pointer text-sm py-2 px-3 ${examData.palpation_general?.includes(finding.en) ? "bg-lime-600" : ""}`}
+                    className={`cursor-pointer text-sm py-2 px-3 ${((examData.palpation_general as string[]) || []).includes(finding.en) ? "bg-lime-600" : ""}`}
                     onClick={() =>
                       handleMultiSelect("palpation_general", finding.en)
                     }
@@ -367,11 +375,11 @@ export default function GastrointestinalExam({
               <Badge
                 key={finding.en}
                 variant={
-                  examData.percussion?.includes(finding.en)
+                  ((examData.percussion as string[]) || []).includes(finding.en)
                     ? "default"
                     : "outline"
                 }
-                className={`cursor-pointer text-sm py-2 px-3 ${examData.percussion?.includes(finding.en) ? "bg-fuchsia-600" : ""}`}
+                className={`cursor-pointer text-sm py-2 px-3 ${((examData.percussion as string[]) || []).includes(finding.en) ? "bg-fuchsia-600" : ""}`}
                 onClick={() => handleMultiSelect("percussion", finding.en)}
               >
                 {finding.en} / {finding.bn}
@@ -430,11 +438,13 @@ export default function GastrointestinalExam({
                   <Badge
                     key={finding.en}
                     variant={
-                      examData.vascular_bruits?.includes(finding.en)
+                      ((examData.vascular_bruits as string[]) || []).includes(
+                        finding.en,
+                      )
                         ? "default"
                         : "outline"
                     }
-                    className={`cursor-pointer text-sm py-2 px-3 ${examData.vascular_bruits?.includes(finding.en) ? "bg-sky-600" : ""}`}
+                    className={`cursor-pointer text-sm py-2 px-3 ${((examData.vascular_bruits as string[]) || []).includes(finding.en) ? "bg-sky-600" : ""}`}
                     onClick={() =>
                       handleMultiSelect("vascular_bruits", finding.en)
                     }
@@ -465,11 +475,11 @@ export default function GastrointestinalExam({
               <Badge
                 key={test.en}
                 variant={
-                  examData.special_tests?.includes(test.en)
+                  ((examData.special_tests as string[]) || []).includes(test.en)
                     ? "default"
                     : "outline"
                 }
-                className={`cursor-pointer text-sm py-2 px-3 ${examData.special_tests?.includes(test.en) ? "bg-violet-600" : ""}`}
+                className={`cursor-pointer text-sm py-2 px-3 ${((examData.special_tests as string[]) || []).includes(test.en) ? "bg-violet-600" : ""}`}
                 onClick={() => handleMultiSelect("special_tests", test.en)}
               >
                 {test.en} / {test.bn}

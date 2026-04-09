@@ -58,7 +58,7 @@ import Patients from "./pages/Patients";
 import SerialDisplay from "./pages/SerialDisplay";
 import Settings from "./pages/Settings";
 
-// ── Route tree ────────────────────────────────────────────────────────────────────────────────
+// ── Route tree ────────────────────────────────────────────────────────────────
 
 function RootLayoutComponent() {
   const state = useRouterState();
@@ -133,7 +133,7 @@ function PatientProfileWrapper() {
   return <PatientDashboard currentRole={role} />;
 }
 
-// ── Auth Form Content ──────────────────────────────────────────────────────────────────
+// ── Auth Form Content ─────────────────────────────────────────────────────────
 
 const DESIGNATIONS = ["Dr.", "Prof.", "Assoc. Prof.", "Mr.", "Ms.", "Mrs."];
 
@@ -143,7 +143,6 @@ function StaffAuthContent() {
   const [siEmail, setSiEmail] = useState("");
   const [siPassword, setSiPassword] = useState("");
   const [siError, setSiError] = useState("");
-  const [siSuccess] = useState("");
 
   const [suName, setSuName] = useState("");
   const [suEmail, setSuEmail] = useState("");
@@ -167,8 +166,8 @@ function StaffAuthContent() {
     }
     try {
       await signIn(siEmail, siPassword);
-    } catch (err: any) {
-      setSiError(err.message ?? "Sign in failed.");
+    } catch (err: unknown) {
+      setSiError(err instanceof Error ? err.message : "Sign in failed.");
     }
   };
 
@@ -199,8 +198,8 @@ function StaffAuthContent() {
         phone: suPhone.trim(),
         role: suRole,
       });
-    } catch (err: any) {
-      const msg = err.message ?? "Sign up failed.";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Sign up failed.";
       if (
         msg.includes("approval") ||
         msg.includes("pending") ||
@@ -263,7 +262,6 @@ function StaffAuthContent() {
               {siError || authError}
             </p>
           )}
-          {siSuccess && <p className="text-sm text-emerald-600">{siSuccess}</p>}
           <Button
             type="submit"
             disabled={isLoggingIn}
@@ -441,7 +439,7 @@ function StaffAuthContent() {
   );
 }
 
-// ── Patient Auth Content ──────────────────────────────────────────────────────────────────
+// ── Patient Auth Content ──────────────────────────────────────────────────────
 
 function PatientAuthContent() {
   const { patientSignIn, patientSignUp, isLoggingIn, authError } =
@@ -468,8 +466,8 @@ function PatientAuthContent() {
     }
     try {
       await patientSignIn(phone, password);
-    } catch (err: any) {
-      setError(err.message ?? "Sign in failed.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Sign in failed.");
     }
   };
 
@@ -479,7 +477,7 @@ function PatientAuthContent() {
     setSuSuccess("");
     if (!suRegNo.trim()) {
       setSuError(
-        "Register number is required. Please contact the clinic to get your register number.",
+        "Register number is required. Contact the clinic to get your register number.",
       );
       return;
     }
@@ -501,8 +499,8 @@ function PatientAuthContent() {
         phone: suPhone.trim(),
         password: suPassword,
       });
-    } catch (err: any) {
-      const msg = err.message ?? "Sign up failed.";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Sign up failed.";
       if (msg.includes("approval") || msg.includes("pending"))
         setSuSuccess(msg);
       else setSuError(msg);
@@ -596,7 +594,6 @@ function PatientAuthContent() {
               <p className="text-sm text-teal-700 font-medium">{suSuccess}</p>
             </div>
           )}
-          {/* Register Number first — the key identifier */}
           <div
             className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-800"
             data-ocid="patient_auth.download_hint"
@@ -604,8 +601,8 @@ function PatientAuthContent() {
             <p className="font-semibold mb-0.5">📋 Register Number Required</p>
             <p className="text-xs leading-relaxed">
               Your register number was given when you first visited the clinic.
-              Format: <strong>0001/26</strong>. The clinic must activate your
-              sign-up before you can create an account.
+              Format: <strong>0001/26</strong>. Contact the clinic if you need
+              help.
             </p>
           </div>
           <div className="space-y-1.5">
@@ -662,7 +659,7 @@ function PatientAuthContent() {
           </Button>
           <p className="text-xs text-muted-foreground text-center">
             Your name will be auto-filled from your clinic record. Accounts
-            require doctor approval before login.
+            require doctor approval.
           </p>
         </form>
       </TabsContent>
@@ -670,7 +667,7 @@ function PatientAuthContent() {
   );
 }
 
-// ── Pending Approvals Panel ─────────────────────────────────────────────────────────────────
+// ── Pending Approvals Panel ───────────────────────────────────────────────────
 
 function PendingApprovalsPanel() {
   const [staffAccounts, setStaffAccounts] = useState<DoctorAccount[]>([]);
@@ -747,18 +744,18 @@ function PendingApprovalsPanel() {
     <div className="space-y-4">
       {staffAccounts.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Staff / Doctor ({staffAccounts.length})
           </p>
           <div className="space-y-3">
             {staffAccounts.map((acc) => (
               <div
                 key={acc.id}
-                className="bg-white border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-3"
+                className="bg-card border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-3"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900">{acc.name}</p>
-                  <p className="text-sm text-gray-500">{acc.email}</p>
+                  <p className="font-semibold text-foreground">{acc.name}</p>
+                  <p className="text-sm text-muted-foreground">{acc.email}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge
                       variant="outline"
@@ -766,7 +763,7 @@ function PendingApprovalsPanel() {
                     >
                       {acc.role}
                     </Badge>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground">
                       {new Date(acc.createdAt).toLocaleDateString()}
                     </span>
                   </div>
@@ -800,18 +797,18 @@ function PendingApprovalsPanel() {
       )}
       {patientAccounts.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Patient Accounts ({patientAccounts.length})
           </p>
           <div className="space-y-3">
             {patientAccounts.map((acc) => (
               <div
                 key={acc.id}
-                className="bg-white border border-teal-200 rounded-xl p-4 flex items-center justify-between gap-3"
+                className="bg-card border border-teal-200 rounded-xl p-4 flex items-center justify-between gap-3"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900">{acc.name}</p>
-                  <p className="text-sm text-gray-500">{acc.phone}</p>
+                  <p className="font-semibold text-foreground">{acc.name}</p>
+                  <p className="text-sm text-muted-foreground">{acc.phone}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge
                       variant="outline"
@@ -820,7 +817,7 @@ function PendingApprovalsPanel() {
                       patient
                     </Badge>
                     {acc.registerNumber && (
-                      <span className="text-xs font-mono text-gray-400">
+                      <span className="text-xs font-mono text-muted-foreground">
                         {acc.registerNumber}
                       </span>
                     )}
@@ -857,7 +854,16 @@ function PendingApprovalsPanel() {
   );
 }
 
-// ── App root ────────────────────────────────────────────────────────────────────────────────
+// ── App root ──────────────────────────────────────────────────────────────────
+
+interface DrugReminder {
+  id: string;
+  patientId: string;
+  drugName: string;
+  times: string[];
+  enabled: boolean;
+  createdAt: string;
+}
 
 function AppInner() {
   const { currentDoctor, currentPatient, patientSignOut, isInitializing } =
@@ -879,15 +885,6 @@ function AppInner() {
   // ── Patient Portal Drug Reminder State ──────────────────────────────────────
   const REMINDERS_KEY = "medicare_drug_reminders";
 
-  interface DrugReminder {
-    id: string;
-    patientId: string;
-    drugName: string;
-    times: string[];
-    enabled: boolean;
-    createdAt: string;
-  }
-
   const [showNavReminderPanel, setShowNavReminderPanel] = useState(false);
   const [navReminders, setNavReminders] = useState<DrugReminder[]>([]);
   const [navReminderDrug, setNavReminderDrug] = useState("");
@@ -895,14 +892,12 @@ function AppInner() {
   const [navReminderTimes, setNavReminderTimes] = useState<string[]>([]);
   const navFiredTodayRef = useRef<Set<string>>(new Set());
 
-  // Load reminders for current patient
   const loadNavReminders = useCallback(() => {
     if (!currentPatient) return;
     try {
       const allReminders: DrugReminder[] = JSON.parse(
         localStorage.getItem(REMINDERS_KEY) || "[]",
       );
-      // Find patient id by register number
       let patId = "";
       if (currentPatient.registerNumber) {
         const keys = Object.keys(localStorage).filter((k) =>
@@ -910,13 +905,16 @@ function AppInner() {
         );
         outer: for (const key of keys) {
           try {
-            const arr = JSON.parse(localStorage.getItem(key) || "[]") as any[];
+            const arr = JSON.parse(localStorage.getItem(key) || "[]") as Array<
+              Record<string, unknown>
+            >;
             for (const p of arr) {
               if (p.registerNumber === currentPatient.registerNumber) {
+                const rawId = p.id;
                 patId =
-                  typeof p.id === "string" && p.id.startsWith("__bigint__")
-                    ? p.id.slice(10)
-                    : String(p.id);
+                  typeof rawId === "string" && rawId.startsWith("__bigint__")
+                    ? rawId.slice(10)
+                    : String(rawId);
                 break outer;
               }
             }
@@ -993,7 +991,6 @@ function AppInner() {
     return () => clearInterval(iv);
   }, []);
 
-  // Helper to get patientId from currentPatient register number (must be BEFORE all early returns)
   const getPortalPatientId = useMemo(() => {
     if (!currentPatient?.registerNumber) return "";
     try {
@@ -1001,12 +998,16 @@ function AppInner() {
         k.startsWith("patients_"),
       );
       for (const key of keys) {
-        const arr = JSON.parse(localStorage.getItem(key) || "[]") as any[];
+        const arr = JSON.parse(localStorage.getItem(key) || "[]") as Array<
+          Record<string, unknown>
+        >;
         for (const p of arr) {
-          if (p.registerNumber === currentPatient.registerNumber)
-            return typeof p.id === "string" && p.id.startsWith("__bigint__")
-              ? p.id.slice(10)
-              : String(p.id);
+          if (p.registerNumber === currentPatient.registerNumber) {
+            const rawId = p.id;
+            return typeof rawId === "string" && rawId.startsWith("__bigint__")
+              ? rawId.slice(10)
+              : String(rawId);
+          }
         }
       }
     } catch {}
@@ -1103,11 +1104,10 @@ function AppInner() {
             </div>
           </div>
         </header>
-        {/* Try to find their patient record by register number */}
         <PatientPortalView currentPatient={currentPatient} />
         <Toaster position="top-right" richColors />
 
-        {/* ── Drug Reminder Panel (patient nav) ── */}
+        {/* Drug Reminder Panel */}
         <Dialog
           open={showNavReminderPanel}
           onOpenChange={setShowNavReminderPanel}
@@ -1176,7 +1176,7 @@ function AppInner() {
                 </div>
               ) : (
                 <p
-                  className="text-sm text-gray-400 italic text-center py-4"
+                  className="text-sm text-muted-foreground italic text-center py-4"
                   data-ocid="patient_nav.empty_state"
                 >
                   No reminders yet.
@@ -1456,7 +1456,6 @@ function PatientPortalView({
 }: { currentPatient: PatientAccount }) {
   const patientId = useMemo(() => {
     if (currentPatient.registerNumber) {
-      // Try to find by register number in all patients
       try {
         const keys = Object.keys(localStorage).filter((k) =>
           k.startsWith("patients_"),
@@ -1464,9 +1463,9 @@ function PatientPortalView({
         for (const key of keys) {
           const raw = localStorage.getItem(key);
           if (!raw) continue;
-          const arr = JSON.parse(raw) as any[];
+          const arr = JSON.parse(raw) as Array<Record<string, unknown>>;
           const found = arr.find(
-            (p: any) => p.registerNumber === currentPatient.registerNumber,
+            (p) => p.registerNumber === currentPatient.registerNumber,
           );
           if (found) {
             const rawId = found.id;

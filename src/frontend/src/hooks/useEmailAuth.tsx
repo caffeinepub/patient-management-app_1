@@ -37,6 +37,7 @@ export interface PatientAccount {
   age?: string;
   gender?: string;
   registerNumber?: string;
+  patientId?: string;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
 }
@@ -58,7 +59,7 @@ export function loadRegistry(): DoctorAccount[] {
   try {
     const raw = localStorage.getItem(REGISTRY_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as any[];
+      const parsed = JSON.parse(raw) as DoctorAccount[];
       return parsed.map((d) => ({
         ...d,
         role: d.role ?? "doctor",
@@ -92,7 +93,6 @@ export function appendAuditLog(entry: Omit<AuditLogEntry, "id">) {
       ...entry,
       id: Date.now().toString(36) + Math.random().toString(36).slice(2),
     });
-    // Keep last 1000 entries
     const trimmed = logs.slice(-1000);
     localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(trimmed));
   } catch {}
@@ -133,6 +133,16 @@ export function setSignUpEnabled(registerNumber: string, enabled: boolean) {
 export function isSignUpEnabled(registerNumber: string): boolean {
   const map = loadSignUpMap();
   return map[registerNumber] === true;
+}
+
+// Normalize register number: "0001/26" and "1/26" treated as equal
+function normalizeRegNo(rn: string): string {
+  const parts = rn.trim().split("/");
+  if (parts.length === 2) {
+    const num = Number.parseInt(parts[0].trim(), 10);
+    return `${Number.isNaN(num) ? parts[0].trim() : num}/${parts[1].trim()}`;
+  }
+  return rn.trim().toLowerCase();
 }
 
 interface EmailAuthContextValue {
@@ -247,8 +257,9 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(
           "Account created! Please wait for admin approval before logging in.",
         );
-      } catch (e: any) {
-        setAuthError(e.message ?? "Sign up failed.");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Sign up failed.";
+        setAuthError(msg);
         throw e;
       } finally {
         setIsLoggingIn(false);
@@ -283,8 +294,9 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         action: "Logged in",
         target: "System",
       });
-    } catch (e: any) {
-      setAuthError(e.message ?? "Sign in failed.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Sign in failed.";
+      setAuthError(msg);
       throw e;
     } finally {
       setIsLoggingIn(false);
@@ -357,72 +369,48 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { registerNumber, phone, password } = data;
 
-        if (!registerNumber || !registerNumber.trim()) {
+        if (!registerNumber?.trim()) {
           throw new Error(
             "Register number is required. Please contact the clinic to get your register number.",
           );
         }
 
-        // Find all patient records in localStorage (scan all possible key patterns)
-        const allPatients: any[] = [];
-        const allKeys: string[] = [];
+        // Scan all patient storage keys for register number match
+        const allPatients: Array<Record<string, unknown>> = [];
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k) allKeys.push(k);
-        }
-        for (const key of allKeys) {
-          // Match patients_* and medicare_patients_data_* and any other patient list keys
           if (
-            key.startsWith("patients_") ||
-            key.startsWith("medicare_patients_data") ||
-            key === "medicare_patients"
+            k &&
+            (k.startsWith("patients_") ||
+              k.startsWith("medicare_patients_data") ||
+              k === "medicare_patients")
           ) {
             try {
-              const raw = localStorage.getItem(key);
+              const raw = localStorage.getItem(k);
               if (!raw) continue;
-              // Handle BigInt serialization (stored as strings like "123n")
-              const arr = JSON.parse(raw, (_k, v) => {
-                if (typeof v === "string" && /^\d+n$/.test(v)) {
-                  try {
-                    return BigInt(v.slice(0, -1));
-                  } catch {
-                    return v;
-                  }
-                }
-                return v;
-              });
+              const arr = JSON.parse(raw);
               if (Array.isArray(arr)) allPatients.push(...arr);
             } catch {}
           }
         }
 
-        // Normalize register number for comparison (handle "1/26" == "0001/26")
-        const normalizeRegNo = (rn: string) => {
-          const parts = rn.trim().split("/");
-          if (parts.length === 2) {
-            return `${parts[0].replace(/^0+/, "") || "0"}/${parts[1].trim()}`;
-          }
-          return rn.trim().toLowerCase();
-        };
-
-        // Verify register number exists in patient records
+        // Verify register number exists
         const matchedPatient = allPatients.find(
-          (p: any) =>
-            p.registerNumber &&
+          (p) =>
+            typeof p.registerNumber === "string" &&
             normalizeRegNo(p.registerNumber) === normalizeRegNo(registerNumber),
         );
         if (!matchedPatient) {
           throw new Error(
-            "Register number not found. Please make sure you enter the exact register number given by the clinic (e.g. 0001/26).",
+            "Register number not found. Please make sure you enter the exact register number given by the clinic (e.g. 0001/26). Contact the clinic if you need help.",
           );
         }
 
-        // NOTE: sign-up is allowed for any valid register number.
-        // Doctor/admin still approves the account before the patient can log in.
-
         // Auto-fill patient details from the record
         const patientName =
-          matchedPatient.fullName || matchedPatient.name || "Patient";
+          (matchedPatient.fullName as string) ||
+          (matchedPatient.name as string) ||
+          "Patient";
         const patientAge = matchedPatient.dateOfBirth
           ? String(
               Math.floor(
@@ -430,19 +418,26 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
                   new Date(
                     Number(
                       typeof matchedPatient.dateOfBirth === "bigint"
-                        ? matchedPatient.dateOfBirth / 1000000n
-                        : matchedPatient.dateOfBirth,
+                        ? (matchedPatient.dateOfBirth as bigint) / 1000000n
+                        : (matchedPatient.dateOfBirth as number),
                     ),
                   ).getTime()) /
                   (365.25 * 24 * 3600 * 1000),
               ),
             )
-          : (matchedPatient.age ?? "");
-        const patientGender = matchedPatient.gender ?? "";
+          : ((matchedPatient.age as string) ?? "");
+        const patientGender = (matchedPatient.gender as string) ?? "";
+
+        // Resolve patient ID for linking
+        const rawId = matchedPatient.id;
+        const patientId =
+          typeof rawId === "string" && rawId.startsWith("__bigint__")
+            ? rawId.slice(10)
+            : String(rawId);
 
         const registry = loadPatientRegistry();
 
-        // Check for duplicate by phone
+        // Check duplicate by phone
         const existingByPhone = registry.find((p) => p.phone === phone);
         if (existingByPhone) {
           if (existingByPhone.status === "rejected") {
@@ -453,6 +448,7 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
               age: patientAge,
               gender: patientGender,
               registerNumber: registerNumber.trim(),
+              patientId,
               passwordHash: hashPassword(phone, password),
               createdAt: new Date().toISOString(),
               status: "pending",
@@ -465,11 +461,11 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error("An account with this phone number already exists.");
         }
 
-        // Check for duplicate by register number
+        // Check duplicate by register number
         const existingByRegNo = registry.find(
           (p) =>
-            p.registerNumber?.toLowerCase() ===
-            registerNumber.trim().toLowerCase(),
+            p.registerNumber &&
+            normalizeRegNo(p.registerNumber) === normalizeRegNo(registerNumber),
         );
         if (existingByRegNo) {
           if (existingByRegNo.status === "rejected") {
@@ -480,6 +476,7 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
               name: patientName,
               age: patientAge,
               gender: patientGender,
+              patientId,
               passwordHash: hashPassword(phone, password),
               createdAt: new Date().toISOString(),
               status: "pending",
@@ -502,6 +499,7 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
           age: patientAge,
           gender: patientGender,
           registerNumber: registerNumber.trim(),
+          patientId,
           status: "pending",
           createdAt: new Date().toISOString(),
         };
@@ -510,8 +508,9 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(
           "Account created! Please wait for doctor approval before logging in.",
         );
-      } catch (e: any) {
-        setAuthError(e.message ?? "Sign up failed.");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Sign up failed.";
+        setAuthError(msg);
         throw e;
       } finally {
         setIsLoggingIn(false);
@@ -546,8 +545,9 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         action: "Logged in",
         target: "Patient Portal",
       });
-    } catch (e: any) {
-      setAuthError(e.message ?? "Sign in failed.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Sign in failed.";
+      setAuthError(msg);
       throw e;
     } finally {
       setIsLoggingIn(false);
@@ -595,7 +595,9 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
     (registerNumber: string, newPhone?: string, newPassword?: string) => {
       const registry = loadPatientRegistry();
       const idx = registry.findIndex(
-        (p) => p.registerNumber?.toLowerCase() === registerNumber.toLowerCase(),
+        (p) =>
+          p.registerNumber &&
+          normalizeRegNo(p.registerNumber) === normalizeRegNo(registerNumber),
       );
       if (idx < 0) return;
       const patient = registry[idx];
@@ -609,9 +611,11 @@ export function EmailAuthProvider({ children }: { children: React.ReactNode }) {
         passwordHash: updatedHash,
       };
       savePatientRegistry(registry);
-      // Update current patient state if it's the same account
       setCurrentPatient((prev) => {
-        if (prev && prev.registerNumber === registerNumber) {
+        if (
+          prev?.registerNumber &&
+          normalizeRegNo(prev.registerNumber) === normalizeRegNo(registerNumber)
+        ) {
           return { ...prev, phone: updatedPhone, passwordHash: updatedHash };
         }
         return prev;

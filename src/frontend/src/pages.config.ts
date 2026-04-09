@@ -1,5 +1,5 @@
 import Layout from "./Layout";
-import PatientProfile from "./pages/PatientProfile";
+import PatientDashboard from "./pages/PatientDashboard";
 import Patients from "./pages/Patients";
 import Settings from "./pages/Settings";
 
@@ -7,7 +7,7 @@ export const pagesConfig = {
   mainPage: "Patients",
   Pages: {
     Patients: Patients,
-    PatientProfile: PatientProfile,
+    PatientProfile: PatientDashboard,
     Settings: Settings,
   },
   Layout: Layout,

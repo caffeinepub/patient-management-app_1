@@ -20,7 +20,7 @@ export const doctors = {
     phone2: "01984587802",
     email: "dr.armankabir011@gmail.com",
     whatsapp: "+8801751959262",
-    photo: null,
+    photo: null as string | null,
     cvPdfUrl: null as string | null,
     chambers: [
       {
@@ -140,7 +140,7 @@ export const doctors = {
     phone2: "",
     email: "samiashikder33@gmail.com",
     whatsapp: "+8801957212210",
-    photo: null,
+    photo: null as string | null,
     cvPdfUrl: "/assets/uploads/CV_Samia-Shikder-16.3.2026-1.pdf" as
       | string
       | null,

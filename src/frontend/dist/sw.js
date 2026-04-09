@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dr-arman-care-v1';
+const CACHE_NAME = 'dr-arman-care-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -38,7 +38,9 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('icp') ||
     url.hostname.includes('dfinity') ||
     url.hostname.includes('medex') ||
-    url.hostname.includes('whatsapp')
+    url.hostname.includes('whatsapp') ||
+    url.hostname.includes('fonts.googleapis') ||
+    url.hostname.includes('fonts.gstatic')
   ) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
@@ -46,7 +48,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for everything else (app shell, assets, fonts)
+  // Cache-first for everything else (app shell, assets)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;

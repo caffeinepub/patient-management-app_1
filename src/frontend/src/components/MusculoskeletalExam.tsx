@@ -108,16 +108,18 @@ const mskData = {
   },
 };
 
+type MskExamData = Record<string, unknown>;
+
 interface MusculoskeletalExamProps {
-  data: any;
-  onChange: (data: any) => void;
+  data: MskExamData;
+  onChange: (data: MskExamData) => void;
 }
 
 export default function MusculoskeletalExam({
   data,
   onChange,
 }: MusculoskeletalExamProps) {
-  const [examData, setExamData] = useState(
+  const [examData, setExamData] = useState<MskExamData>(
     data || {
       inspection_general: [],
       inspection_spine: [],
@@ -137,14 +139,14 @@ export default function MusculoskeletalExam({
     },
   );
 
-  const update = (patch: Record<string, any>) => {
+  const update = (patch: MskExamData) => {
     const newData = { ...examData, ...patch };
     setExamData(newData);
     onChange(newData);
   };
 
   const toggleMulti = (field: string, value: string) => {
-    const current: string[] = examData[field] || [];
+    const current: string[] = (examData[field] as string[]) || [];
     update({
       [field]: current.includes(value)
         ? current.filter((v: string) => v !== value)
@@ -156,7 +158,8 @@ export default function MusculoskeletalExam({
     update({ [field]: value });
 
   const setNested = (parent: string, key: string, value: string) => {
-    update({ [parent]: { ...(examData[parent] || {}), [key]: value } });
+    const existing = (examData[parent] as Record<string, string>) || {};
+    update({ [parent]: { ...existing, [key]: value } });
   };
 
   return (
@@ -178,9 +181,9 @@ export default function MusculoskeletalExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {mskData.inspection.general.map((opt) => {
-                const active = (examData.inspection_general || []).includes(
-                  opt.en,
-                );
+                const active = (
+                  (examData.inspection_general as string[]) || []
+                ).includes(opt.en);
                 return (
                   <Badge
                     key={opt.en}
@@ -208,9 +211,9 @@ export default function MusculoskeletalExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {mskData.inspection.spine.map((opt) => {
-                const active = (examData.inspection_spine || []).includes(
-                  opt.en,
-                );
+                const active = (
+                  (examData.inspection_spine as string[]) || []
+                ).includes(opt.en);
                 return (
                   <Badge
                     key={opt.en}
@@ -259,7 +262,9 @@ export default function MusculoskeletalExam({
                   <div className="flex flex-wrap gap-1">
                     {mskData.palpation.jointOptions.map((opt) => {
                       const active =
-                        examData.joint_findings?.[joint.key] === opt;
+                        (examData.joint_findings as Record<string, string>)?.[
+                          joint.key
+                        ] === opt;
                       return (
                         <Badge
                           key={opt}
@@ -319,7 +324,7 @@ export default function MusculoskeletalExam({
             </div>
             {examData.bone_tenderness === "Present" && (
               <Input
-                value={examData.bone_tenderness_area || ""}
+                value={(examData.bone_tenderness_area as string) || ""}
                 onChange={(e) =>
                   update({ bone_tenderness_area: e.target.value })
                 }
@@ -388,9 +393,9 @@ export default function MusculoskeletalExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {mskData.percussion.special.map((opt) => {
-                const active = (examData.special_percussion || []).includes(
-                  opt.en,
-                );
+                const active = (
+                  (examData.special_percussion as string[]) || []
+                ).includes(opt.en);
                 return (
                   <Badge
                     key={opt.en}
@@ -424,7 +429,9 @@ export default function MusculoskeletalExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {mskData.auscultation.jointSounds.map((opt) => {
-                const active = (examData.joint_sounds || []).includes(opt.en);
+                const active = (
+                  (examData.joint_sounds as string[]) || []
+                ).includes(opt.en);
                 return (
                   <Badge
                     key={opt.en}
@@ -464,7 +471,9 @@ export default function MusculoskeletalExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {mskData.auscultation.gait.map((opt) => {
-                const active = (examData.gait || []).includes(opt.en);
+                const active = ((examData.gait as string[]) || []).includes(
+                  opt.en,
+                );
                 return (
                   <Badge
                     key={opt.en}
@@ -511,9 +520,9 @@ export default function MusculoskeletalExam({
                   bn: "ড্রপ আর্ম পরীক্ষা - ইতিবাচক",
                 },
               ].map((test) => {
-                const active = (examData.special_tests_shoulder || []).includes(
-                  test.en,
-                );
+                const active = (
+                  (examData.special_tests_shoulder as string[]) || []
+                ).includes(test.en);
                 return (
                   <Badge
                     key={test.en}
@@ -559,9 +568,9 @@ export default function MusculoskeletalExam({
                 { en: "Lachman test - Negative", bn: "ল্যাকম্যান পরীক্ষা - নেতিবাচক" },
                 { en: "Lachman test - Positive", bn: "ল্যাকম্যান পরীক্ষা - ইতিবাচক" },
               ].map((test) => {
-                const active = (examData.special_tests_knee || []).includes(
-                  test.en,
-                );
+                const active = (
+                  (examData.special_tests_knee as string[]) || []
+                ).includes(test.en);
                 return (
                   <Badge
                     key={test.en}
@@ -600,9 +609,9 @@ export default function MusculoskeletalExam({
                 { en: "FABER test - Negative", bn: "FABER পরীক্ষা - নেতিবাচক" },
                 { en: "FABER test - Positive", bn: "FABER পরীক্ষা - ইতিবাচক" },
               ].map((test) => {
-                const active = (examData.special_tests_spine || []).includes(
-                  test.en,
-                );
+                const active = (
+                  (examData.special_tests_spine as string[]) || []
+                ).includes(test.en);
                 return (
                   <Badge
                     key={test.en}

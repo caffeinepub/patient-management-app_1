@@ -111,16 +111,18 @@ const cvsData = {
   ],
 };
 
+type CvsExamData = Record<string, unknown>;
+
 interface CardiovascularExamProps {
-  data: any;
-  onChange: (data: any) => void;
+  data: CvsExamData;
+  onChange: (data: CvsExamData) => void;
 }
 
 export default function CardiovascularExam({
   data,
   onChange,
 }: CardiovascularExamProps) {
-  const [examData, setExamData] = useState(
+  const [examData, setExamData] = useState<CvsExamData>(
     data || {
       precordium: [],
       apex_beat_visible: "",
@@ -138,14 +140,14 @@ export default function CardiovascularExam({
     },
   );
 
-  const update = (patch: Record<string, any>) => {
+  const update = (patch: CvsExamData) => {
     const newData = { ...examData, ...patch };
     setExamData(newData);
     onChange(newData);
   };
 
   const toggleMulti = (field: string, value: string) => {
-    const current: string[] = examData[field] || [];
+    const current: string[] = (examData[field] as string[]) || [];
     update({
       [field]: current.includes(value)
         ? current.filter((v: string) => v !== value)
@@ -177,7 +179,7 @@ export default function CardiovascularExam({
         {options.map((opt) => {
           const active = single
             ? examData[field] === opt.en
-            : (examData[field] || []).includes(opt.en);
+            : ((examData[field] as string[]) || []).includes(opt.en);
           return (
             <Badge
               key={opt.en}
@@ -366,7 +368,9 @@ export default function CardiovascularExam({
         <CardContent className="space-y-3 pt-5">
           <div className="flex flex-wrap gap-2">
             {cvsData.specialTests.map((test) => {
-              const active = (examData.special_tests || []).includes(test.en);
+              const active = (
+                (examData.special_tests as string[]) || []
+              ).includes(test.en);
               return (
                 <Badge
                   key={test.en}

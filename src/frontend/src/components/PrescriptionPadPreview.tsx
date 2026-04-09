@@ -24,7 +24,6 @@ interface RxDrug {
   frequencyBn?: string;
   specialInstruction?: string;
   specialInstructionBn?: string;
-  // legacy fields from saved prescriptions
   name?: string;
   form?: string;
 }
@@ -43,6 +42,9 @@ interface ClinicalSummary {
   adviceNewInv?: string;
   adviceText?: string;
   diagnosis?: string;
+  bloodGroup?: string;
+  address?: string;
+  sex?: string;
 }
 
 interface Props {
@@ -52,6 +54,10 @@ interface Props {
   patientWeight?: string;
   registerNumber?: string;
   patientId?: bigint;
+  bloodGroup?: string;
+  address?: string;
+  sex?: string;
+  onClose?: () => void;
 }
 
 function extractClinicalSummary(notes?: string): ClinicalSummary {
@@ -60,11 +66,11 @@ function extractClinicalSummary(notes?: string): ClinicalSummary {
     const parsed = JSON.parse(notes);
     return parsed as ClinicalSummary;
   } catch {
-    // notes is plain text
     return { adviceText: notes };
   }
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: normalization helper
 function normalizeDrug(m: any): RxDrug {
   return {
     id: m.id || String(Math.random()),
@@ -92,18 +98,23 @@ export default function PrescriptionPadPreview({
   patientAge,
   patientWeight,
   registerNumber,
+  bloodGroup,
+  address,
+  sex,
+  onClose: _onClose,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [withHeader, setWithHeader] = useState(true);
 
-  // Extract clinical summary from notes
   const raw = extractClinicalSummary(prescription?.notes);
 
-  // Editable state for all fields
   const [name, setName] = useState(patientName || "");
   const [age, setAge] = useState(patientAge ? String(patientAge) : "");
   const [weight, setWeight] = useState(patientWeight || "");
   const [regNo, setRegNo] = useState(registerNumber || "");
+  const [bg, setBg] = useState(bloodGroup || raw.bloodGroup || "");
+  const [addr, setAddr] = useState(address || raw.address || "");
+  const [sexVal, setSexVal] = useState(sex || raw.sex || "");
   const [rxDate, setRxDate] = useState(
     prescription?.prescriptionDate
       ? format(
@@ -134,7 +145,6 @@ export default function PrescriptionPadPreview({
   const [adviceNewInv, setAdviceNewInv] = useState(raw.adviceNewInv || "");
   const [adviceText, setAdviceText] = useState(raw.adviceText || "");
 
-  // Drugs - editable
   const [drugs, setDrugs] = useState<RxDrug[]>(
     (prescription?.medications || []).map(normalizeDrug),
   );
@@ -173,6 +183,7 @@ export default function PrescriptionPadPreview({
         .mb-2 { margin-bottom: 0.5rem !important; }
         .mb-3 { margin-bottom: 0.75rem !important; }
         .mt-3 { margin-top: 0.75rem !important; }
+        .mt-8 { margin-top: 2rem !important; }
         .pb-2 { padding-bottom: 0.5rem !important; }
         .pt-2 { padding-top: 0.5rem !important; }
         .pl-4 { padding-left: 1rem !important; }
@@ -190,6 +201,8 @@ export default function PrescriptionPadPreview({
         .text-sm { font-size: 0.875rem !important; }
         .text-xs { font-size: 0.75rem !important; }
         .text-2xl { font-size: 1.5rem !important; }
+        .text-right { text-align: right !important; }
+        .text-center { text-align: center !important; }
         .uppercase { text-transform: uppercase !important; }
         .whitespace-pre-wrap { white-space: pre-wrap !important; }
         .leading-snug { line-height: 1.375 !important; }
@@ -200,12 +213,12 @@ export default function PrescriptionPadPreview({
         .text-indigo-600 { color: #4f46e5 !important; }
         .text-orange-600 { color: #ea580c !important; }
         .text-teal-600 { color: #0d9488 !important; }
-        .text-right { text-align: right !important; }
         .rounded { border-radius: 0.25rem !important; }
         .max-w-2xl { max-width: 42rem !important; }
         .mx-auto { margin-left: auto !important; margin-right: auto !important; }
         .ml-1 { margin-left: 0.25rem !important; }
         strong { font-weight: 700 !important; }
+        .signature-line { border-top: 1px solid #555; min-width: 120px; display: inline-block; }
         @media print {
           body { margin: 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
@@ -233,11 +246,11 @@ export default function PrescriptionPadPreview({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
+      <div className="flex flex-wrap items-center gap-2 bg-muted/40 border rounded-xl p-3">
         <Button
           size="sm"
           variant="outline"
-          className={`gap-1.5 ${editMode ? "bg-amber-50 border-amber-300 text-amber-700" : "border-gray-300 text-gray-700"}`}
+          className={`gap-1.5 ${editMode ? "bg-amber-50 border-amber-300 text-amber-700" : "border-border"}`}
           onClick={() => setEditMode((v) => !v)}
           data-ocid="rx_pad.toggle"
         >
@@ -257,7 +270,7 @@ export default function PrescriptionPadPreview({
           className={`gap-1.5 ${
             withHeader
               ? "bg-teal-50 border-teal-300 text-teal-700"
-              : "border-gray-300 text-gray-500"
+              : "border-border text-muted-foreground"
           }`}
           onClick={() => setWithHeader((v) => !v)}
           data-ocid="rx_pad.toggle"
@@ -285,10 +298,10 @@ export default function PrescriptionPadPreview({
         </Button>
       </div>
 
-      {/* Patient Info Bar */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-        {editMode ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      {/* Patient Info Bar (edit mode) */}
+      {editMode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
             <div>
               <Label className="text-xs text-blue-700 font-semibold">
                 Name
@@ -300,7 +313,9 @@ export default function PrescriptionPadPreview({
               />
             </div>
             <div>
-              <Label className="text-xs text-blue-700 font-semibold">Age</Label>
+              <Label className="text-xs text-blue-700 font-semibold">
+                Age (yrs)
+              </Label>
               <Input
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
@@ -308,12 +323,30 @@ export default function PrescriptionPadPreview({
               />
             </div>
             <div>
+              <Label className="text-xs text-blue-700 font-semibold">Sex</Label>
+              <Input
+                value={sexVal}
+                onChange={(e) => setSexVal(e.target.value)}
+                className="h-7 text-sm mt-0.5"
+              />
+            </div>
+            <div>
               <Label className="text-xs text-blue-700 font-semibold">
-                Weight
+                Weight (kg)
               </Label>
               <Input
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
+                className="h-7 text-sm mt-0.5"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-blue-700 font-semibold">
+                Blood Group
+              </Label>
+              <Input
+                value={bg}
+                onChange={(e) => setBg(e.target.value)}
                 className="h-7 text-sm mt-0.5"
               />
             </div>
@@ -338,34 +371,20 @@ export default function PrescriptionPadPreview({
               />
             </div>
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-            {name && (
-              <span>
-                <strong>Name:</strong> {name}
-              </span>
-            )}
-            {age && (
-              <span>
-                <strong>Age:</strong> {age}
-              </span>
-            )}
-            {weight && (
-              <span>
-                <strong>Weight:</strong> {weight}
-              </span>
-            )}
-            {regNo && (
-              <span>
-                <strong>Reg:</strong> {regNo}
-              </span>
-            )}
-            <span>
-              <strong>Date:</strong> {rxDate}
-            </span>
-          </div>
-        )}
-      </div>
+          {editMode && (
+            <div className="mt-2">
+              <Label className="text-xs text-blue-700 font-semibold">
+                Address
+              </Label>
+              <Input
+                value={addr}
+                onChange={(e) => setAddr(e.target.value)}
+                className="h-7 text-sm mt-0.5"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Print target */}
       <div
@@ -382,19 +401,22 @@ export default function PrescriptionPadPreview({
                   MBBS (D.U.) | Emergency Medical Officer
                 </p>
                 <p className="text-sm text-gray-600">
-                  সেন্চুরি আর্কেড মার্কেট, মগবাজার, ঢাকা
+                  Dr. Sirajul Islam Medical College Hospital
+                </p>
+                <p className="text-sm text-gray-600">
+                  Registrar, Dept. of General Surgery uDC
                 </p>
               </div>
               <div className="text-right text-sm text-gray-600">
                 <p>Reg. no. A-105224</p>
-                <p>Mob: 01751959262</p>
+                <p>Mob: 01751959262 / 01984587802</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Patient info line */}
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm border-b pb-2 mb-3">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm border-b pb-2 mb-3">
           {name && (
             <span>
               <strong>Name:</strong> {name}
@@ -402,12 +424,22 @@ export default function PrescriptionPadPreview({
           )}
           {age && (
             <span>
-              <strong>Age:</strong> {age}
+              <strong>Age:</strong> {age} <strong>yrs</strong>
+            </span>
+          )}
+          {sexVal && (
+            <span>
+              <strong>Sex:</strong> {sexVal}
             </span>
           )}
           {weight && (
             <span>
-              <strong>Weight:</strong> {weight}
+              <strong>Weight:</strong> {weight} <strong>kg</strong>
+            </span>
+          )}
+          {bg && (
+            <span>
+              <strong>Blood Group:</strong> {bg}
             </span>
           )}
           {regNo && (
@@ -418,6 +450,11 @@ export default function PrescriptionPadPreview({
           <span>
             <strong>Date:</strong> {rxDate}
           </span>
+          {addr && (
+            <span>
+              <strong>Address:</strong> {addr}
+            </span>
+          )}
         </div>
 
         {/* 2-column layout */}
@@ -450,7 +487,7 @@ export default function PrescriptionPadPreview({
                   <Textarea
                     value={pmh}
                     onChange={(e) => setPmh(e.target.value)}
-                    className="text-xs min-h-[60px] resize-none"
+                    className="text-xs min-h-[50px] resize-none"
                     placeholder="Past Medical/Surgical History..."
                   />
                 ) : (
@@ -465,48 +502,43 @@ export default function PrescriptionPadPreview({
                 </div>
                 {editMode ? (
                   <div className="space-y-1">
-                    <div>
-                      <Label className="text-xs text-gray-500">Personal</Label>
-                      <Textarea
-                        value={historyPersonal}
-                        onChange={(e) => setHistoryPersonal(e.target.value)}
-                        className="text-xs min-h-[40px] resize-none"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">Family</Label>
-                      <Textarea
-                        value={historyFamily}
-                        onChange={(e) => setHistoryFamily(e.target.value)}
-                        className="text-xs min-h-[40px] resize-none"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">
-                        Immunization
-                      </Label>
-                      <Textarea
-                        value={historyImmunization}
-                        onChange={(e) => setHistoryImmunization(e.target.value)}
-                        className="text-xs min-h-[40px] resize-none"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">Allergy</Label>
-                      <Textarea
-                        value={historyAllergy}
-                        onChange={(e) => setHistoryAllergy(e.target.value)}
-                        className="text-xs min-h-[40px] resize-none"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">Others</Label>
-                      <Textarea
-                        value={historyOthers}
-                        onChange={(e) => setHistoryOthers(e.target.value)}
-                        className="text-xs min-h-[40px] resize-none"
-                      />
-                    </div>
+                    {(
+                      [
+                        "Personal",
+                        "Family",
+                        "Immunization",
+                        "Allergy",
+                        "Others",
+                      ] as const
+                    ).map((tab) => {
+                      const getVal = () => {
+                        if (tab === "Personal") return historyPersonal;
+                        if (tab === "Family") return historyFamily;
+                        if (tab === "Immunization") return historyImmunization;
+                        if (tab === "Allergy") return historyAllergy;
+                        return historyOthers;
+                      };
+                      const setVal = (v: string) => {
+                        if (tab === "Personal") setHistoryPersonal(v);
+                        else if (tab === "Family") setHistoryFamily(v);
+                        else if (tab === "Immunization")
+                          setHistoryImmunization(v);
+                        else if (tab === "Allergy") setHistoryAllergy(v);
+                        else setHistoryOthers(v);
+                      };
+                      return (
+                        <div key={tab}>
+                          <Label className="text-xs text-muted-foreground">
+                            {tab}
+                          </Label>
+                          <Textarea
+                            value={getVal()}
+                            onChange={(e) => setVal(e.target.value)}
+                            className="text-xs min-h-[35px] resize-none"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-xs space-y-0.5">
@@ -553,7 +585,7 @@ export default function PrescriptionPadPreview({
                   <Textarea
                     value={dh}
                     onChange={(e) => setDh(e.target.value)}
-                    className="text-xs min-h-[60px] resize-none"
+                    className="text-xs min-h-[50px] resize-none"
                     placeholder="Drug History..."
                   />
                 ) : (
@@ -606,7 +638,7 @@ export default function PrescriptionPadPreview({
                   <Textarea
                     value={adviceNewInv}
                     onChange={(e) => setAdviceNewInv(e.target.value)}
-                    className="text-xs min-h-[60px] resize-none"
+                    className="text-xs min-h-[50px] resize-none"
                     placeholder="Advice / New Investigation..."
                   />
                 ) : (
@@ -643,27 +675,22 @@ export default function PrescriptionPadPreview({
                 <table className="w-full text-xs border-collapse">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        #
-                      </th>
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        Form
-                      </th>
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        Drug Name
-                      </th>
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        Dose
-                      </th>
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        Freq.
-                      </th>
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        Duration
-                      </th>
-                      <th className="border border-gray-200 px-1 py-1 text-left">
-                        Instructions
-                      </th>
+                      {[
+                        "#",
+                        "Form",
+                        "Drug Name",
+                        "Dose",
+                        "Freq.",
+                        "Duration",
+                        "Instructions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="border border-gray-200 px-1 py-1 text-left"
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -701,27 +728,27 @@ export default function PrescriptionPadPreview({
                         </td>
                         <td className="border border-gray-200 px-1 py-1">
                           <input
-                            value={d.frequency || ""}
+                            value={d.frequencyBn || d.frequency || ""}
                             onChange={(e) =>
-                              updateDrug(i, "frequency", e.target.value)
+                              updateDrug(i, "frequencyBn", e.target.value)
                             }
                             className="w-20 outline-none border-b border-gray-300"
                           />
                         </td>
                         <td className="border border-gray-200 px-1 py-1">
                           <input
-                            value={d.duration || ""}
+                            value={d.durationBn || d.duration || ""}
                             onChange={(e) =>
-                              updateDrug(i, "duration", e.target.value)
+                              updateDrug(i, "durationBn", e.target.value)
                             }
                             className="w-16 outline-none border-b border-gray-300"
                           />
                         </td>
                         <td className="border border-gray-200 px-1 py-1">
                           <input
-                            value={d.instructions || ""}
+                            value={d.instructionBn || d.instructions || ""}
                             onChange={(e) =>
-                              updateDrug(i, "instructions", e.target.value)
+                              updateDrug(i, "instructionBn", e.target.value)
                             }
                             className="w-24 outline-none border-b border-gray-300"
                           />
@@ -763,12 +790,12 @@ export default function PrescriptionPadPreview({
                         )}{" "}
                         <span>{d.dose}</span>
                       </div>
-                      {/* Line 2: frequency, duration, instructions */}
+                      {/* Line 2: frequency - duration - instructions */}
                       <div className="text-xs text-gray-500 pl-4">
                         {[
                           d.frequencyBn || d.frequency,
                           d.durationBn || d.duration
-                            ? `–${d.durationBn || d.duration}`
+                            ? `– ${d.durationBn || d.duration}`
                             : "",
                           d.instructionBn || d.instructions,
                         ]
@@ -805,6 +832,20 @@ export default function PrescriptionPadPreview({
                 )}
               </div>
             )}
+
+            {/* Doctor Signature */}
+            <div className="mt-8 pt-4 text-right">
+              <div className="inline-block text-center">
+                <div className="border-t border-gray-500 pt-1 min-w-[140px]">
+                  <p className="text-xs text-gray-600 font-semibold">
+                    Doctor's Signature
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Dr. Arman Kabir (ZOSID)
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

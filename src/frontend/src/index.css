@@ -39,6 +39,22 @@
     --chart-3: 0.55 0.15 280;
     --chart-4: 0.65 0.18 60;
     --chart-5: 0.55 0.18 20;
+    --tab-overview: 0.55 0.18 200;
+    --tab-vitals: 0.6 0.15 170;
+    --tab-investigations: 0.58 0.17 260;
+    --tab-history: 0.65 0.16 50;
+    --tab-prescriptions: 0.58 0.19 10;
+    --tab-appointments: 0.62 0.15 130;
+    --tab-pending: 0.7 0.14 60;
+    --tab-chat: 0.55 0.18 290;
+    --tab-account: 0.48 0.12 250;
+    --clinical-cc: 0.55 0.18 200;
+    --clinical-pmh: 0.62 0.15 130;
+    --clinical-history: 0.58 0.17 260;
+    --clinical-dh: 0.65 0.16 50;
+    --clinical-oe: 0.58 0.19 10;
+    --clinical-investigation: 0.6 0.15 170;
+    --clinical-advice: 0.7 0.14 60;
   }
 
   .dark {
@@ -61,6 +77,22 @@
     --border: 0.25 0.01 250;
     --input: 0.25 0.01 250;
     --ring: 0.65 0.18 200;
+    --tab-overview: 0.65 0.18 200;
+    --tab-vitals: 0.7 0.15 170;
+    --tab-investigations: 0.68 0.17 260;
+    --tab-history: 0.75 0.16 50;
+    --tab-prescriptions: 0.68 0.19 10;
+    --tab-appointments: 0.72 0.15 130;
+    --tab-pending: 0.8 0.14 60;
+    --tab-chat: 0.65 0.18 290;
+    --tab-account: 0.58 0.12 250;
+    --clinical-cc: 0.65 0.18 200;
+    --clinical-pmh: 0.72 0.15 130;
+    --clinical-history: 0.68 0.17 260;
+    --clinical-dh: 0.75 0.16 50;
+    --clinical-oe: 0.68 0.19 10;
+    --clinical-investigation: 0.7 0.15 170;
+    --clinical-advice: 0.8 0.14 60;
   }
 }
 
@@ -71,5 +103,17 @@
   body {
     @apply bg-background text-foreground;
     font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  }
+  .shadow-subtle {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  }
+  .transition-smooth {
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

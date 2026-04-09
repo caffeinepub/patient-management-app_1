@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { useRef, useState } from "react";
 
-// Color palette rotating for custom badges
 const BADGE_PALETTE = [
   {
     base: "bg-blue-100 text-blue-800 border-blue-300",
@@ -48,13 +47,17 @@ const BADGE_PALETTE = [
   },
 ];
 
+interface ExamData {
+  [key: string]: unknown;
+}
+
 interface CustomBadgeAdderProps {
   field: string;
   customField: string;
-  examData: any;
+  examData: ExamData;
   isMulti?: boolean;
   accentColor?: string;
-  onUpdate: (patch: Record<string, any>) => void;
+  onUpdate: (patch: ExamData) => void;
   placeholder?: string;
 }
 
@@ -71,15 +74,25 @@ export default function CustomBadgeAdder({
   const [editText, setEditText] = useState("");
   const editRef = useRef<HTMLInputElement>(null);
 
-  const customOptions: string[] = examData[customField] || [];
-  const selected: string | string[] = examData[field] ?? (isMulti ? [] : "");
+  const rawCustom = examData[customField];
+  const customOptions: string[] = Array.isArray(rawCustom)
+    ? (rawCustom as string[])
+    : [];
+  const rawSelected = examData[field];
+  const selected: string | string[] = Array.isArray(rawSelected)
+    ? (rawSelected as string[])
+    : typeof rawSelected === "string"
+      ? rawSelected
+      : isMulti
+        ? []
+        : "";
 
   const isSelected = (val: string) =>
     isMulti ? (selected as string[]).includes(val) : selected === val;
 
   const toggleValue = (val: string) => {
     if (isMulti) {
-      const cur = (selected as string[]) || [];
+      const cur = Array.isArray(selected) ? (selected as string[]) : [];
       onUpdate({
         [field]: cur.includes(val)
           ? cur.filter((v) => v !== val)
@@ -94,9 +107,10 @@ export default function CustomBadgeAdder({
     const trimmed = inputVal.trim();
     if (!trimmed || customOptions.includes(trimmed)) return;
     const newOptions = [...customOptions, trimmed];
-    const patch: Record<string, any> = { [customField]: newOptions };
+    const patch: ExamData = { [customField]: newOptions };
     if (isMulti) {
-      patch[field] = [...((selected as string[]) || []), trimmed];
+      const cur = Array.isArray(selected) ? (selected as string[]) : [];
+      patch[field] = [...cur, trimmed];
     } else {
       patch[field] = trimmed;
     }
@@ -120,9 +134,9 @@ export default function CustomBadgeAdder({
     const newOptions = customOptions.map((o) =>
       o === editingValue ? newText : o,
     );
-    const patch: Record<string, any> = { [customField]: newOptions };
+    const patch: ExamData = { [customField]: newOptions };
     if (isMulti) {
-      const cur = (selected as string[]) || [];
+      const cur = Array.isArray(selected) ? (selected as string[]) : [];
       patch[field] = cur.map((v) => (v === editingValue ? newText : v));
     } else {
       if (selected === editingValue) patch[field] = newText;
@@ -133,9 +147,10 @@ export default function CustomBadgeAdder({
 
   const deleteCustom = (val: string) => {
     const newOptions = customOptions.filter((o) => o !== val);
-    const patch: Record<string, any> = { [customField]: newOptions };
+    const patch: ExamData = { [customField]: newOptions };
     if (isMulti) {
-      patch[field] = ((selected as string[]) || []).filter((v) => v !== val);
+      const cur = Array.isArray(selected) ? (selected as string[]) : [];
+      patch[field] = cur.filter((v) => v !== val);
     } else {
       if (selected === val) patch[field] = "";
     }
@@ -179,9 +194,7 @@ export default function CustomBadgeAdder({
               <Badge
                 key={opt}
                 variant="outline"
-                className={`cursor-pointer text-sm py-2 px-2 flex items-center gap-1 group border transition-all min-h-[36px] ${
-                  active ? colors.active : colors.base
-                }`}
+                className={`cursor-pointer text-sm py-2 px-2 flex items-center gap-1 group border transition-all min-h-[36px] ${active ? colors.active : colors.base}`}
                 onClick={() => toggleValue(opt)}
               >
                 <span>{opt}</span>
@@ -212,7 +225,6 @@ export default function CustomBadgeAdder({
           })}
         </div>
       )}
-
       <div className="flex items-center gap-2">
         <Input
           value={inputVal}

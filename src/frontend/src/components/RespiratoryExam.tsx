@@ -111,16 +111,18 @@ const respiratoryData = {
   },
 };
 
+type RespExamData = Record<string, unknown>;
+
 interface RespiratoryExamProps {
-  data: any;
-  onChange: (data: any) => void;
+  data: RespExamData;
+  onChange: (data: RespExamData) => void;
 }
 
 export default function RespiratoryExam({
   data,
   onChange,
 }: RespiratoryExamProps) {
-  const [examData, setExamData] = useState(
+  const [examData, setExamData] = useState<RespExamData>(
     data || {
       chest_shape: "",
       symmetry: "",
@@ -138,14 +140,14 @@ export default function RespiratoryExam({
     },
   );
 
-  const update = (patch: Record<string, any>) => {
+  const update = (patch: RespExamData) => {
     const newData = { ...examData, ...patch };
     setExamData(newData);
     onChange(newData);
   };
 
   const toggleMulti = (field: string, value: string) => {
-    const current: string[] = examData[field] || [];
+    const current: string[] = (examData[field] as string[]) || [];
     update({
       [field]: current.includes(value)
         ? current.filter((v: string) => v !== value)
@@ -157,7 +159,8 @@ export default function RespiratoryExam({
     update({ [field]: value });
 
   const setNested = (parent: string, key: string, value: string) => {
-    update({ [parent]: { ...(examData[parent] || {}), [key]: value } });
+    const existing = (examData[parent] as Record<string, string>) || {};
+    update({ [parent]: { ...existing, [key]: value } });
   };
 
   const SectionCard = ({
@@ -210,7 +213,7 @@ export default function RespiratoryExam({
         {options.map((opt) => {
           const active = single
             ? examData[field] === opt.en
-            : (examData[field] || []).includes(opt.en);
+            : ((examData[field] as string[]) || []).includes(opt.en);
           return (
             <Badge
               key={opt.en}
@@ -343,7 +346,9 @@ export default function RespiratoryExam({
                     {respiratoryData.palpation.vocalFremitusOptions.map(
                       (opt) => {
                         const active =
-                          examData.vocal_fremitus?.[side.key] === opt;
+                          (examData.vocal_fremitus as Record<string, string>)?.[
+                            side.key
+                          ] === opt;
                         return (
                           <Badge
                             key={opt}
@@ -406,7 +411,9 @@ export default function RespiratoryExam({
                 <div className="flex flex-wrap gap-1">
                   {respiratoryData.percussion.options.map((opt) => {
                     const active =
-                      examData.percussion_zones?.[zone.key] === opt;
+                      (examData.percussion_zones as Record<string, string>)?.[
+                        zone.key
+                      ] === opt;
                     return (
                       <Badge
                         key={opt}
@@ -452,7 +459,9 @@ export default function RespiratoryExam({
                     {respiratoryData.auscultation.breathSoundOptions.map(
                       (opt) => {
                         const active =
-                          examData.breath_sounds?.[zone.key] === opt;
+                          (examData.breath_sounds as Record<string, string>)?.[
+                            zone.key
+                          ] === opt;
                         return (
                           <Badge
                             key={opt}
@@ -478,7 +487,9 @@ export default function RespiratoryExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {respiratoryData.auscultation.addedSounds.map((opt) => {
-                const active = (examData.added_sounds || []).includes(opt.en);
+                const active = (
+                  (examData.added_sounds as string[]) || []
+                ).includes(opt.en);
                 return (
                   <Badge
                     key={opt.en}
@@ -552,7 +563,9 @@ export default function RespiratoryExam({
                 bn: "ব্রঙ্কোডাইলেটর সাড়া - নেতিবাচক",
               },
             ].map((test) => {
-              const active = (examData.special_tests || []).includes(test.en);
+              const active = (
+                (examData.special_tests as string[]) || []
+              ).includes(test.en);
               return (
                 <Badge
                   key={test.en}

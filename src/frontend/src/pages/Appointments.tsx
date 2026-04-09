@@ -33,7 +33,6 @@ import {
   CheckCircle2,
   Clock,
   Edit2,
-  ExternalLink,
   Inbox,
   ListOrdered,
   Loader2,
@@ -41,6 +40,7 @@ import {
   Monitor,
   Plus,
   RefreshCcw,
+  Search,
   Trash2,
   UserPlus,
   UserSearch,
@@ -75,6 +75,8 @@ interface AppointmentEntry {
   reason: string;
   status: AppointmentStatus;
   doctor?: string;
+  chamber?: string;
+  registerNumber?: string;
 }
 
 // ─── Storage helpers ─────────────────────────────────────────────────────────
@@ -97,7 +99,37 @@ function saveSerials(data: SerialEntry[]) {
 
 function loadAppointments(): AppointmentEntry[] {
   try {
-    return JSON.parse(localStorage.getItem("clinic_appointments") || "[]");
+    const a = JSON.parse(localStorage.getItem("clinic_appointments") || "[]");
+    const b = JSON.parse(
+      localStorage.getItem("public_appointment_requests") || "[]",
+    );
+    // Merge: public requests that have preferredDate → convert to AppointmentEntry
+    const converted = b
+      .filter((x: Record<string, unknown>) => x.preferredDate || x.date)
+      .map((x: Record<string, unknown>) => ({
+        id: x.id || x.patientName,
+        patientName: (x.patientName || x.name || "") as string,
+        phone: (x.phone || "") as string,
+        date: (x.preferredDate || x.date || "") as string,
+        time: (x.preferredTime || x.time || "") as string,
+        reason: (x.reason || x.notes || "") as string,
+        status:
+          (x.status as AppointmentStatus) === "confirmed"
+            ? "confirmed"
+            : (x.status as AppointmentStatus) === "cancelled"
+              ? "cancelled"
+              : "scheduled",
+        doctor: (x.preferredDoctor || x.doctor || "") as string,
+        chamber: (x.preferredChamber || x.chamber || "") as string,
+        registerNumber: (x.registerNumber || "") as string,
+        _isPublic: true,
+      }));
+    // Deduplicate by id
+    const combined: AppointmentEntry[] = [...a];
+    for (const c of converted) {
+      if (!combined.find((x) => x.id === c.id)) combined.push(c);
+    }
+    return combined;
   } catch {
     return [];
   }
@@ -114,6 +146,44 @@ function uid() {
 function nowTime() {
   const d = new Date();
   return d.toTimeString().slice(0, 5);
+}
+
+// ─── Patient register number lookup ─────────────────────────────────────────
+
+function normalizeRegNo(rn: string): string {
+  const parts = rn.trim().split("/");
+  if (parts.length === 2) {
+    const num = Number.parseInt(parts[0].trim(), 10);
+    return `${Number.isNaN(num) ? parts[0].trim() : num}/${parts[1].trim()}`;
+  }
+  return rn.trim().toLowerCase();
+}
+
+interface PatientLookup {
+  fullName?: string;
+  phone?: string;
+  registerNumber?: string;
+  [key: string]: unknown;
+}
+
+function lookupPatientByRegNo(regNo: string): PatientLookup | null {
+  if (!regNo.trim()) return null;
+  const norm = normalizeRegNo(regNo);
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith("patients_")) continue;
+    try {
+      const arr = JSON.parse(
+        localStorage.getItem(key) || "[]",
+      ) as PatientLookup[];
+      const found = arr.find(
+        (p) =>
+          p.registerNumber && normalizeRegNo(String(p.registerNumber)) === norm,
+      );
+      if (found) return found;
+    } catch {}
+  }
+  return null;
 }
 
 // ─── Patient Search Dropdown ─────────────────────────────────────────────────
@@ -231,16 +301,13 @@ function DoctorSerialTab() {
   const [serials, setSerials] = useState<SerialEntry[]>(loadSerials);
   const [addOpen, setAddOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-
   const [form, setForm] = useState({ name: "", phone: "" });
-
   const { currentDoctor } = useEmailAuth();
   const isDoctor = !currentDoctor || currentDoctor.role === "doctor";
 
   const persist = (data: SerialEntry[]) => {
     setSerials(data);
     saveSerials(data);
-    // Sync display screen queue
     const nowServing = data.find((s) => s.status === "in-progress") || null;
     const queue = data.filter((s) => s.status === "waiting");
     localStorage.setItem(
@@ -300,7 +367,6 @@ function DoctorSerialTab() {
 
   return (
     <div className="space-y-4">
-      {/* Date + actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
@@ -308,7 +374,19 @@ function DoctorSerialTab() {
           </p>
           <p className="text-lg font-semibold text-foreground">{todayLabel}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              window.open("/serial-display", "_blank", "noopener,noreferrer")
+            }
+            className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50"
+            data-ocid="serial.display_button"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            Display Screen
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -349,7 +427,6 @@ function DoctorSerialTab() {
         </div>
       </div>
 
-      {/* Queue table */}
       {serials.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
@@ -513,12 +590,11 @@ function DoctorSerialTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="w-5 h-5" />
-              Reset Today's Queue?
+              Reset Today&apos;s Queue?
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will clear all {serials.length} serial entries for today. This
-            action cannot be undone.
+            This will clear all {serials.length} serial entries for today.
           </p>
           <DialogFooter>
             <Button
@@ -546,12 +622,24 @@ function DoctorSerialTab() {
 
 type ApptFilter = "all" | "today" | "upcoming" | "cancelled";
 
+// Chamber list for the appointment form
+const CHAMBERS_BY_DOCTOR: Record<string, string[]> = {
+  "Dr. Arman Kabir": [
+    "University Dental College & Hospital — Moghbazar, Dhaka",
+  ],
+  "Dr. Samia Shikder": [
+    "Dhaka Medical College Hospital — Dept. of Gynae & Obs",
+  ],
+};
+
 function AppointmentsTab() {
   const [appointments, setAppointments] =
     useState<AppointmentEntry[]>(loadAppointments);
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<AppointmentEntry | null>(null);
   const [filter, setFilter] = useState<ApptFilter>("all");
+  const [regNoInput, setRegNoInput] = useState("");
+  const [regNoMsg, setRegNoMsg] = useState("");
 
   const emptyForm = {
     name: "",
@@ -561,6 +649,8 @@ function AppointmentsTab() {
     reason: "",
     status: "scheduled" as AppointmentStatus,
     doctor: "",
+    chamber: "",
+    registerNumber: "",
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -569,8 +659,31 @@ function AppointmentsTab() {
     saveAppointments(data);
   };
 
+  const handleRegNoLookup = (val: string) => {
+    setRegNoInput(val);
+    setForm((f) => ({ ...f, registerNumber: val }));
+    if (!val.trim()) {
+      setRegNoMsg("");
+      return;
+    }
+    const found = lookupPatientByRegNo(val);
+    if (found) {
+      setForm((f) => ({
+        ...f,
+        name: (found.fullName as string) || f.name,
+        phone: (found.phone as string) || f.phone,
+        registerNumber: val,
+      }));
+      setRegNoMsg(`✓ Found: ${found.fullName}`);
+    } else {
+      setRegNoMsg("Register number not found");
+    }
+  };
+
   function openAdd() {
     setForm(emptyForm);
+    setRegNoInput("");
+    setRegNoMsg("");
     setEditTarget(null);
     setAddOpen(true);
   }
@@ -584,7 +697,11 @@ function AppointmentsTab() {
       reason: appt.reason,
       status: appt.status,
       doctor: appt.doctor || "",
+      chamber: appt.chamber || "",
+      registerNumber: appt.registerNumber || "",
     });
+    setRegNoInput(appt.registerNumber || "");
+    setRegNoMsg("");
     setEditTarget(appt);
     setAddOpen(true);
   }
@@ -598,6 +715,7 @@ function AppointmentsTab() {
       toast.error("Please select a date");
       return;
     }
+
     if (editTarget) {
       persist(
         appointments.map((a) =>
@@ -610,6 +728,9 @@ function AppointmentsTab() {
                 time: form.time,
                 reason: form.reason.trim(),
                 status: form.status,
+                doctor: form.doctor || undefined,
+                chamber: form.chamber || undefined,
+                registerNumber: form.registerNumber || undefined,
               }
             : a,
         ),
@@ -625,6 +746,8 @@ function AppointmentsTab() {
         reason: form.reason.trim(),
         status: form.status,
         doctor: form.doctor || undefined,
+        chamber: form.chamber || undefined,
+        registerNumber: form.registerNumber || undefined,
       };
       persist([...appointments, entry]);
       toast.success(`Appointment scheduled for ${entry.patientName}`);
@@ -635,6 +758,41 @@ function AppointmentsTab() {
   function deleteAppt(id: string) {
     persist(appointments.filter((a) => a.id !== id));
     toast.success("Appointment deleted");
+  }
+
+  function sendWhatsApp(appt: AppointmentEntry) {
+    const DOCTOR_NUMBERS: Record<string, string> = {
+      "Dr. Arman Kabir": "8801751959262",
+      "Dr. Samia Shikder": "8801957212210",
+    };
+    const docName = appt.doctor || "Dr. Arman Kabir";
+    const docNum = DOCTOR_NUMBERS[docName] || "8801751959262";
+    const dateStr = appt.date
+      ? new Date(appt.date).toLocaleDateString("en-BD", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : appt.date;
+    const msg = `Dear ${appt.patientName}, your appointment with ${docName} is confirmed on ${dateStr}${appt.time ? ` at ${appt.time}` : ""}${appt.chamber ? ` at ${appt.chamber}` : ""}. - Dr. Arman Kabir's Care`;
+    // Send to doctor
+    window.open(
+      `https://wa.me/${docNum}?text=${encodeURIComponent(`Appointment confirmed: ${msg}`)}`,
+      "_blank",
+    );
+    // Send to patient if phone available
+    const patientPhone = appt.phone?.replace(/[^0-9]/g, "");
+    if (patientPhone && patientPhone.length >= 10) {
+      setTimeout(
+        () =>
+          window.open(
+            `https://wa.me/${patientPhone}?text=${encodeURIComponent(msg)}`,
+            "_blank",
+          ),
+        800,
+      );
+    }
+    toast.success("WhatsApp confirmation sent");
   }
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -659,9 +817,12 @@ function AppointmentsTab() {
     cancelled: "Cancelled",
   };
 
+  const chamberOptions = form.doctor
+    ? CHAMBERS_BY_DOCTOR[form.doctor] || []
+    : [];
+
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex gap-1.5 flex-wrap">
           {(Object.keys(filterLabels) as ApptFilter[]).map((f) => (
@@ -688,7 +849,6 @@ function AppointmentsTab() {
         </Button>
       </div>
 
-      {/* Cards */}
       {filtered.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
@@ -719,6 +879,11 @@ function AppointmentsTab() {
                       <span className="font-semibold text-foreground">
                         {appt.patientName}
                       </span>
+                      {appt.registerNumber && (
+                        <span className="text-xs font-mono text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                          {appt.registerNumber}
+                        </span>
+                      )}
                       <Badge
                         variant="outline"
                         className={apptStatusConfig[appt.status].className}
@@ -746,12 +911,13 @@ function AppointmentsTab() {
                           {appt.time}
                         </span>
                       )}
-                      {appt.phone && (
-                        <span className="text-muted-foreground">
-                          {appt.phone}
-                        </span>
-                      )}
+                      {appt.phone && <span>{appt.phone}</span>}
                     </div>
+                    {appt.chamber && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        📍 {appt.chamber}
+                      </p>
+                    )}
                     {appt.reason && (
                       <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
                         {appt.reason}
@@ -763,36 +929,8 @@ function AppointmentsTab() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
-                      title="Send WhatsApp confirmation"
-                      onClick={() => {
-                        const DOCTOR_NUMBERS: Record<string, string> = {
-                          "Dr. Arman Kabir": "8801751959262",
-                          "Dr. Samia Shikder": "8801957212210",
-                        };
-                        const docName = appt.doctor || "Dr. Arman Kabir";
-                        const docNum =
-                          DOCTOR_NUMBERS[docName] || "8801751959262";
-                        const patientPhone = appt.phone
-                          ? appt.phone.replace(/[^0-9]/g, "")
-                          : null;
-                        const msg = `Dear ${appt.patientName}, your appointment with ${docName} is confirmed on ${appt.date}${appt.time ? ` at ${appt.time}` : ""}. - Dr. Arman Kabir's Care`;
-                        // Send to doctor
-                        window.open(
-                          `https://wa.me/${docNum}?text=${encodeURIComponent(`Appointment confirmed: ${msg}`)}`,
-                          "_blank",
-                        );
-                        // Send to patient if phone available
-                        if (patientPhone && patientPhone.length >= 10) {
-                          setTimeout(
-                            () =>
-                              window.open(
-                                `https://wa.me/${patientPhone}?text=${encodeURIComponent(msg)}`,
-                                "_blank",
-                              ),
-                            800,
-                          );
-                        }
-                      }}
+                      title="Send WhatsApp confirmation to patient & doctor"
+                      onClick={() => sendWhatsApp(appt)}
                       data-ocid={`appointments.secondary_button.${idx + 1}`}
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
@@ -825,7 +963,7 @@ function AppointmentsTab() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-md" data-ocid="appointments.dialog">
+        <DialogContent className="sm:max-w-lg" data-ocid="appointments.dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-primary" />
@@ -833,6 +971,32 @@ function AppointmentsTab() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Register number lookup */}
+            <div className="space-y-1.5">
+              <Label>Register Number (returning patients)</Label>
+              <div className="relative">
+                <Input
+                  placeholder="0001/26 — auto-fills patient details"
+                  value={regNoInput}
+                  onChange={(e) => handleRegNoLookup(e.target.value)}
+                  className="pr-8"
+                  data-ocid="appointments.input"
+                />
+                <Search className="absolute right-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+              </div>
+              {regNoMsg && (
+                <p
+                  className={`text-xs font-medium ${
+                    regNoMsg.startsWith("✓")
+                      ? "text-emerald-600"
+                      : "text-amber-600"
+                  }`}
+                >
+                  {regNoMsg}
+                </p>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label>Patient Name</Label>
               <PatientSearch
@@ -856,7 +1020,7 @@ function AppointmentsTab() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Date</Label>
+                <Label>Preferred Date</Label>
                 <Input
                   type="date"
                   value={form.date}
@@ -867,7 +1031,7 @@ function AppointmentsTab() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Time</Label>
+                <Label>Preferred Time</Label>
                 <Input
                   type="time"
                   value={form.time}
@@ -882,7 +1046,9 @@ function AppointmentsTab() {
               <Label>Doctor</Label>
               <Select
                 value={form.doctor}
-                onValueChange={(v) => setForm((f) => ({ ...f, doctor: v }))}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, doctor: v, chamber: "" }))
+                }
               >
                 <SelectTrigger data-ocid="appointments.select">
                   <SelectValue placeholder="Select doctor (optional)" />
@@ -897,6 +1063,26 @@ function AppointmentsTab() {
                 </SelectContent>
               </Select>
             </div>
+            {chamberOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Preferred Chamber</Label>
+                <Select
+                  value={form.chamber}
+                  onValueChange={(v) => setForm((f) => ({ ...f, chamber: v }))}
+                >
+                  <SelectTrigger data-ocid="appointments.select">
+                    <SelectValue placeholder="Select chamber" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chamberOptions.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Reason / Notes</Label>
               <Textarea
@@ -957,10 +1143,16 @@ interface PublicBooking {
   patientName: string;
   phone: string;
   doctor: string;
-  date: string;
-  reason: string;
+  date?: string;
+  preferredDate?: string;
+  preferredTime?: string;
+  time?: string;
+  reason?: string;
   submittedAt: string;
   status: "pending" | "confirmed" | "cancelled";
+  registerNumber?: string;
+  chamber?: string;
+  preferredChamber?: string;
 }
 
 function loadPublicBookings(): PublicBooking[] {
@@ -979,7 +1171,6 @@ function savePublicBookings(data: PublicBooking[]) {
 
 function PublicBookingRequestsTab() {
   const [bookings, setBookings] = useState<PublicBooking[]>(loadPublicBookings);
-  // The booking currently being confirmed (triggers patient registration modal)
   const [confirmingBooking, setConfirmingBooking] =
     useState<PublicBooking | null>(null);
   const createPatient = useCreatePatient();
@@ -989,7 +1180,6 @@ function PublicBookingRequestsTab() {
     savePublicBookings(updated);
   };
 
-  /** Mark booking confirmed (called after patient registration) */
   const markConfirmed = (id: string) => {
     persistBookings(
       bookings.map((b) => (b.id === id ? { ...b, status: "confirmed" } : b)),
@@ -1003,7 +1193,6 @@ function PublicBookingRequestsTab() {
     toast.success("Booking cancelled.");
   };
 
-  /** Handle patient registration form submission from appointment confirmation */
   const handlePatientRegister = (data: PatientFormData) => {
     if (!confirmingBooking) return;
     createPatient.mutate(data, {
@@ -1051,7 +1240,7 @@ function PublicBookingRequestsTab() {
             {bookings.length} request{bookings.length !== 1 ? "s" : ""} from the
             public booking form.
           </p>
-          <div className="rounded-xl border overflow-hidden">
+          <div className="rounded-xl border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
@@ -1059,7 +1248,7 @@ function PublicBookingRequestsTab() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Doctor</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Reason</TableHead>
+                  <TableHead>Chamber</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -1071,15 +1260,29 @@ function PublicBookingRequestsTab() {
                     data-ocid={`public_bookings.item.${idx + 1}`}
                   >
                     <TableCell className="font-medium">
-                      {b.patientName}
+                      <div>
+                        {b.patientName}
+                        {b.registerNumber && (
+                          <p className="text-xs font-mono text-muted-foreground">
+                            {b.registerNumber}
+                          </p>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground text-sm">
                       {b.phone}
                     </TableCell>
                     <TableCell className="text-sm">{b.doctor}</TableCell>
-                    <TableCell className="text-sm">{b.date}</TableCell>
-                    <TableCell className="text-sm max-w-xs truncate text-muted-foreground">
-                      {b.reason || "—"}
+                    <TableCell className="text-sm">
+                      {b.preferredDate || b.date || "—"}
+                      {(b.preferredTime || b.time) && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          {b.preferredTime || b.time}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">
+                      {b.preferredChamber || b.chamber || "—"}
                     </TableCell>
                     <TableCell>{statusBadge(b.status)}</TableCell>
                     <TableCell>
@@ -1093,7 +1296,7 @@ function PublicBookingRequestsTab() {
                             data-ocid={`public_bookings.confirm_button.${idx + 1}`}
                           >
                             <UserPlus className="w-3 h-3" />
-                            Confirm & Register
+                            Confirm
                           </Button>
                         )}
                         {b.status === "confirmed" && (
@@ -1122,7 +1325,6 @@ function PublicBookingRequestsTab() {
         </div>
       )}
 
-      {/* Patient Registration Dialog (triggered on appointment confirmation) */}
       <Dialog
         open={!!confirmingBooking}
         onOpenChange={(open) => {
@@ -1136,7 +1338,7 @@ function PublicBookingRequestsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
-              Register Patient & Confirm Appointment
+              Register Patient &amp; Confirm Appointment
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
               Pre-filled from the booking request. Complete the details and save

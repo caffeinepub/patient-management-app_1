@@ -1,195 +1,169 @@
 import { Button } from "@/components/ui/button";
-import { doctors } from "@/data/doctorsData";
-import { Pencil, Printer, Save } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Download, Edit2, Eye, Printer, Save } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Prescription } from "../types";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PrescriptionPadProps {
   prescription?: Prescription | null;
   patientName?: string;
   patientAge?: number | null;
   patientWeight?: string;
+  patientHeight?: number | null;
   registerNumber?: string;
-  chiefComplaints?: string;
-  investigations?: string;
-  drugHistory?: string;
-  vitalSigns?: {
-    temperature?: string;
-    bloodPressure?: string;
-    pulse?: string;
-    oxygenSaturation?: string;
-  };
-  generalExam?: {
-    anemia?: string;
-    jaundice?: string;
-  };
-  nextVisitDate?: string;
+  bloodGroup?: string;
+  address?: string;
+  sex?: string;
   linkedVisitId?: string;
   patientId?: bigint | null;
 }
 
-type PadSize = "A4" | "A5";
-
-function BlankLine({ width = "100%" }: { width?: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        borderBottom: "1px solid #555",
-        width,
-        verticalAlign: "bottom",
-        minHeight: "1em",
-      }}
-    />
-  );
+interface RxDrug {
+  drugForm?: string;
+  drugName?: string;
+  brandName?: string;
+  dose?: string;
+  frequency?: string;
+  frequencyBn?: string;
+  duration?: string;
+  durationBn?: string;
+  instructions?: string;
+  instructionBn?: string;
+  specialInstruction?: string;
+  specialInstructionBn?: string;
+  routeBn?: string;
+  route?: string;
+  name?: string;
 }
 
-function ConditionBox({ label }: { label: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "3px",
-        marginRight: "8px",
-        fontSize: "9px",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span
-        style={{
-          display: "inline-block",
-          width: "10px",
-          height: "10px",
-          border: "1px solid #333",
-          flexShrink: 0,
-        }}
-      />
-      {label}
-    </span>
-  );
+interface ClinicalSnapshot {
+  cc?: string;
+  pmh?: string;
+  dh?: string;
+  oe?: string;
+  historyPersonal?: string;
+  historyFamily?: string;
+  historyImmunization?: string;
+  historyAllergy?: string;
+  historyOthers?: string;
+  investigation?: string;
+  adviceNewInv?: string;
+  adviceText?: string;
+  bloodGroup?: string;
+  address?: string;
+  sex?: string;
 }
 
-interface EditableSpanProps {
-  fieldKey: string;
-  value: string;
-  editMode: boolean;
-  editedFields: Record<string, string>;
-  onFieldChange: (key: string, val: string) => void;
-  style?: React.CSSProperties;
-  placeholder?: string;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractSnapshot(notes?: string): ClinicalSnapshot {
+  if (!notes) return {};
+  try {
+    return JSON.parse(notes) as ClinicalSnapshot;
+  } catch {
+    return { adviceText: notes };
+  }
 }
 
-function EditableSpan({
-  fieldKey,
-  value,
-  editMode,
-  editedFields,
-  onFieldChange,
-  style,
-  placeholder = "...",
-}: EditableSpanProps) {
-  const displayed = editedFields[fieldKey] ?? value;
-  return (
-    <span
-      contentEditable={editMode}
-      suppressContentEditableWarning
-      onBlur={(e) => onFieldChange(fieldKey, e.currentTarget.textContent || "")}
-      data-placeholder={placeholder}
-      style={{
-        outline: editMode ? "1px dashed #f59e0b" : "none",
-        minWidth: "40px",
-        display: "inline-block",
-        borderBottom: "1px solid #555",
-        paddingRight: "4px",
-        background: editMode ? "#fffbeb" : "transparent",
-        cursor: editMode ? "text" : "default",
-        ...style,
-      }}
-    >
-      {displayed || (editMode ? placeholder : "")}
-    </span>
-  );
+// biome-ignore lint/suspicious/noExplicitAny: normalization helper
+function normalizeDrug(m: any): RxDrug {
+  return {
+    drugForm: m.drugForm || m.form || "",
+    drugName: m.drugName || m.name || "",
+    brandName: m.brandName || "",
+    dose: m.dose || "",
+    frequency: m.frequency || "",
+    frequencyBn: m.frequencyBn || "",
+    duration: m.duration || "",
+    durationBn: m.durationBn || "",
+    instructions: m.instructions || "",
+    instructionBn: m.instructionBn || "",
+    specialInstruction: m.specialInstruction || "",
+    specialInstructionBn: m.specialInstructionBn || "",
+    routeBn: m.routeBn || "",
+    route: m.route || "",
+  };
 }
 
-// ─── Visit data helpers ────────────────────────────────────────────────────
+// ─── Print helper ─────────────────────────────────────────────────────────────
 
-function buildCCText(vd: any): string {
-  if (!vd) return "";
-  const lines: string[] = [];
-  const complaints: string[] = vd.chiefComplaints || [];
-  if (complaints.length > 0) {
-    lines.push(`Chief Complaints: ${complaints.join(", ")}`);
-    const answers: Record<
-      string,
-      Record<string, string>
-    > = vd.complaintAnswers || {};
-    for (const complaint of complaints) {
-      const qas = answers[complaint];
-      if (qas && Object.keys(qas).length > 0) {
-        const parts = Object.entries(qas)
-          .filter(([, v]) => v)
-          .map(([q, a]) => `${q}: ${a}`);
-        if (parts.length > 0) lines.push(`• ${complaint}: ${parts.join("; ")}`);
-      }
+function printElement(elementId: string) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><title>Prescription</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Georgia, serif; font-size: 11pt; margin: 15mm; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .grid { display: grid !important; }
+    .grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+    .col-span-2 { grid-column: span 2 / span 2 !important; }
+    .col-span-3 { grid-column: span 3 / span 3 !important; }
+    .gap-3 { gap: 0.75rem !important; }
+    .flex { display: flex !important; }
+    .flex-wrap { flex-wrap: wrap !important; }
+    .justify-between { justify-content: space-between !important; }
+    .items-start { align-items: flex-start !important; }
+    .gap-x-3 { column-gap: 0.75rem !important; }
+    .space-y-2 > * + * { margin-top: 0.5rem !important; }
+    .mb-1 { margin-bottom: 0.25rem !important; }
+    .mb-2 { margin-bottom: 0.5rem !important; }
+    .mb-3 { margin-bottom: 0.75rem !important; }
+    .mt-3 { margin-top: 0.75rem !important; }
+    .mt-8 { margin-top: 2rem !important; }
+    .pb-2 { padding-bottom: 0.5rem !important; }
+    .pt-1 { padding-top: 0.25rem !important; }
+    .pt-2 { padding-top: 0.5rem !important; }
+    .pl-4 { padding-left: 1rem !important; }
+    .pr-2 { padding-right: 0.5rem !important; }
+    .p-4 { padding: 1rem !important; }
+    .border-b { border-bottom: 1px solid #d1d5db !important; }
+    .border-t { border-top: 1px solid #d1d5db !important; }
+    .border-r { border-right: 1px solid #d1d5db !important; }
+    .border { border: 1px solid #d1d5db !important; }
+    .font-serif { font-family: Georgia, serif !important; }
+    .font-bold { font-weight: 700 !important; }
+    .font-semibold { font-weight: 600 !important; }
+    .text-base { font-size: 1rem !important; }
+    .text-sm { font-size: 0.875rem !important; }
+    .text-xs { font-size: 0.75rem !important; }
+    .text-2xl { font-size: 1.5rem !important; }
+    .text-right { text-align: right !important; }
+    .text-center { text-align: center !important; }
+    .uppercase { text-transform: uppercase !important; }
+    .whitespace-pre-wrap { white-space: pre-wrap !important; }
+    .leading-snug { line-height: 1.375 !important; }
+    .text-gray-900 { color: #111827 !important; }
+    .text-gray-600 { color: #4b5563 !important; }
+    .text-gray-500 { color: #6b7280 !important; }
+    .text-gray-400 { color: #9ca3af !important; }
+    .text-indigo-600 { color: #4f46e5 !important; }
+    .text-orange-600 { color: #ea580c !important; }
+    .text-teal-600 { color: #0d9488 !important; }
+    .text-blue-600 { color: #2563eb !important; }
+    .text-green-600 { color: #16a34a !important; }
+    .text-purple-600 { color: #9333ea !important; }
+    .text-amber-600 { color: #d97706 !important; }
+    .text-rose-600 { color: #e11d48 !important; }
+    strong { font-weight: 700 !important; }
+    .inline-block { display: inline-block !important; }
+    .min-w-\\[140px\\] { min-width: 140px !important; }
+    @media print {
+      body { margin: 10mm; }
+      .no-print { display: none !important; }
     }
-  }
-  const sysReview: Record<string, string[]> = vd.systemReviewAnswers || {};
-  const positiveSymptoms: string[] = [];
-  for (const [, symptoms] of Object.entries(sysReview)) {
-    for (const s of symptoms as string[]) {
-      if (s) positiveSymptoms.push(s);
-    }
-  }
-  if (positiveSymptoms.length > 0) {
-    lines.push(`System Review (+): ${positiveSymptoms.join(", ")}`);
-  }
-  return lines.join("\n");
+  </style></head><body>${el.innerHTML}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
 }
 
-function buildPMHText(vd: any): string {
-  if (!vd) return "";
-  const lines: string[] = [];
-  const pmh: string[] = vd.pastMedicalHistory || [];
-  if (pmh.length > 0) lines.push(`PMH: ${pmh.join(", ")}`);
-  const drugs: Array<{ name: string; dose?: string; duration?: string }> =
-    vd.drugHistory || [];
-  const drugFiltered = drugs.filter((d) => d.name?.trim());
-  if (drugFiltered.length > 0) {
-    const drugStr = drugFiltered
-      .map(
-        (d) =>
-          `${d.name}${d.dose ? ` ${d.dose}` : ""}${d.duration ? ` (${d.duration})` : ""}`,
-      )
-      .join(", ");
-    lines.push(`Drug History: ${drugStr}`);
-  }
-  const surgical: string[] = (vd.surgicalHistory || []).filter(Boolean);
-  if (surgical.length > 0)
-    lines.push(`Surgical History: ${surgical.join(", ")}`);
-  const family: string[] = (vd.familyHistory || []).filter(Boolean);
-  if (family.length > 0) lines.push(`Family History: ${family.join(", ")}`);
-  return lines.join("\n");
-}
-
-function buildInvestigationText(vd: any): string {
-  if (!vd) return "";
-  const lines: string[] = [];
-  const inv = vd.investigationProfile || {};
-  const prev: Array<{ name: string; result: string }> =
-    inv.previousReports || [];
-  if (prev.length > 0) {
-    lines.push(
-      `Previous: ${prev.map((r) => `${r.name} - ${r.result}`).join(", ")}`,
-    );
-  }
-  const advised: Array<{ name: string }> = inv.advised || [];
-  if (advised.length > 0) {
-    lines.push(`Advised: ${advised.map((a) => a.name).join(", ")}`);
-  }
-  return lines.join("\n");
-}
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PrescriptionPad({
   prescription,
@@ -197,1011 +171,662 @@ export default function PrescriptionPad({
   patientAge,
   patientWeight,
   registerNumber,
-  chiefComplaints,
-  investigations,
-  drugHistory,
-  vitalSigns,
-  generalExam,
-  nextVisitDate,
+  bloodGroup,
+  address,
+  sex,
   linkedVisitId,
   patientId,
 }: PrescriptionPadProps) {
-  const [size, setSize] = useState<PadSize>("A4");
   const [editMode, setEditMode] = useState(false);
-  const [editedFields, setEditedFields] = useState<Record<string, string>>({});
-  const [selectedChamberIdx, setSelectedChamberIdx] = useState(0);
-
-  const getStoredChambers = () => {
-    try {
-      const overrides = JSON.parse(
-        localStorage.getItem("doctorContentOverrides") || "{}",
-      );
-      return overrides?.arman?.chambers || null;
-    } catch {
-      return null;
-    }
-  };
-
-  const chambers: any[] = getStoredChambers() || doctors.arman.chambers;
+  const [withHeader, setWithHeader] = useState(true);
 
   const rxId =
     prescription?.id !== undefined ? String(prescription.id) : "blank";
-  const storageKey = `rx_pad_edits_${rxId}`;
+  const padStorageKey = `rx_pad_preview_edits_${rxId}`;
 
+  const snapshot = extractSnapshot(prescription?.notes);
+
+  // All editable fields
+  const [name, setName] = useState(patientName || "");
+  const [age, setAge] = useState(patientAge != null ? String(patientAge) : "");
+  const [weightVal, setWeightVal] = useState(patientWeight || "");
+  const [regNo, setRegNo] = useState(registerNumber || "");
+  const [bg, setBg] = useState(bloodGroup || snapshot.bloodGroup || "");
+  const [addr, setAddr] = useState(address || snapshot.address || "");
+  const [sexVal, setSexVal] = useState(sex || snapshot.sex || "");
+  const [rxDate, setRxDate] = useState(
+    prescription?.prescriptionDate
+      ? new Date(
+          Number(prescription.prescriptionDate / 1000000n),
+        ).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+  );
+  const [diagnosisVal, setDiagnosisVal] = useState(
+    prescription?.diagnosis || "",
+  );
+  const [cc, setCc] = useState(snapshot.cc || "");
+  const [pmh, setPmh] = useState(snapshot.pmh || "");
+  const [dh, setDh] = useState(snapshot.dh || "");
+  const [oe, setOe] = useState(snapshot.oe || "");
+  const [historyPersonal, setHistoryPersonal] = useState(
+    snapshot.historyPersonal || "",
+  );
+  const [historyFamily, setHistoryFamily] = useState(
+    snapshot.historyFamily || "",
+  );
+  const [historyImmunization, setHistoryImmunization] = useState(
+    snapshot.historyImmunization || "",
+  );
+  const [historyAllergy, setHistoryAllergy] = useState(
+    snapshot.historyAllergy || "",
+  );
+  const [historyOthers, setHistoryOthers] = useState(
+    snapshot.historyOthers || "",
+  );
+  const [investigation, setInvestigation] = useState(
+    snapshot.investigation || "",
+  );
+  const [adviceNewInv, setAdviceNewInv] = useState(snapshot.adviceNewInv || "");
+  const [adviceText, setAdviceText] = useState(snapshot.adviceText || "");
+  const drugs: RxDrug[] = (prescription?.medications || []).map(normalizeDrug);
+
+  // Load saved pad edits from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setEditedFields(JSON.parse(saved));
+      const saved = localStorage.getItem(padStorageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.cc !== undefined) setCc(data.cc);
+        if (data.pmh !== undefined) setPmh(data.pmh);
+        if (data.dh !== undefined) setDh(data.dh);
+        if (data.oe !== undefined) setOe(data.oe);
+        if (data.investigation !== undefined)
+          setInvestigation(data.investigation);
+        if (data.adviceText !== undefined) setAdviceText(data.adviceText);
+        if (data.diagnosisVal !== undefined) setDiagnosisVal(data.diagnosisVal);
+      }
     } catch {
       // ignore
     }
-  }, [storageKey]);
+  }, [padStorageKey]);
 
-  const [visitData, setVisitData] = useState<any>(null);
-
+  // If visit data available, try to enrich from it
   useEffect(() => {
     if (!linkedVisitId) return;
     const allKeys = Object.keys(localStorage);
     const matchKey = allKeys.find((k) =>
       k.includes(`visit_form_data_${linkedVisitId}`),
     );
-    if (matchKey) {
-      try {
-        setVisitData(JSON.parse(localStorage.getItem(matchKey) || "null"));
-      } catch {
-        // ignore
-      }
-    }
-  }, [linkedVisitId]);
-
-  const customPdfName = localStorage.getItem("prescription_pad_pdf_name");
-  const customPdf = localStorage.getItem("prescription_pad_pdf");
-  const padRef = useRef<HTMLDivElement>(null);
-
-  const dateStr = prescription
-    ? new Date(
-        Number(prescription.prescriptionDate / 1000000n),
-      ).toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    : "";
-
-  const medications = prescription?.medications ?? [];
-  const diagnosis = prescription?.diagnosis ?? "";
-
-  const handleFieldChange = (key: string, val: string) => {
-    setEditedFields((prev) => ({ ...prev, [key]: val }));
-  };
-
-  const savePadMetadata = () => {
-    if (!patientId) return;
-    const key = `savedPrescriptionPads_${patientId}`;
+    if (!matchKey) return;
     try {
-      const existing = JSON.parse(localStorage.getItem(key) || "[]");
-      const meta = {
-        id: `pad_${Date.now()}`,
-        patientId: String(patientId),
-        prescriptionId: rxId,
-        date: new Date().toLocaleDateString("en-GB"),
-        timestamp: new Date().toISOString(),
-        editedFields: { ...editedFields },
-        medications: prescription?.medications ?? [],
-        diagnosis: prescription?.diagnosis ?? "",
-        patientName: patientName ?? "",
-      };
-      existing.push(meta);
-      localStorage.setItem(key, JSON.stringify(existing));
+      // biome-ignore lint/suspicious/noExplicitAny: visit form data is dynamic
+      const vd = JSON.parse(localStorage.getItem(matchKey) || "null") as Record<
+        string,
+        any
+      > | null;
+      if (!vd) return;
+      // Only fill if not already populated from snapshot
+      if (!cc && vd.chiefComplaints?.length) {
+        const complaints: string[] = vd.chiefComplaints;
+        const answers: Record<
+          string,
+          Record<string, string>
+        > = vd.complaintAnswers || {};
+        const lines = complaints.map((c: string, i: number) => {
+          const ans = answers[c];
+          const vals = ans ? Object.values(ans).filter(Boolean) : [];
+          return vals.length
+            ? `${i + 1}. ${c} — ${vals.join(", ")}`
+            : `${i + 1}. ${c}`;
+        });
+        setCc(lines.join("\n"));
+      }
     } catch {
       // ignore
     }
-  };
+  }, [linkedVisitId, cc]);
 
-  const handleSave = () => {
+  const savePad = () => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(editedFields));
-      savePadMetadata();
-      toast.success("Prescription saved");
+      localStorage.setItem(
+        padStorageKey,
+        JSON.stringify({
+          cc,
+          pmh,
+          dh,
+          oe,
+          investigation,
+          adviceText,
+          diagnosisVal,
+        }),
+      );
+      // Save metadata for patient profile download
+      if (patientId) {
+        const key = `savedPrescriptionPads_${patientId}`;
+        const existing = (() => {
+          try {
+            return JSON.parse(localStorage.getItem(key) || "[]");
+          } catch {
+            return [];
+          }
+        })();
+        const meta = {
+          id: `pad_${Date.now()}`,
+          patientId: String(patientId),
+          prescriptionId: rxId,
+          date: new Date().toLocaleDateString("en-GB"),
+          timestamp: new Date().toISOString(),
+          patientName: name,
+          diagnosis: diagnosisVal,
+          medications: prescription?.medications ?? [],
+        };
+        existing.push(meta);
+        localStorage.setItem(key, JSON.stringify(existing));
+      }
+      toast.success("Prescription pad saved");
+      setEditMode(false);
     } catch {
-      toast.error("Failed to save changes");
-    }
-    setEditMode(false);
-  };
-
-  const handlePrint = () => {
-    const printContent = padRef.current?.innerHTML ?? "";
-    const pageSize = size === "A4" ? "A4" : "A5";
-    const margin = size === "A4" ? "10mm" : "8mm";
-
-    const printHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Prescription</title>
-  <style>
-    @page { size: ${pageSize}; margin: ${margin}; }
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: Arial, sans-serif; background: #fff; color: #111; }
-    [contenteditable] { outline: none !important; background: transparent !important; cursor: default !important; }
-    @media print { body { margin: 0; } }
-  </style>
-</head>
-<body>
-  ${printContent}
-</body>
-</html>`;
-
-    savePadMetadata();
-    const win = window.open("", "_blank", "width=900,height=1100");
-    if (win) {
-      win.document.write(printHtml);
-      win.document.close();
-      win.focus();
-      setTimeout(() => {
-        win.print();
-      }, 400);
+      toast.error("Failed to save");
     }
   };
 
-  const padWidth = size === "A4" ? "210mm" : "148mm";
-  const padMinHeight = size === "A4" ? "297mm" : "210mm";
-  const baseFontSize = size === "A4" ? "10px" : "9px";
+  const hasHistory =
+    historyPersonal ||
+    historyFamily ||
+    historyImmunization ||
+    historyAllergy ||
+    historyOthers;
 
-  const ef = editedFields;
-  const fc = handleFieldChange;
+  const printId = "rx-pad-2col-print";
 
   return (
-    <div>
-      {customPdf && (
-        <a
-          href={customPdf}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 mb-3 px-3 py-1.5 text-sm rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors font-medium"
-          data-ocid="prescription_pad.secondary_button"
-        >
-          📄 View Uploaded Prescription Template
-          {customPdfName ? ` (${customPdfName})` : ""}
-        </a>
-      )}
-      {/* Toolbar — hidden on print */}
+    <div className="space-y-4">
+      {/* Toolbar */}
       <div
-        className="flex items-center gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap"
-        style={{ fontFamily: "system-ui" }}
+        className="flex flex-wrap items-center gap-2 bg-muted/40 border rounded-xl p-3"
         data-ocid="prescription_pad.panel"
       >
-        {chambers.length > 1 && (
-          <>
-            <span className="text-sm font-medium text-gray-600">Chamber:</span>
-            <select
-              value={selectedChamberIdx}
-              onChange={(e) => setSelectedChamberIdx(Number(e.target.value))}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 mr-2"
-              data-ocid="prescription_pad.select"
-            >
-              {chambers.map((c: any, i: number) => (
-                <option key={c.id || i} value={i}>
-                  {c.address || c.nameBn || `Chamber ${i + 1}`}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-        <span className="text-sm font-medium text-gray-600 mr-2">Size:</span>
-        <button
+        <Button
           type="button"
-          onClick={() => setSize("A4")}
-          className={`px-3 py-1 text-sm rounded border transition-colors ${
-            size === "A4"
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-          }`}
-          data-ocid="prescription_pad.toggle"
+          size="sm"
+          variant="outline"
+          onClick={() => setEditMode((v) => !v)}
+          className={`gap-1.5 ${editMode ? "bg-amber-50 border-amber-300 text-amber-700" : "border-border"}`}
+          data-ocid="prescription_pad.edit_button"
         >
-          A4
-        </button>
-        <button
-          type="button"
-          onClick={() => setSize("A5")}
-          className={`px-3 py-1 text-sm rounded border transition-colors ${
-            size === "A5"
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-          }`}
-          data-ocid="prescription_pad.toggle"
-        >
-          A5 (Half A4)
-        </button>
-
-        {/* Edit Mode Badge */}
-        {editMode && (
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300">
-            ✏ Edit Mode
-          </span>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
           {editMode ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              className="gap-2 border-green-400 text-green-700 hover:bg-green-50"
-              data-ocid="prescription_pad.save_button"
-            >
-              <Save className="w-4 h-4" />
-              Save
-            </Button>
+            <>
+              <Save className="w-3.5 h-3.5" /> Save & View
+            </>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setEditMode(true)}
-              className="gap-2 border-amber-400 text-amber-700 hover:bg-amber-50"
-              data-ocid="prescription_pad.edit_button"
-            >
-              <Pencil className="w-4 h-4" />
-              Edit
-            </Button>
+            <>
+              <Edit2 className="w-3.5 h-3.5" /> Edit Mode
+            </>
           )}
+        </Button>
+        {editMode && (
           <Button
             type="button"
-            variant="outline"
             size="sm"
-            onClick={handlePrint}
-            className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50"
-            data-ocid="prescription_pad.primary_button"
+            variant="outline"
+            onClick={savePad}
+            className="gap-1.5 border-green-400 text-green-700 hover:bg-green-50"
+            data-ocid="prescription_pad.save_button"
           >
-            <Printer className="w-4 h-4" />
-            Print
+            <Save className="w-3.5 h-3.5" /> Save
           </Button>
-        </div>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={`gap-1.5 ${withHeader ? "bg-teal-50 border-teal-300 text-teal-700" : "border-border text-muted-foreground"}`}
+          onClick={() => setWithHeader((v) => !v)}
+          data-ocid="prescription_pad.toggle"
+        >
+          {withHeader ? "With Header" : "Without Header"}
+        </Button>
+        <div className="flex-1" />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => printElement(printId)}
+          className="gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-50"
+          data-ocid="prescription_pad.primary_button"
+        >
+          <Printer className="w-4 h-4" /> Print
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => printElement(printId)}
+          className="gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+          data-ocid="prescription_pad.secondary_button"
+        >
+          <Download className="w-4 h-4" /> Save PDF
+        </Button>
       </div>
 
-      {/* Prescription Pad */}
-      <div
-        ref={padRef}
-        style={{
-          width: padWidth,
-          minHeight: padMinHeight,
-          background: "#fff",
-          color: "#111",
-          fontFamily: "Arial, Helvetica, sans-serif",
-          fontSize: baseFontSize,
-          padding: size === "A4" ? "12mm 12mm 10mm" : "8mm 8mm 8mm",
-          boxSizing: "border-box",
-          border: "1px solid #ddd",
-          position: "relative",
-          margin: "0 auto",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}
-      >
-        {/* ===== HEADER ===== */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: "6px",
-          }}
-        >
-          {/* Left: S.N. + Chamber */}
-          <div style={{ flex: "0 0 42%", paddingRight: "8px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: "6px",
-                marginBottom: "8px",
-              }}
-            >
-              <span style={{ fontWeight: 700, fontSize: "10px" }}>S.N.</span>
-              <EditableSpan
-                fieldKey="sn"
-                value=""
-                editMode={editMode}
-                editedFields={ef}
-                onFieldChange={fc}
-                style={{ minWidth: "80px" }}
-                placeholder="___"
+      {/* Edit mode shows patient info inputs */}
+      {editMode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {(
+            [
+              ["Name", name, setName],
+              ["Age (yrs)", age, setAge],
+              ["Sex", sexVal, setSexVal],
+              ["Weight (kg)", weightVal, setWeightVal],
+              ["Blood Group", bg, setBg],
+              ["Reg No", regNo, setRegNo],
+              ["Date", rxDate, setRxDate],
+            ] as [string, string, (v: string) => void][]
+          ).map(([label, val, setter]) => (
+            <div key={label}>
+              <Label className="text-xs text-blue-700 font-semibold">
+                {label}
+              </Label>
+              <input
+                value={val}
+                onChange={(e) => setter(e.target.value)}
+                className="w-full border border-blue-200 rounded px-2 py-1 text-xs mt-0.5 bg-white"
               />
             </div>
-            <div style={{ marginBottom: "3px" }}>
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: "10px",
-                  display: "block",
-                  marginBottom: "4px",
-                }}
-              >
-                চেম্বার :
-              </span>
-              <div
-                style={{
-                  fontSize: "9px",
-                  lineHeight: "1.55",
-                  color: "#222",
-                  fontFamily: "'Noto Sans Bengali', Arial, sans-serif",
-                }}
-              >
-                {(() => {
-                  const ch = chambers[selectedChamberIdx] || chambers[0];
-                  if (!ch) return null;
-                  if (ch.nameBn) {
-                    return (
-                      <>
-                        <div>{ch.nameBn}</div>
-                        {ch.addressBn
-                          ? ch.addressBn
-                              .split("\n")
-                              .map((line: string) => (
-                                <div key={line}>{line}</div>
-                              ))
-                          : ch.address && <div>{ch.address}</div>}
-                      </>
-                    );
-                  }
-                  return <div>{ch.address}</div>;
-                })()}
+          ))}
+          <div className="col-span-2">
+            <Label className="text-xs text-blue-700 font-semibold">
+              Address
+            </Label>
+            <input
+              value={addr}
+              onChange={(e) => setAddr(e.target.value)}
+              className="w-full border border-blue-200 rounded px-2 py-1 text-xs mt-0.5 bg-white"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* The printable 2-column prescription */}
+      <div
+        id={printId}
+        className="font-serif text-gray-900 border border-gray-200 p-4 rounded bg-white"
+      >
+        {/* Header */}
+        {withHeader && (
+          <div className="border-b pb-2 mb-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="font-bold text-base">Dr. Arman Kabir (ZOSID)</h2>
+                <p className="text-sm text-gray-600">
+                  MBBS (D.U.) | Emergency Medical Officer
+                </p>
+                <p className="text-sm text-gray-600">
+                  Dr. Sirajul Islam Medical College Hospital
+                </p>
+                <p className="text-sm text-gray-600">
+                  Registrar, Dept. of General Surgery uDC
+                </p>
+              </div>
+              <div className="text-right text-sm text-gray-600">
+                <p>Reg. no. A-105224</p>
+                <p>Mob: 01751959262 / 01984587802</p>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Right: Doctor Info */}
-          <div style={{ textAlign: "right", flex: "0 0 56%" }}>
-            <div
-              style={{
-                fontWeight: 900,
-                fontSize: size === "A4" ? "15px" : "12px",
-                letterSpacing: "0.3px",
-                color: "#0a1a3a",
-                marginBottom: "2px",
-                fontFamily: "Arial Black, Arial, sans-serif",
-              }}
-            >
-              DR. ARMAN KABIR (ZOSID)
-            </div>
-            <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#222" }}>
-              <div>MBBS (D.U.)</div>
-              <div>Emergency Medical Officer</div>
-              <div>Dr. Sirajul Islam Medical College Hospital</div>
-              <div>Registrar</div>
-              <div>Dept. of General Surgery uDC</div>
-              <div style={{ marginTop: "2px" }}>Reg. no. A-105224</div>
-              <div style={{ marginTop: "3px" }}>Mob.no. 01751959262</div>
-              <div style={{ paddingLeft: "38px" }}>01984587802</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <hr
-          style={{
-            border: "none",
-            borderTop: "1.5px solid #333",
-            margin: "5px 0",
-          }}
-        />
-
-        {/* ===== PATIENT INFO ROW ===== */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "10px",
-            padding: "4px 0",
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ whiteSpace: "nowrap" }}>
-            <span style={{ fontWeight: 700 }}>Name: </span>
-            <EditableSpan
-              fieldKey="patient_name"
-              value={patientName ?? ""}
-              editMode={editMode}
-              editedFields={ef}
-              onFieldChange={fc}
-              style={{ minWidth: "130px" }}
-              placeholder="Patient Name"
-            />
-          </span>
-          {registerNumber && (
-            <span style={{ whiteSpace: "nowrap" }}>
-              <span style={{ fontWeight: 700 }}>Reg.: </span>
-              <span style={{ fontFamily: "monospace", fontSize: "10px" }}>
-                {registerNumber}
-              </span>
+        {/* Patient info line */}
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm border-b pb-2 mb-3">
+          {name && (
+            <span>
+              <strong>Name:</strong> {name}
             </span>
           )}
-          <span style={{ whiteSpace: "nowrap" }}>
-            <span style={{ fontWeight: 700 }}>Age: </span>
-            <EditableSpan
-              fieldKey="patient_age"
-              value={
-                patientAge !== undefined && patientAge !== null
-                  ? `${patientAge} yrs`
-                  : ""
-              }
-              editMode={editMode}
-              editedFields={ef}
-              onFieldChange={fc}
-              style={{ minWidth: "50px" }}
-              placeholder="Age"
-            />
+          {age && (
+            <span>
+              <strong>Age:</strong> {age} <strong>yrs</strong>
+            </span>
+          )}
+          {sexVal && (
+            <span>
+              <strong>Sex:</strong> {sexVal}
+            </span>
+          )}
+          {weightVal && (
+            <span>
+              <strong>Weight:</strong> {weightVal} <strong>kg</strong>
+            </span>
+          )}
+          {bg && (
+            <span>
+              <strong>Blood Group:</strong> {bg}
+            </span>
+          )}
+          {regNo && (
+            <span>
+              <strong>Reg:</strong> {regNo}
+            </span>
+          )}
+          <span>
+            <strong>Date:</strong> {rxDate}
           </span>
-          <span style={{ whiteSpace: "nowrap" }}>
-            <span style={{ fontWeight: 700 }}>Weight: </span>
-            <EditableSpan
-              fieldKey="patient_wt"
-              value={patientWeight ?? ""}
-              editMode={editMode}
-              editedFields={ef}
-              onFieldChange={fc}
-              style={{ minWidth: "45px" }}
-              placeholder="Weight"
-            />
-          </span>
-          <span style={{ whiteSpace: "nowrap" }}>
-            <span style={{ fontWeight: 700 }}>Date: </span>
-            <EditableSpan
-              fieldKey="date"
-              value={dateStr}
-              editMode={editMode}
-              editedFields={ef}
-              onFieldChange={fc}
-              style={{ minWidth: "70px" }}
-              placeholder="Date"
-            />
-          </span>
+          {addr && (
+            <span>
+              <strong>Address:</strong> {addr}
+            </span>
+          )}
         </div>
 
-        {/* Divider */}
-        <hr
-          style={{
-            border: "none",
-            borderTop: "1.5px solid #333",
-            margin: "5px 0",
-          }}
-        />
-
-        {/* ===== TWO-COLUMN BODY ===== */}
-        <div
-          style={{
-            display: "flex",
-            gap: "0",
-            minHeight: size === "A4" ? "190mm" : "130mm",
-          }}
-        >
-          {/* LEFT COLUMN */}
-          <div
-            style={{
-              flex: "0 0 44%",
-              paddingRight: "10px",
-              paddingTop: "6px",
-            }}
-          >
-            {/* C/C */}
-            <div style={{ marginBottom: "10px" }}>
-              <div
-                style={{
-                  fontWeight: 700,
-                  marginBottom: "4px",
-                  fontSize: "10px",
-                }}
-              >
-                C/C
-              </div>
-              <span
-                contentEditable={editMode}
-                suppressContentEditableWarning
-                onBlur={(e) => fc("cc", e.currentTarget.textContent || "")}
-                style={{
-                  display: "block",
-                  fontSize: "9.5px",
-                  lineHeight: "1.7",
-                  borderBottom: "1px solid #aaa",
-                  paddingBottom: "2px",
-                  whiteSpace: "pre-wrap",
-                  outline: editMode ? "1px dashed #f59e0b" : "none",
-                  background: editMode ? "#fffbeb" : "transparent",
-                  minHeight: "36px",
-                  cursor: editMode ? "text" : "default",
-                }}
-              >
-                {ef.cc ??
-                  (visitData ? buildCCText(visitData) : chiefComplaints) ??
-                  ""}
-              </span>
-              {!(ef.cc ?? chiefComplaints) && !editMode && (
-                <div style={{ lineHeight: "1.8" }}>
-                  <BlankLine width="100%" />
-                  <br />
-                  <BlankLine width="100%" />
-                  <br />
-                  <BlankLine width="80%" />
+        {/* 2-column body */}
+        <div className="grid grid-cols-5 gap-3">
+          {/* LEFT: Clinical Summary */}
+          <div className="col-span-2 space-y-2 text-sm border-r pr-2">
+            {(cc || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-blue-600 mb-0.5">
+                  C/C
                 </div>
-              )}
-            </div>
-
-            {/* Condition Checkboxes: DM | HTN | Asthma | CKD */}
-            <div
-              style={{
-                margin: "8px 0",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "2px",
-              }}
-            >
-              <ConditionBox label="DM" />
-              <ConditionBox label="HTN" />
-              <ConditionBox label="Asthma" />
-              <ConditionBox label="CKD" />
-            </div>
-
-            {/* D/H */}
-            <div style={{ marginBottom: "10px" }}>
-              <div
-                style={{
-                  fontWeight: 700,
-                  marginBottom: "4px",
-                  fontSize: "10px",
-                }}
-              >
-                D/H:
+                {editMode ? (
+                  <Textarea
+                    value={cc}
+                    onChange={(e) => setCc(e.target.value)}
+                    className="text-xs min-h-[60px] resize-none"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-xs">{cc}</div>
+                )}
               </div>
-              <span
-                contentEditable={editMode}
-                suppressContentEditableWarning
-                onBlur={(e) => fc("dh", e.currentTarget.textContent || "")}
-                style={{
-                  display: "block",
-                  fontSize: "9.5px",
-                  lineHeight: "1.7",
-                  borderBottom: "1px solid #aaa",
-                  paddingBottom: "2px",
-                  whiteSpace: "pre-wrap",
-                  outline: editMode ? "1px dashed #f59e0b" : "none",
-                  background: editMode ? "#fffbeb" : "transparent",
-                  minHeight: "28px",
-                  cursor: editMode ? "text" : "default",
-                }}
-              >
-                {ef.dh ??
-                  (visitData ? buildPMHText(visitData) : drugHistory) ??
-                  ""}
-              </span>
-              {!(ef.dh ?? drugHistory) && !editMode && (
-                <div style={{ lineHeight: "1.8" }}>
-                  <BlankLine width="100%" />
-                  <br />
-                  <BlankLine width="100%" />
+            )}
+            {(pmh || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-green-600 mb-0.5">
+                  P/M/H
                 </div>
-              )}
-            </div>
-
-            {/* O/E */}
-            <div style={{ marginBottom: "10px" }}>
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: "10px",
-                  marginBottom: "5px",
-                }}
-              >
-                O/E:
+                {editMode ? (
+                  <Textarea
+                    value={pmh}
+                    onChange={(e) => setPmh(e.target.value)}
+                    className="text-xs min-h-[50px] resize-none"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-xs">{pmh}</div>
+                )}
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "4px 10px",
-                  lineHeight: "1.8",
-                }}
-              >
-                <span style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontWeight: 600 }}>Temp: </span>
-                  <EditableSpan
-                    fieldKey="oe_temp"
-                    value={
-                      vitalSigns?.temperature ??
-                      visitData?.vitalSigns?.temperature ??
-                      ""
-                    }
-                    editMode={editMode}
-                    editedFields={ef}
-                    onFieldChange={fc}
-                    style={{ minWidth: "36px" }}
-                    placeholder="__"
-                  />
-                </span>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontWeight: 600 }}>B.P.: </span>
-                  <EditableSpan
-                    fieldKey="oe_bp"
-                    value={
-                      vitalSigns?.bloodPressure ??
-                      visitData?.vitalSigns?.bloodPressure ??
-                      ""
-                    }
-                    editMode={editMode}
-                    editedFields={ef}
-                    onFieldChange={fc}
-                    style={{ minWidth: "40px" }}
-                    placeholder="__/__"
-                  />
-                </span>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontWeight: 600 }}>Pulse: </span>
-                  <EditableSpan
-                    fieldKey="oe_pulse"
-                    value={
-                      vitalSigns?.pulse ?? visitData?.vitalSigns?.pulse ?? ""
-                    }
-                    editMode={editMode}
-                    editedFields={ef}
-                    onFieldChange={fc}
-                    style={{ minWidth: "36px" }}
-                    placeholder="__"
-                  />
-                </span>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontWeight: 600 }}>SpO2: </span>
-                  <EditableSpan
-                    fieldKey="oe_spo2"
-                    value={
-                      vitalSigns?.oxygenSaturation
-                        ? `${vitalSigns.oxygenSaturation}%`
-                        : visitData?.vitalSigns?.oxygenSaturation
-                          ? `${visitData.vitalSigns.oxygenSaturation}%`
-                          : ""
-                    }
-                    editMode={editMode}
-                    editedFields={ef}
-                    onFieldChange={fc}
-                    style={{ minWidth: "36px" }}
-                    placeholder="__%"
-                  />
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  marginTop: "5px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <span style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontWeight: 600 }}>Anemia: </span>
-                  <EditableSpan
-                    fieldKey="oe_anemia"
-                    value={
-                      generalExam?.anemia ??
-                      (visitData?.generalExamFindings?.Anemia ||
-                        visitData?.generalExamFindings?.Anaemia ||
-                        "")
-                    }
-                    editMode={editMode}
-                    editedFields={ef}
-                    onFieldChange={fc}
-                    style={{ minWidth: "40px" }}
-                    placeholder="__"
-                  />
-                </span>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontWeight: 600 }}>Jaundice: </span>
-                  <EditableSpan
-                    fieldKey="oe_jaundice"
-                    value={
-                      generalExam?.jaundice ??
-                      (visitData?.generalExamFindings?.Jaundice ||
-                        visitData?.generalExamFindings?.jaundice ||
-                        "")
-                    }
-                    editMode={editMode}
-                    editedFields={ef}
-                    onFieldChange={fc}
-                    style={{ minWidth: "40px" }}
-                    placeholder="__"
-                  />
-                </span>
-              </div>
-            </div>
-
-            {/* Investigation */}
-            <div style={{ marginBottom: "8px" }}>
-              <div
-                style={{
-                  fontWeight: 700,
-                  marginBottom: "4px",
-                  fontSize: "10px",
-                }}
-              >
-                Investigation:
-              </div>
-              <span
-                contentEditable={editMode}
-                suppressContentEditableWarning
-                onBlur={(e) =>
-                  fc("investigation", e.currentTarget.textContent || "")
-                }
-                style={{
-                  display: "block",
-                  fontSize: "9.5px",
-                  lineHeight: "1.7",
-                  whiteSpace: "pre-wrap",
-                  outline: editMode ? "1px dashed #f59e0b" : "none",
-                  background: editMode ? "#fffbeb" : "transparent",
-                  minHeight: "28px",
-                  cursor: editMode ? "text" : "default",
-                }}
-              >
-                {ef.investigation ??
-                  (visitData
-                    ? buildInvestigationText(visitData)
-                    : investigations) ??
-                  ""}
-              </span>
-              {!(ef.investigation ?? investigations) && !editMode && (
-                <div style={{ lineHeight: "1.8" }}>
-                  <BlankLine width="100%" />
-                  <br />
-                  <BlankLine width="100%" />
-                  <br />
-                  <BlankLine width="70%" />
+            )}
+            {(hasHistory || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-purple-600 mb-0.5">
+                  History
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Vertical Divider */}
-          <div
-            style={{
-              width: "1.5px",
-              background: "#333",
-              alignSelf: "stretch",
-              flexShrink: 0,
-            }}
-          />
-
-          {/* RIGHT COLUMN */}
-          <div
-            style={{
-              flex: "1",
-              paddingLeft: "12px",
-              paddingTop: "4px",
-            }}
-          >
-            {/* Rx Symbol */}
-            <div
-              style={{
-                fontFamily: "'Times New Roman', Georgia, serif",
-                fontStyle: "italic",
-                fontWeight: 700,
-                fontSize: size === "A4" ? "38px" : "28px",
-                lineHeight: 1,
-                color: "#0a1a3a",
-                marginBottom: "6px",
-                letterSpacing: "-1px",
-              }}
-            >
-              &#8478;
-            </div>
-
-            {/* Diagnosis */}
-            <div style={{ marginBottom: "8px" }}>
-              <span style={{ fontWeight: 700, fontSize: "10px" }}>D/M: </span>
-              <EditableSpan
-                fieldKey="diagnosis"
-                value={diagnosis}
-                editMode={editMode}
-                editedFields={ef}
-                onFieldChange={fc}
-                style={{ fontSize: "9.5px", minWidth: "100px" }}
-                placeholder="Diagnosis"
-              />
-            </div>
-
-            {/* Treatment */}
-            <div
-              style={{ fontWeight: 700, fontSize: "10px", marginBottom: "6px" }}
-            >
-              Treatment:
-            </div>
-
-            {medications.length > 0 ? (
-              <div style={{ lineHeight: "1.75" }}>
-                {medications.map((med, i) => (
-                  <div
-                    key={`${med.name}-${i}`}
-                    style={{
-                      marginBottom: "8px",
-                      paddingBottom: "6px",
-                      borderBottom:
-                        i < medications.length - 1 ? "1px dotted #ccc" : "none",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "10.5px",
-                        display: "flex",
-                        alignItems: "baseline",
-                        gap: "4px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: "'Times New Roman', serif",
-                          fontStyle: "italic",
-                          fontSize: "11px",
-                          marginRight: "2px",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {i + 1}.
-                      </span>
-                      <EditableSpan
-                        fieldKey={`med_${i}_name`}
-                        value={med.name}
-                        editMode={editMode}
-                        editedFields={ef}
-                        onFieldChange={fc}
-                        style={{ fontWeight: 700, minWidth: "80px" }}
-                        placeholder="Drug name"
-                      />
-                      <EditableSpan
-                        fieldKey={`med_${i}_dose`}
-                        value={med.dose ?? ""}
-                        editMode={editMode}
-                        editedFields={ef}
-                        onFieldChange={fc}
-                        style={{
-                          fontWeight: 400,
-                          fontSize: "9.5px",
-                          minWidth: "40px",
-                        }}
-                        placeholder="dose"
+                {editMode ? (
+                  <div className="space-y-1">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Personal
+                      </Label>
+                      <Textarea
+                        value={historyPersonal}
+                        onChange={(e) => setHistoryPersonal(e.target.value)}
+                        className="text-xs min-h-[30px] resize-none"
                       />
                     </div>
-                    <div
-                      style={{
-                        fontSize: "9px",
-                        color: "#333",
-                        paddingLeft: "14px",
-                        marginTop: "1px",
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "2px",
-                        alignItems: "baseline",
-                      }}
-                    >
-                      <EditableSpan
-                        fieldKey={`med_${i}_freq`}
-                        value={med.frequency ?? ""}
-                        editMode={editMode}
-                        editedFields={ef}
-                        onFieldChange={fc}
-                        style={{ minWidth: "50px" }}
-                        placeholder="frequency"
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Family
+                      </Label>
+                      <Textarea
+                        value={historyFamily}
+                        onChange={(e) => setHistoryFamily(e.target.value)}
+                        className="text-xs min-h-[30px] resize-none"
                       />
-                      {(ef[`med_${i}_freq`] ?? med.frequency) &&
-                        (ef[`med_${i}_dur`] ?? med.duration) && (
-                          <span> · </span>
-                        )}
-                      <EditableSpan
-                        fieldKey={`med_${i}_dur`}
-                        value={med.duration ?? ""}
-                        editMode={editMode}
-                        editedFields={ef}
-                        onFieldChange={fc}
-                        style={{ minWidth: "40px" }}
-                        placeholder="duration"
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Immunization
+                      </Label>
+                      <Textarea
+                        value={historyImmunization}
+                        onChange={(e) => setHistoryImmunization(e.target.value)}
+                        className="text-xs min-h-[30px] resize-none"
                       />
-                      <EditableSpan
-                        fieldKey={`med_${i}_instr`}
-                        value={med.instructions ?? ""}
-                        editMode={editMode}
-                        editedFields={ef}
-                        onFieldChange={fc}
-                        style={{
-                          fontStyle: "italic",
-                          color: "#555",
-                          display: "block",
-                          minWidth: "80px",
-                        }}
-                        placeholder="instructions"
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Allergy
+                      </Label>
+                      <Textarea
+                        value={historyAllergy}
+                        onChange={(e) => setHistoryAllergy(e.target.value)}
+                        className="text-xs min-h-[30px] resize-none"
                       />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Others
+                      </Label>
+                      <Textarea
+                        value={historyOthers}
+                        onChange={(e) => setHistoryOthers(e.target.value)}
+                        className="text-xs min-h-[30px] resize-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs space-y-0.5">
+                    {historyPersonal && (
+                      <div>
+                        <span className="font-semibold">Personal: </span>
+                        {historyPersonal}
+                      </div>
+                    )}
+                    {historyFamily && (
+                      <div>
+                        <span className="font-semibold">Family: </span>
+                        {historyFamily}
+                      </div>
+                    )}
+                    {historyImmunization && (
+                      <div>
+                        <span className="font-semibold">Immunization: </span>
+                        {historyImmunization}
+                      </div>
+                    )}
+                    {historyAllergy && (
+                      <div>
+                        <span className="font-semibold">Allergy: </span>
+                        {historyAllergy}
+                      </div>
+                    )}
+                    {historyOthers && (
+                      <div>
+                        <span className="font-semibold">Others: </span>
+                        {historyOthers}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {(dh || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-amber-600 mb-0.5">
+                  D/H
+                </div>
+                {editMode ? (
+                  <Textarea
+                    value={dh}
+                    onChange={(e) => setDh(e.target.value)}
+                    className="text-xs min-h-[50px] resize-none"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-xs">{dh}</div>
+                )}
+              </div>
+            )}
+            {(oe || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-rose-600 mb-0.5">
+                  O/E
+                </div>
+                {editMode ? (
+                  <Textarea
+                    value={oe}
+                    onChange={(e) => setOe(e.target.value)}
+                    className="text-xs min-h-[60px] resize-none"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-xs">{oe}</div>
+                )}
+              </div>
+            )}
+            {(investigation || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-teal-600 mb-0.5">
+                  Investigation
+                </div>
+                {editMode ? (
+                  <Textarea
+                    value={investigation}
+                    onChange={(e) => setInvestigation(e.target.value)}
+                    className="text-xs min-h-[60px] resize-none"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-xs">
+                    {investigation}
+                  </div>
+                )}
+              </div>
+            )}
+            {(adviceNewInv || editMode) && (
+              <div>
+                <div className="font-bold text-xs uppercase text-orange-600 mb-0.5">
+                  Advice / New Inv.
+                </div>
+                {editMode ? (
+                  <Textarea
+                    value={adviceNewInv}
+                    onChange={(e) => setAdviceNewInv(e.target.value)}
+                    className="text-xs min-h-[50px] resize-none"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-xs">
+                    {adviceNewInv}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Rx */}
+          <div className="col-span-3">
+            {(diagnosisVal || editMode) && (
+              <div className="mb-2">
+                <span className="font-bold text-sm">Dx: </span>
+                {editMode ? (
+                  <input
+                    value={diagnosisVal}
+                    onChange={(e) => setDiagnosisVal(e.target.value)}
+                    className="border-b border-gray-300 text-sm ml-1 outline-none w-full mt-1"
+                  />
+                ) : (
+                  <span className="text-sm">{diagnosisVal}</span>
+                )}
+              </div>
+            )}
+            <div className="text-2xl font-bold mb-2">&#8477;</div>
+
+            {drugs.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">
+                No medications added.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {drugs.map((d, i) => (
+                  <div key={`drug-${d.drugName}-${i}`} className="leading-snug">
+                    {/* Line 1 */}
+                    <div className="text-sm font-medium">
+                      {i + 1}.{" "}
+                      <span className="text-indigo-600">{d.drugForm}</span>{" "}
+                      {d.brandName ? (
+                        <>
+                          <strong>{d.brandName}</strong>
+                          {d.drugName && (
+                            <span className="text-gray-400 text-xs ml-1">
+                              ({d.drugName})
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        d.drugName || d.name
+                      )}{" "}
+                      <span>{d.dose}</span>
+                    </div>
+                    {/* Line 2 */}
+                    <div className="text-xs text-gray-500 pl-4">
+                      {[
+                        d.frequencyBn || d.frequency,
+                        d.durationBn || d.duration
+                          ? `– ${d.durationBn || d.duration}`
+                          : "",
+                        d.instructionBn || d.instructions,
+                      ]
+                        .filter(Boolean)
+                        .join("  ")}
+                      {(d.specialInstructionBn || d.specialInstruction) && (
+                        <span className="text-orange-600 ml-1">
+                          · {d.specialInstructionBn || d.specialInstruction}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div style={{ lineHeight: "2" }}>
-                <BlankLine width="95%" />
-                <br />
-                <BlankLine width="95%" />
-                <br />
-                <BlankLine width="95%" />
-                <br />
-                <BlankLine width="95%" />
-                <br />
-                <BlankLine width="95%" />
-                <br />
-                <BlankLine width="95%" />
-                <br />
-                <BlankLine width="80%" />
+            )}
+
+            {/* Advice */}
+            {(adviceText || editMode) && (
+              <div className="mt-3 pt-2 border-t">
+                <div className="font-bold text-xs uppercase text-gray-500 mb-1">
+                  পরামর্শ
+                </div>
+                {editMode ? (
+                  <Textarea
+                    value={adviceText}
+                    onChange={(e) => setAdviceText(e.target.value)}
+                    className="text-xs min-h-[60px] resize-none"
+                    placeholder="Bengali advice..."
+                  />
+                ) : (
+                  <div className="text-xs whitespace-pre-wrap">
+                    {adviceText}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Notes */}
-            <div style={{ marginTop: "10px" }}>
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontStyle: "italic",
-                  color: "#444",
-                  fontWeight: 700,
-                }}
-              >
-                Note:{" "}
-              </span>
-              <span
-                contentEditable={editMode}
-                suppressContentEditableWarning
-                onBlur={(e) => fc("notes", e.currentTarget.textContent || "")}
-                style={{
-                  fontSize: "9px",
-                  fontStyle: "italic",
-                  color: "#444",
-                  outline: editMode ? "1px dashed #f59e0b" : "none",
-                  background: editMode ? "#fffbeb" : "transparent",
-                  minWidth: "60px",
-                  display: "inline-block",
-                  cursor: editMode ? "text" : "default",
-                }}
-              >
-                {ef.notes ?? prescription?.notes ?? ""}
-              </span>
+            {/* Doctor Signature */}
+            <div className="mt-8 pt-4 text-right">
+              <div className="inline-block text-center">
+                <div className="border-t border-gray-500 pt-1 min-w-[140px]">
+                  <p className="text-xs text-gray-600 font-semibold">
+                    Doctor's Signature
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Dr. Arman Kabir (ZOSID)
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* ===== FOOTER ===== */}
-        <hr
-          style={{
-            border: "none",
-            borderTop: "1px solid #aaa",
-            margin: "8px 0 5px",
-          }}
-        />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "8px",
-            fontFamily: "'Noto Sans Bengali', Arial, sans-serif",
-          }}
-        >
-          <span
-            style={{ fontWeight: 700, fontSize: "9.5px", whiteSpace: "nowrap" }}
-          >
-            পরবর্তী দেখার তারিখ:
-          </span>
-          <EditableSpan
-            fieldKey="next_visit"
-            value={nextVisitDate ?? ""}
-            editMode={editMode}
-            editedFields={ef}
-            onFieldChange={fc}
-            style={{ minWidth: "120px", fontSize: "9.5px" }}
-            placeholder="Next visit date"
-          />
         </div>
       </div>
     </div>

@@ -42,7 +42,6 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
   const { isAdmin } = useAdminAuth();
   const isOnline = useOnlineStatus();
 
-  // Build nav items — add Audit Log for admin or doctor roles
   const navigation = [...baseNavigation, ...(isAdmin ? [adminNavItem] : [])];
 
   const displayName = currentDoctor
@@ -77,7 +76,7 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
       )}
 
       {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50 shadow-xs">
+      <header className="bg-card border-b border-border sticky top-0 z-50 shadow-subtle">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             <Link
@@ -85,7 +84,7 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
               className="flex items-center gap-3 group"
               data-ocid="nav.patients_link"
             >
-              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm group-hover:bg-primary/90 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm group-hover:bg-primary/90 transition-smooth">
                 <Stethoscope className="w-5 h-5 text-primary-foreground" />
               </div>
               <div className="hidden sm:block">
@@ -100,11 +99,11 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
 
             <nav className="hidden md:flex items-center gap-1">
               {navigation.map((item) => {
-                const label = (item as any).label || item.name;
+                const label = (item as { label?: string }).label || item.name;
                 return (
                   <Link
                     key={item.name}
-                    to={item.href as any}
+                    to={item.href as "/Patients"}
                     data-ocid={`nav.${item.name.toLowerCase()}_link`}
                   >
                     <Button
@@ -153,11 +152,11 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
           <div className="md:hidden border-t border-border bg-card">
             <nav className="p-3 space-y-1">
               {navigation.map((item) => {
-                const label = (item as any).label || item.name;
+                const label = (item as { label?: string }).label || item.name;
                 return (
                   <Link
                     key={item.name}
-                    to={item.href as any}
+                    to={item.href as "/Patients"}
                     onClick={() => setMobileMenuOpen(false)}
                     data-ocid={`nav.${item.name.toLowerCase()}_link`}
                   >
@@ -205,13 +204,13 @@ export default function Layout({ children, currentPageName }: LayoutProps) {
       >
         <div className="flex items-stretch h-14">
           {navigation.slice(0, 4).map((item) => {
-            const label = (item as any).label || item.name;
+            const label = (item as { label?: string }).label || item.name;
             return (
               <Link
                 key={item.name}
-                to={item.href as any}
+                to={item.href as "/Patients"}
                 className={cn(
-                  "flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors",
+                  "flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-smooth",
                   isActive(item.name)
                     ? "text-primary"
                     : "text-muted-foreground",

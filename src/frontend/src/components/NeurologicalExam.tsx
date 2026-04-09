@@ -115,16 +115,18 @@ const neuroData = {
   },
 };
 
+type NeuroExamData = Record<string, unknown>;
+
 interface NeurologicalExamProps {
-  data: any;
-  onChange: (data: any) => void;
+  data: NeuroExamData;
+  onChange: (data: NeuroExamData) => void;
 }
 
 export default function NeurologicalExam({
   data,
   onChange,
 }: NeurologicalExamProps) {
-  const [examData, setExamData] = useState(
+  const [examData, setExamData] = useState<NeuroExamData>(
     data || {
       general_inspection: [],
       consciousness: "",
@@ -144,14 +146,14 @@ export default function NeurologicalExam({
     },
   );
 
-  const update = (patch: Record<string, any>) => {
+  const update = (patch: NeuroExamData) => {
     const newData = { ...examData, ...patch };
     setExamData(newData);
     onChange(newData);
   };
 
   const toggleMulti = (field: string, value: string) => {
-    const current: string[] = examData[field] || [];
+    const current: string[] = (examData[field] as string[]) || [];
     update({
       [field]: current.includes(value)
         ? current.filter((v: string) => v !== value)
@@ -163,7 +165,8 @@ export default function NeurologicalExam({
     update({ [field]: value });
 
   const setNested = (parent: string, key: string, value: string) => {
-    update({ [parent]: { ...(examData[parent] || {}), [key]: value } });
+    const existing = (examData[parent] as Record<string, string>) || {};
+    update({ [parent]: { ...existing, [key]: value } });
   };
 
   return (
@@ -185,9 +188,9 @@ export default function NeurologicalExam({
             </Label>
             <div className="flex flex-wrap gap-2">
               {neuroData.inspection.general.map((opt) => {
-                const active = (examData.general_inspection || []).includes(
-                  opt.en,
-                );
+                const active = (
+                  (examData.general_inspection as string[]) || []
+                ).includes(opt.en);
                 return (
                   <Badge
                     key={opt.en}
@@ -295,7 +298,10 @@ export default function NeurologicalExam({
                   </Label>
                   <div className="flex flex-wrap gap-1">
                     {neuroData.palpation.toneOptions.map((opt) => {
-                      const active = examData.muscle_tone?.[limb.key] === opt;
+                      const active =
+                        (examData.muscle_tone as Record<string, string>)?.[
+                          limb.key
+                        ] === opt;
                       return (
                         <Badge
                           key={opt}
@@ -326,7 +332,10 @@ export default function NeurologicalExam({
                   </Label>
                   <div className="flex flex-wrap gap-1">
                     {sign.options.map((opt) => {
-                      const active = examData.meningeal?.[sign.key] === opt;
+                      const active =
+                        (examData.meningeal as Record<string, string>)?.[
+                          sign.key
+                        ] === opt;
                       return (
                         <Badge
                           key={opt}
@@ -369,7 +378,9 @@ export default function NeurologicalExam({
                   </Label>
                   <div className="flex flex-wrap gap-1">
                     {neuroData.percussion.dtrOptions.map((opt) => {
-                      const active = examData.dtr?.[ref.key] === opt;
+                      const active =
+                        (examData.dtr as Record<string, string>)?.[ref.key] ===
+                        opt;
                       return (
                         <Badge
                           key={opt}
@@ -472,7 +483,7 @@ export default function NeurologicalExam({
               Notes / নোট
             </Label>
             <Textarea
-              value={examData.auscultation_notes || ""}
+              value={(examData.auscultation_notes as string) || ""}
               onChange={(e) => update({ auscultation_notes: e.target.value })}
               placeholder="Additional auscultation findings..."
               rows={3}
@@ -523,9 +534,9 @@ export default function NeurologicalExam({
                   bn: "দ্রুত পর্যায়ক্রমিক গতি - অস্বাভাবিক",
                 },
               ].map((test) => {
-                const active = (examData.coordination_tests || []).includes(
-                  test.en,
-                );
+                const active = (
+                  (examData.coordination_tests as string[]) || []
+                ).includes(test.en);
                 return (
                   <Badge
                     key={test.en}
@@ -581,9 +592,9 @@ export default function NeurologicalExam({
                 { en: "Orientation intact", bn: "দিক নির্ণয় স্বাভাবিক" },
                 { en: "Orientation impaired", bn: "দিক নির্ণয় দুর্বল" },
               ].map((test) => {
-                const active = (examData.cognitive_tests || []).includes(
-                  test.en,
-                );
+                const active = (
+                  (examData.cognitive_tests as string[]) || []
+                ).includes(test.en);
                 return (
                   <Badge
                     key={test.en}

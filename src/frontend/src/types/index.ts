@@ -21,6 +21,15 @@ export interface Medication {
   frequency: string;
   duration: string;
   instructions?: string;
+  drugForm?: string;
+  drugName?: string;
+  route?: string;
+  routeBn?: string;
+  frequencyBn?: string;
+  durationBn?: string;
+  instructionsBn?: string;
+  specialInstruction?: string;
+  specialInstructionBn?: string;
   [key: string]: string | undefined;
 }
 
@@ -41,7 +50,6 @@ export interface Patient {
   pastSurgicalHistory?: string;
   patientType: "outdoor" | "indoor" | "emergency";
   createdAt: bigint;
-  // Extended fields stored as-is
   registerNumber?: string;
   photo?: string;
   [key: string]: unknown;
@@ -87,4 +95,33 @@ export interface UserProfile {
   address?: string;
   photo?: string;
   [key: string]: unknown;
+}
+
+// Appointment type
+export interface Appointment {
+  id: string;
+  patientId?: string;
+  patientName: string;
+  phone: string;
+  registerNumber?: string;
+  preferredDoctor: string;
+  preferredChamber?: string;
+  preferredDate: string;
+  preferredTime: string;
+  reason?: string;
+  status: "pending" | "confirmed" | "cancelled";
+  createdAt: string;
+  createdBy?: string;
+  notes?: string;
+}
+
+// Serial Queue
+export interface SerialEntry {
+  id: string;
+  serialNumber: number;
+  patientName: string;
+  phone?: string;
+  status: "waiting" | "current" | "done" | "skipped";
+  addedAt: string;
+  calledAt?: string;
 }

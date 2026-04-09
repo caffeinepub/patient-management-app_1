@@ -43,7 +43,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { Medication } from "../types";
 import {
   type AdviceTemplate,
@@ -58,6 +59,51 @@ import {
   type TreatmentTemplate,
   searchTreatmentTemplates,
 } from "./TreatmentTemplates";
+
+// ─── Error Boundary ────────────────────────────────────────────────────────────
+interface ErrorBoundaryState {
+  hasError: boolean;
+  message: string;
+}
+class PrescriptionErrorBoundary extends Component<
+  { children: ReactNode; onCancel: () => void },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode; onCancel: () => void }) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    return {
+      hasError: true,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-50 p-8">
+          <div className="max-w-md w-full bg-white rounded-xl border border-red-200 p-6 shadow-lg text-center space-y-4">
+            <p className="text-red-600 font-semibold text-lg">
+              Prescription & EMR failed to load
+            </p>
+            <p className="text-sm text-gray-600 bg-red-50 rounded p-3 text-left font-mono break-all">
+              {this.state.message}
+            </p>
+            <button
+              type="button"
+              onClick={this.props.onCancel}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface UpgradedPrescriptionEMRProps {
   patientId: bigint;
@@ -484,6 +530,14 @@ function populateFromVisitData(
 export default function UpgradedPrescriptionEMR(
   props: UpgradedPrescriptionEMRProps,
 ) {
+  return (
+    <PrescriptionErrorBoundary onCancel={props.onCancel}>
+      <UpgradedPrescriptionEMRInner {...props} />
+    </PrescriptionErrorBoundary>
+  );
+}
+
+function UpgradedPrescriptionEMRInner(props: UpgradedPrescriptionEMRProps) {
   const {
     patientId,
     visitId,
@@ -638,32 +692,46 @@ export default function UpgradedPrescriptionEMR(
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
   useEffect(() => {
     try {
-      if (forceVisitData && visitExtendedData) {
+      if (
+        forceVisitData &&
+        visitExtendedData &&
+        typeof visitExtendedData === "object"
+      ) {
         // Skip draft, load from this specific visit
         applyVisitData(visitExtendedData);
       } else {
         const raw = localStorage.getItem(DRAFT_KEY);
         if (raw) {
-          const d = JSON.parse(raw);
-          if (d.cc) setCc(d.cc);
-          if (d.pmh) setPmh(d.pmh);
-          if (d.dh) setDh(d.dh);
-          if (d.oe) setOe(d.oe);
-          if (d.investigation) setInvestigation(d.investigation);
-          if (d.adviceNewInv) setAdviceNewInv(d.adviceNewInv);
-          if (d.adviceText) setAdviceText(d.adviceText);
-          if (d.diagnoses) setDiagnoses(d.diagnoses);
-          else if (d.diagnosis) setDiagnoses([d.diagnosis]);
-          if (d.diagnosis) setDiagnosis(d.diagnosis);
-          if (d.rxDrugs) setRxDrugs(d.rxDrugs);
-        } else if (visitExtendedData) {
+          try {
+            const d = JSON.parse(raw);
+            if (d && typeof d === "object") {
+              if (d.cc) setCc(d.cc);
+              if (d.pmh) setPmh(d.pmh);
+              if (d.dh) setDh(d.dh);
+              if (d.oe) setOe(d.oe);
+              if (d.investigation) setInvestigation(d.investigation);
+              if (d.adviceNewInv) setAdviceNewInv(d.adviceNewInv);
+              if (d.adviceText) setAdviceText(d.adviceText);
+              if (d.diagnoses) setDiagnoses(d.diagnoses);
+              else if (d.diagnosis) setDiagnoses([d.diagnosis]);
+              if (d.diagnosis) setDiagnosis(d.diagnosis);
+              if (d.rxDrugs) setRxDrugs(d.rxDrugs);
+            }
+          } catch {
+            /* ignore corrupt draft */
+          }
+        } else if (visitExtendedData && typeof visitExtendedData === "object") {
           applyVisitData(visitExtendedData);
         }
       }
     } catch {
       /* ignore */
     }
-    setAllTemplates(getAllTemplates());
+    try {
+      setAllTemplates(getAllTemplates());
+    } catch {
+      /* ignore */
+    }
   }, [DRAFT_KEY]);
 
   // Auto-save draft
@@ -1007,10 +1075,33 @@ export default function UpgradedPrescriptionEMR(
 
   function getDoctorInfo() {
     try {
+      // Try per-doctor profile key first (matches useQueries.ts pattern)
+      const sessionId = localStorage.getItem("medicare_current_doctor");
+      if (sessionId) {
+        const registry = JSON.parse(
+          localStorage.getItem("medicare_doctors_registry") || "[]",
+        ) as Array<{ id: string; email: string }>;
+        const doctor = registry.find((d) => d.id === sessionId);
+        if (doctor?.email) {
+          const profileRaw = localStorage.getItem(
+            `doctor_profile_${doctor.email}`,
+          );
+          if (profileRaw) {
+            const profile = JSON.parse(profileRaw);
+            if (profile) return profile;
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      // Fallback: legacy key
       const data = localStorage.getItem("medicare_doctors_data");
       if (data) {
         const parsed = JSON.parse(data);
-        const doc = parsed.drArman || parsed[0] || null;
+        const doc =
+          parsed.drArman || (Array.isArray(parsed) ? parsed[0] : null) || null;
         if (doc) return doc;
       }
     } catch {
@@ -1117,7 +1208,7 @@ export default function UpgradedPrescriptionEMR(
           ))}
           <div>
             <span className="text-muted-foreground text-sm block mb-0.5">
-              Age
+              Age <span className="font-bold text-xs">(yrs)</span>
             </span>
             <input
               className={inp}
@@ -1144,7 +1235,7 @@ export default function UpgradedPrescriptionEMR(
           </div>
           {[
             {
-              label: "Weight",
+              label: "Weight (kg)",
               value: weight,
               set: setWeight,
               id: "rx.weight.input",
@@ -3358,7 +3449,7 @@ function PrescriptionPreview({
           )}
           {age && (
             <span>
-              <strong>Age:</strong> {age}
+              <strong>Age:</strong> {age} <strong>yrs</strong>
             </span>
           )}
           {sex && (
@@ -3368,7 +3459,7 @@ function PrescriptionPreview({
           )}
           {weight && (
             <span>
-              <strong>Weight:</strong> {weight}
+              <strong>Weight:</strong> {weight} <strong>kg</strong>
             </span>
           )}
           {regNo && (
@@ -3545,6 +3636,19 @@ function PrescriptionPreview({
                 <div className="text-xs whitespace-pre-wrap">{adviceText}</div>
               </div>
             )}
+            {/* Doctor Signature */}
+            <div className="mt-8 pt-4 text-right">
+              <div className="inline-block text-center">
+                <div className="border-t border-gray-500 pt-1 min-w-[140px]">
+                  <p className="text-xs text-gray-600 font-semibold">
+                    Doctor's Signature
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {doctorInfo?.name ?? "Dr. Arman Kabir (ZOSID)"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -64,7 +64,6 @@ export function loadFromStorage<T>(key: string): T[] {
 }
 
 // Scan ALL keys with prefix (e.g., patients_*) regardless of doctor email
-// Used when patient is logged in and there is no doctor session
 export function loadFromAllDoctorKeys<T>(prefix: string): T[] {
   try {
     const results: T[] = [];
@@ -89,10 +88,22 @@ export function loadFromAllDoctorKeys<T>(prefix: string): T[] {
 
 export function getDoctorEmail(): string {
   try {
+    // First try the staff_auth key (legacy)
     const raw = localStorage.getItem("staff_auth");
-    if (!raw) return "default";
-    const parsed = JSON.parse(raw);
-    return parsed?.email || "default";
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.email) return parsed.email;
+    }
+    // Fall back to the doctor session
+    const sessionId = localStorage.getItem("medicare_current_doctor");
+    if (sessionId) {
+      const registry = JSON.parse(
+        localStorage.getItem("medicare_doctors_registry") || "[]",
+      ) as Array<{ id: string; email: string }>;
+      const doctor = registry.find((d) => d.id === sessionId);
+      if (doctor?.email) return doctor.email;
+    }
+    return "default";
   } catch {
     return "default";
   }
@@ -103,16 +114,16 @@ export function storageKey(prefix: string): string {
 }
 
 // Helper to get visit form data, scanning all doctor emails as fallback
+// biome-ignore lint/suspicious/noExplicitAny: visit form data has dynamic shape
 export function getVisitFormData(
   visitId: string | bigint | null,
 ): Record<string, any> | null {
   if (!visitId) return null;
   const id = String(visitId);
-  // Try current doctor first
   const email = getDoctorEmail();
   try {
     const raw = localStorage.getItem(`visit_form_data_${id}_${email}`);
-    if (raw) return JSON.parse(raw);
+    if (raw) return JSON.parse(raw) as Record<string, unknown>;
   } catch {}
   // Scan all matching keys
   for (let i = 0; i < localStorage.length; i++) {
@@ -120,7 +131,7 @@ export function getVisitFormData(
     if (key?.startsWith(`visit_form_data_${id}_`)) {
       try {
         const raw = localStorage.getItem(key);
-        if (raw) return JSON.parse(raw);
+        if (raw) return JSON.parse(raw) as Record<string, unknown>;
       } catch {}
     }
   }
@@ -169,9 +180,9 @@ export function createPatientInStorage(data: {
     id: nextId(patients),
     fullName: data.fullName,
     phone: data.phone ?? undefined,
-    gender: (data.gender ?? "male") as any,
+    gender: (data.gender ?? "male") as Patient["gender"],
     dateOfBirth: data.dateOfBirth ?? undefined,
-    patientType: (data.patientType ?? "outdoor") as any,
+    patientType: (data.patientType ?? "outdoor") as Patient["patientType"],
     allergies: data.allergies ?? [],
     chronicConditions: data.chronicConditions ?? [],
     createdAt: BigInt(Date.now()) * 1000000n,
@@ -238,7 +249,7 @@ export function useCreatePatient() {
           fullName: data.fullName,
           nameBn: data.nameBn ?? undefined,
           dateOfBirth: data.dateOfBirth ?? undefined,
-          gender: data.gender as any,
+          gender: data.gender as Patient["gender"],
           phone: data.phone ?? undefined,
           email: data.email ?? undefined,
           address: data.address ?? undefined,
@@ -248,12 +259,12 @@ export function useCreatePatient() {
           allergies: data.allergies,
           chronicConditions: data.chronicConditions,
           pastSurgicalHistory: data.pastSurgicalHistory ?? undefined,
-          patientType: data.patientType as any,
+          patientType: data.patientType as Patient["patientType"],
           createdAt: BigInt(Date.now()) * 1000000n,
-        } as any;
-        (newPatient as any).registerNumber = registerNumber;
-        if ((data as any).photo !== undefined) {
-          (newPatient as any).photo = (data as any).photo;
+          registerNumber,
+        } as Patient;
+        if (data.photo !== undefined) {
+          (newPatient as Record<string, unknown>).photo = data.photo;
         }
         saveToStorage(key, [...patients, newPatient]);
         return newPatient;
@@ -285,6 +296,7 @@ export function useUpdatePatient() {
       chronicConditions: string[];
       pastSurgicalHistory: string | null;
       patientType: string;
+      photo?: string | null;
     }) => {
       try {
         const key = storageKey("patients");
@@ -296,7 +308,7 @@ export function useUpdatePatient() {
                 fullName: data.fullName,
                 nameBn: data.nameBn ?? undefined,
                 dateOfBirth: data.dateOfBirth ?? undefined,
-                gender: data.gender as any,
+                gender: data.gender as Patient["gender"],
                 phone: data.phone ?? undefined,
                 email: data.email ?? undefined,
                 address: data.address ?? undefined,
@@ -306,7 +318,8 @@ export function useUpdatePatient() {
                 allergies: data.allergies,
                 chronicConditions: data.chronicConditions,
                 pastSurgicalHistory: data.pastSurgicalHistory ?? undefined,
-                patientType: data.patientType as any,
+                patientType: data.patientType as Patient["patientType"],
+                ...(data.photo !== undefined ? { photo: data.photo } : {}),
               }
             : p,
         );
@@ -383,7 +396,7 @@ export function useCreateVisit() {
         physicalExamination: data.physicalExamination ?? undefined,
         diagnosis: data.diagnosis ?? undefined,
         notes: data.notes ?? undefined,
-        visitType: data.visitType as any,
+        visitType: data.visitType as Visit["visitType"],
         createdAt: BigInt(Date.now()) * 1000000n,
       };
       saveToStorage(key, [...visits, newVisit]);
